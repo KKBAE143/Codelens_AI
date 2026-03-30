@@ -1,0 +1,27 @@
+Option A — Role-Based Course Generation
+Same repo, different courses for different audiences. User picks who they are before generating:
+
+"Vibe Coder" → focus on debugging and understanding the big picture
+"New Engineer" → focus on onboarding, architecture, data flows
+"Product Manager" → no code, just flows and what the system does
+"Security Auditor" → focus on data handling, API keys, vulnerabilities
+Option B — Debugging Guide Module
+Every course automatically includes a dedicated module: "The 5 most likely things to break and exactly where to look first." Directly addresses the #1 pain point of developers getting stuck in AI bug loops.
+
+Option C — "Why This Was Built This Way" Section
+The AI specifically extracts Architecture Decision Records (ADRs) — explanations of why the codebase is structured as it is, not just what it does. Shows up as a dedicated section in each course.
+
+Option D — Informative Progress Stream
+During generation, instead of "Analyzing codebase…", the app shows what was actually discovered in real time: "Found 4 major modules — Auth (2 files), API Router (8 files), Database Layer (3 files), UI Components (15 files)." Makes the wait feel productive, not opaque.
+
+Option E — Pre-Built Demo Library
+Actually pre-generate 3–5 famous OSS repos (e.g., Express.js, FastAPI, React itself) and ship them in the app. New users immediately see the full output quality without generating anything. Dramatically improves first impressions.
+
+Option F — Shareable Course Links
+Each course gets a permanent public URL. Anyone with the link can view it — no account needed. Critical for the onboarding and agency handoff use cases.
+
+Option G — GitHub Webhook / Auto-Regenerate
+When the repo gets new commits, the course auto-regenerates. The dashboard shows "Updated 3 days ago" badges and "3 new files since your last view" diffs.
+
+Option H — Team Mode
+An organization can have multiple users. Managers assign courses to new hires. Dashboard shows who's completed which courses. Integrates with Slack to notify when a new course is generated.

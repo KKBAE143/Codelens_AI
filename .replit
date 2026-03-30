@@ -1,0 +1,37 @@
+modules = ["nodejs-24"]
+
+[[artifacts]]
+id = "artifacts/api-server"
+
+[[artifacts]]
+id = "artifacts/mockup-sandbox"
+
+[deployment]
+router = "application"
+deploymentTarget = "autoscale"
+
+[deployment.postBuild]
+args = ["pnpm", "store", "prune"]
+env = { "CI" = "true" }
+
+[workflows]
+runButton = "Project"
+
+[agent]
+stack = "PNPM_WORKSPACE"
+expertMode = true
+integrations = ["stripe:1.0.0"]
+
+[postMerge]
+path = "scripts/post-merge.sh"
+timeoutMs = 20000
+
+[userenv]
+
+[userenv.shared]
+ENCRYPTION_KEY = "8f526ad115d23d0e48d99c65417f266ee85c01d541ea25a378e0e8576990ed53"
+GITHUB_CLIENT_ID = "Ov23liKI8oRIZqnqGVNQ"
+NEON_DATABASE_URL = "postgresql://neondb_owner:npg_4S8TvCyVdzPE@ep-solitary-heart-a1xqs8hl-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+
+[nix]
+channel = "stable-25_05"

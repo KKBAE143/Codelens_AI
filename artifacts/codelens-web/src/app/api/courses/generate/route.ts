@@ -1,0 +1,144 @@
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
+import { NextResponse } from "next/server";
+import { requireAuth } from "@/lib/auth";
+import { checkAndIncrementUsage } from "@/lib/rate-limit";
+import { parseGithubUrl } from "@/lib/github";
+import { inngest, isInngestConfigured } from "@/lib/inngest";
+import { generateCourseDirect } from "@/lib/jobs/generate-course-direct";
+import { db } from "@workspace/db";
+import { courses, organizations, organizationMembers } from "@workspace/db/schema";
+import { eq, and } from "drizzle-orm";
+import { sendSlackNotification, courseGeneratedMessage } from "@/lib/slack";
+
+export async function POST(request: Request) {
+  let user;
+  try {
+    user = await requireAuth();
+  } catch {
+    return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+
+  const { githubUrl, targetAudience, organizationSlug } = body;
+
+  if (!githubUrl || typeof githubUrl !== "string") {
+    return NextResponse.json({ error: "githubUrl is required" }, { status: 400 });
+  }
+
+  const validAudiences = ["vibe_coder", "new_engineer", "product_manager", "security_auditor"];
+  const audience = validAudiences.includes(targetAudience) ? targetAudience : "new_engineer";
+
+  let parsed;
+  try {
+    parsed = parseGithubUrl(githubUrl);
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Invalid GitHub URL" },
+      { status: 400 }
+    );
+  }
+
+  const rateLimit = await checkAndIncrementUsage(user.id);
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      {
+        error: "Monthly generation limit reached. Upgrade to Pro for unlimited generations.",
+        remaining: rateLimit.remaining,
+        resetAt: rateLimit.resetAt.toISOString(),
+      },
+      { status: 429 }
+    );
+  }
+
+  let organizationId: string | null = null;
+  if (organizationSlug && typeof organizationSlug === "string") {
+    if (user.plan !== "team") {
+      return NextResponse.json({ error: "Team plan required to generate courses for an organization" }, { status: 403 });
+    }
+
+    const [org] = await db
+      .select({ id: organizations.id, slackWebhookUrl: organizations.slackWebhookUrl })
+      .from(organizations)
+      .where(eq(organizations.slug, organizationSlug))
+      .limit(1);
+
+    if (!org) {
+      return NextResponse.json({ error: "Organization not found" }, { status: 404 });
+    }
+
+    const [membership] = await db
+      .select()
+      .from(organizationMembers)
+      .where(
+        and(
+          eq(organizationMembers.organizationId, org.id),
+          eq(organizationMembers.userId, user.id),
+          eq(organizationMembers.status, "active")
+        )
+      )
+      .limit(1);
+
+    if (!membership) {
+      return NextResponse.json({ error: "Not a member of this organization" }, { status: 403 });
+    }
+
+    organizationId = org.id;
+  }
+
+  const [course] = await db
+    .insert(courses)
+    .values({
+      githubUrl: githubUrl.trim(),
+      repoName: parsed.repo,
+      ownerName: parsed.owner,
+      defaultBranch: parsed.branch || "main",
+      targetAudience: audience,
+      status: "pending",
+      createdBy: user.id,
+      organizationId,
+    })
+    .returning();
+
+  if (isInngestConfigured()) {
+    await inngest.send({
+      name: "codelens/course.generate",
+      data: { courseId: course.id },
+    });
+  } else {
+    generateCourseDirect(course.id).catch((err) => {
+      console.error("Direct course generation failed:", err);
+    });
+  }
+
+  if (organizationId) {
+    const [org] = await db
+      .select({ slackWebhookUrl: organizations.slackWebhookUrl })
+      .from(organizations)
+      .where(eq(organizations.id, organizationId))
+      .limit(1);
+
+    if (org?.slackWebhookUrl) {
+      sendSlackNotification(
+        org.slackWebhookUrl,
+        courseGeneratedMessage(
+          `${parsed.owner}/${parsed.repo}`,
+          audience,
+          user.displayName
+        )
+      ).catch(() => {});
+    }
+  }
+
+  return NextResponse.json({
+    courseId: course.id,
+    message: "Generation started",
+  });
+}

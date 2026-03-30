@@ -1,0 +1,35 @@
+{
+  "name": "@workspace/codelens-web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev --hostname 0.0.0.0 --port ${PORT:-26099}",
+    "build": "next build",
+    "start": "next start --hostname 0.0.0.0 --port ${PORT:-26099}"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "catalog:",
+    "@workspace/db": "workspace:*",
+    "@workspace/integrations-gemini-ai": "workspace:*",
+    "canvas-confetti": "^1.9.4",
+    "crypto-js": "^4.2.0",
+    "drizzle-orm": "catalog:",
+    "framer-motion": "catalog:",
+    "inngest": "^4.1.0",
+    "next": "^15.3.3",
+    "react": "catalog:",
+    "react-dom": "catalog:"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.14",
+    "@types/canvas-confetti": "^1.9.0",
+    "@types/crypto-js": "^4.2.2",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "postcss": "^8.5.6",
+    "tailwindcss": "catalog:",
+    "typescript": "^5.8.3"
+  }
+}
