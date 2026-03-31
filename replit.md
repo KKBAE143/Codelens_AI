@@ -133,7 +133,7 @@ Files in `artifacts/codelens-web/src/lib/`:
 - `inngest.ts` — Inngest client + event type definitions
 - `github.ts` — Repomix-style repo extractor: full file tree cataloguing, skip/include lists, health check (file count, binary ratio), PageRank-based file scoring, 200KB max per file, up to 100 files for full content, 90K token budget. Special parsers for package.json, .env.example, Dockerfile. Repo map with function/class signature extraction.
 - `repo-map.ts` — Aider-style repo map: regex-based function/class/method signature extraction for 10+ languages, import graph parsing, PageRank scoring (in-degree + PageRank × extension bonus × directory bonus).
-- `token-counter.ts` — js-tiktoken wrapper: `countTokens()`, `truncateToTokenBudget()`, `estimateTokens()`.
+- `token-counter.ts` — js-tiktoken wrapper: `countTokens()`, `truncateToTokenBudget()`, `estimateTokens()`, `truncateAtFunctionBoundary()` (cuts at nearest function/class boundary), `getDepthTokenBudget()` (quick:4K, full:8K, deep:16K), `getDepthContextBudget()` (quick:20K, full:40K, deep:60K).
 - `v2-schema.ts` — Zod schemas for all v2 block types and chapter validation.
 - `ai-pipeline.ts` — Legacy 3-stage pipeline (kept for reference, no longer used by generation jobs).
 - `prompts.ts` — Legacy prompts (kept for reference).
@@ -141,10 +141,10 @@ Files in `artifacts/codelens-web/src/lib/`:
 - `pipeline/prompts.ts` — New PocketFlow prompts for all 6 stages: abstraction identification (YAML), relationship mapping (YAML adjacency), chapter ordering (YAML), per-chapter writing (JSON blocks), special modules (setup, dependencies, troubleshooting, overview).
 - `pipeline/stages.ts` — 6-stage pipeline:
   - Stage 0: Repo health check + Repomix-style extraction with PageRank file scoring
-  - Stage 1: Identify abstractions (YAML output, name + description + file_indices, retry logic)
+  - Stage 1: Identify abstractions (YAML output, name + description + file_indices, retry logic, robust YAML parsing with multiple fallbacks)
   - Stage 2: Analyze relationships (YAML adjacency list, drives Mermaid diagrams + chapter ordering)
   - Stage 3: Order chapters (learning-complexity sort, focus area weighting, mandatory module injection)
-  - Stage 4: Write chapters in parallel (concurrency 3, per-chapter token budget, Zod validation, partial failure recovery)
+  - Stage 4: Write chapters in parallel (concurrency 3, depth-based token budget, PageRank-scored file ordering per abstraction, function-boundary-aware truncation, cross-abstraction context injection, progressive prompt simplification on retry, Zod validation, partial failure recovery)
   - Stage 5: Assemble v2 course JSON (overview graph from relationships, `__codelens_v2__` prefix)
 - `pipeline/index.ts` — Pipeline exports.
 - `rate-limit.ts` — Plan-based rate limiting.

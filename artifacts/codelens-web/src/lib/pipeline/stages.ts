@@ -1,5 +1,5 @@
 import { generateText } from "../llm";
-import { countTokens } from "../token-counter";
+import { countTokens, truncateAtFunctionBoundary, getDepthTokenBudget, getDepthContextBudget } from "../token-counter";
 import { v2ChapterSchema } from "../v2-schema";
 import type { TargetAudience } from "../prompts";
 import type { RepoExtraction } from "../github";
@@ -15,6 +15,7 @@ import {
   getOverviewChapterPrompt,
 } from "./prompts";
 import YAML from "yaml";
+import { computePageRank } from "../repo-map";
 
 export interface Abstraction {
   name: string;
@@ -529,20 +530,51 @@ function escapeControlInJsonStrings(json: string): string {
 
 function safeParseYaml(raw: string): unknown {
   let cleaned = raw.trim().replace(/^\uFEFF/, "");
-  const fenced = cleaned.match(/```(?:ya?ml)?\s*([\s\S]*?)\s*```/);
+
+  const fenced = cleaned.match(/```(?:ya?ml|json)?\s*([\s\S]*?)\s*```/);
   if (fenced) cleaned = fenced[1].trim();
+
+  const preYamlIdx = cleaned.search(/^-\s+\w+:/m);
+  if (preYamlIdx > 0) {
+    const before = cleaned.slice(0, preYamlIdx).trim();
+    if (!before.includes(":") && !before.startsWith("[") && !before.startsWith("{")) {
+      cleaned = cleaned.slice(preYamlIdx);
+    }
+  }
+
+  const postYamlMatch = cleaned.match(/\n\n(?:Note|Explanation|Here|The above|I hope|Let me|Please)[^\n]*\n/i);
+  if (postYamlMatch && postYamlMatch.index && postYamlMatch.index > cleaned.length * 0.3) {
+    cleaned = cleaned.slice(0, postYamlMatch.index);
+  }
 
   try {
     return YAML.parse(cleaned);
-  } catch {
-    const jsonMatch = cleaned.match(/[{[][\s\S]*[\]}]/);
-    if (jsonMatch) {
-      try {
-        return JSON.parse(jsonMatch[0]);
-      } catch {}
-    }
-    throw new Error("Failed to parse YAML from AI response");
+  } catch {}
+
+  try {
+    const fixedQuotes = cleaned.replace(
+      /^(\s*-\s+\w+:\s+)([^"'\n][^\n]*[^"'\n])$/gm,
+      (_, prefix: string, value: string) => {
+        if (value.includes('"') || value.includes("'")) return `${prefix}"${value.replace(/"/g, '\\"')}"`;
+        return `${prefix}"${value}"`;
+      }
+    );
+    return YAML.parse(fixedQuotes);
+  } catch {}
+
+  try {
+    const fixedIndent = cleaned.replace(/^\t/gm, "  ").replace(/^( {3})/gm, "  ");
+    return YAML.parse(fixedIndent);
+  } catch {}
+
+  const jsonMatch = cleaned.match(/[{[][\s\S]*[\]}]/);
+  if (jsonMatch) {
+    try {
+      return JSON.parse(jsonMatch[0]);
+    } catch {}
   }
+
+  throw new Error("Failed to parse YAML from AI response");
 }
 
 export async function runStage1Abstractions(
@@ -947,6 +979,97 @@ export async function runStage4WriteChapters(
   return results;
 }
 
+function getAbstractionFilesByPageRank(
+  abstraction: Abstraction,
+  extraction: RepoExtraction,
+): Array<{ path: string; content: string; size: number }> {
+  const files = abstraction.file_indices
+    .filter((idx) => idx < extraction.files.length)
+    .map((idx) => extraction.files[idx]);
+
+  if (files.length <= 1) return files;
+
+  const pageRank = computePageRank(files);
+
+  return [...files].sort((a, b) => {
+    const scoreA = pageRank.scores.get(a.path) || 0;
+    const scoreB = pageRank.scores.get(b.path) || 0;
+    const degreeA = pageRank.inDegree.get(a.path) || 0;
+    const degreeB = pageRank.inDegree.get(b.path) || 0;
+    return (scoreB * 1000 + degreeB) - (scoreA * 1000 + degreeA);
+  });
+}
+
+function buildCrossAbstractionContext(
+  currentAbstraction: string,
+  abstractions: Abstraction[],
+  relationships: Relationship[],
+): string {
+  const related = relationships.filter(
+    (r) => r.from === currentAbstraction || r.to === currentAbstraction,
+  );
+
+  if (related.length === 0) return "";
+
+  const relatedNames = new Set<string>();
+  for (const r of related) {
+    if (r.from !== currentAbstraction) relatedNames.add(r.from);
+    if (r.to !== currentAbstraction) relatedNames.add(r.to);
+  }
+
+  const summaries = abstractions
+    .filter((a) => relatedNames.has(a.name))
+    .map((a) => `**${a.name}**: ${a.description.slice(0, 200)}`)
+    .slice(0, 5);
+
+  if (summaries.length === 0) return "";
+
+  return `\n\nRelated abstractions the reader already knows about:\n${summaries.join("\n")}`;
+}
+
+function packAbstractionContext(
+  files: Array<{ path: string; content: string; size: number }>,
+  contextBudget: number,
+): string {
+  const parts: string[] = [];
+  let tokensSoFar = 0;
+
+  for (const f of files) {
+    const header = `\n=== File: ${f.path} ===\n`;
+    const headerTokens = countTokens(header);
+
+    const remaining = contextBudget - tokensSoFar - headerTokens;
+    if (remaining <= 100) break;
+
+    const truncated = truncateAtFunctionBoundary(f.content, remaining);
+    const blockTokens = countTokens(truncated);
+
+    parts.push(`${header}${truncated}`);
+    tokensSoFar += headerTokens + blockTokens;
+  }
+
+  return parts.join("\n");
+}
+
+function getProgressiveBlockRequirements(attempt: number, depth: "quick" | "full" | "deep"): string {
+  if (attempt === 1) return "";
+
+  if (attempt === 2) {
+    return `\n\nSIMPLIFIED REQUIREMENTS (attempt ${attempt}):
+- Reduce block count: aim for ${depth === "quick" ? "4-6" : depth === "full" ? "6-8" : "8-12"} blocks
+- Mermaid diagram is OPTIONAL — skip if complex
+- Quiz can have 2 options instead of 3-4
+- Code blocks: include 1-2 key excerpts instead of 2-4`;
+  }
+
+  return `\n\nMINIMAL REQUIREMENTS (attempt ${attempt}):
+- Write 3-5 blocks only
+- 1 text block explaining the abstraction
+- 1 code block with the most important function
+- 1 callout with a key insight
+- Skip mermaid, quiz, file-list if they cause issues`;
+}
+
 async function writeOneChapter(
   chapter: OrderedChapter,
   abstractions: Abstraction[],
@@ -957,6 +1080,9 @@ async function writeOneChapter(
   totalChapters: number,
 ): Promise<ChapterResult> {
   emitter.emitChapterStart(chapter.index, chapter.title, totalChapters);
+
+  const outputTokenBudget = getDepthTokenBudget(config.depth);
+  const contextBudget = getDepthContextBudget(config.depth);
 
   let prompt: string;
   let contextData: string;
@@ -998,7 +1124,7 @@ async function writeOneChapter(
       .join(
         "\n",
       )}\n\nAbstractions:\n${abstractions.map((a) => `- ${a.name}: ${a.description}`).join("\n")}`;
-  } else {
+  } else { /* abstraction chapter */
     const abstraction = abstractions.find(
       (a) => a.name === chapter.abstractionRef,
     );
@@ -1010,58 +1136,45 @@ async function writeOneChapter(
       .map((r) => `${r.from} --[${r.relation}]--> ${r.to}: ${r.description}`)
       .join("\n");
 
+    const crossContext = buildCrossAbstractionContext(
+      chapter.abstractionRef || chapter.title,
+      abstractions,
+      relationships,
+    );
+
     prompt = getChapterWritePrompt(
       config.audience,
       config.depth,
       chapter.abstractionRef || chapter.title,
       abstraction?.description || "",
-      relContext,
+      relContext + crossContext,
       config.customContext,
     );
 
     if (abstraction) {
-      const fileContents = abstraction.file_indices
-        .filter((idx) => idx < extraction.files.length)
-        .map((idx) => {
-          const f = extraction.files[idx];
-          return `=== ${f.path} ===\n${f.content}`;
-        })
-        .join("\n\n");
-
-      contextData = fileContents;
-
-      const totalTokens = countTokens(prompt + contextData);
-      if (totalTokens > 60000) {
-        const truncatedFiles = abstraction.file_indices
-          .filter((idx) => idx < extraction.files.length)
-          .map((idx) => {
-            const f = extraction.files[idx];
-            const lines = f.content.split("\n");
-            const maxLines = Math.min(lines.length, 200);
-            return `=== ${f.path} (first ${maxLines} lines) ===\n${lines.slice(0, maxLines).join("\n")}`;
-          })
-          .join("\n\n");
-        contextData = truncatedFiles;
-      }
+      const rankedFiles = getAbstractionFilesByPageRank(abstraction, extraction);
+      contextData = packAbstractionContext(rankedFiles, contextBudget);
     } else {
       contextData = `No specific files assigned to this abstraction.`;
     }
   }
-
-  const fullPrompt = `${prompt}\n\n${contextData}`;
 
   let blocks: unknown[] = [];
   let lastError = "";
 
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
+      const isAbstractionChapter = !chapter.chapterType || chapter.chapterType === "abstraction";
+      const progressiveHint = isAbstractionChapter ? getProgressiveBlockRequirements(attempt, config.depth) : "";
+      const fullPrompt = `${prompt}${progressiveHint}\n\n${contextData}`;
+
       const response = await generateText({
         task: "stage3",
         prompt: lastError
           ? `${fullPrompt}\n\nPrevious attempt failed validation with this error:\n${lastError}\n\nFix the schema issues and return JSON only.`
           : fullPrompt,
         responseMimeType: "application/json",
-        maxOutputTokens: 16384,
+        maxOutputTokens: outputTokenBudget,
       });
 
       const parsed = safeParseJson(response.text) as Record<string, unknown>;
