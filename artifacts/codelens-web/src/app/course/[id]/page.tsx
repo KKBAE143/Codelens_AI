@@ -12,6 +12,7 @@ import {
   parseV2Course,
   type V2CourseData,
   type V2Module,
+  type V2OverviewGraph,
 } from "@/lib/course-types";
 
 const AUDIENCE_LABELS: Record<string, string> = {
@@ -76,6 +77,79 @@ function ProgressRing({ percent, size = 28, stroke = 3 }: { percent: number; siz
   );
 }
 
+function ReadingProgressBar({ scrollRef }: { scrollRef: React.RefObject<HTMLDivElement | null> }) {
+  const [progress, setProgress] = useState(0);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+
+    const handleScroll = () => {
+      const scrollTop = el.scrollTop;
+      const scrollHeight = el.scrollHeight - el.clientHeight;
+      if (scrollHeight > 0) {
+        setProgress(Math.min(100, (scrollTop / scrollHeight) * 100));
+      }
+    };
+
+    el.addEventListener("scroll", handleScroll, { passive: true });
+    return () => el.removeEventListener("scroll", handleScroll);
+  }, [scrollRef]);
+
+  return (
+    <div className="v2-reading-progress">
+      <div className="v2-reading-progress-bar" style={{ width: `${progress}%` }} />
+    </div>
+  );
+}
+
+function OverviewGraphDisplay({ graph, onModuleClick }: { graph: V2OverviewGraph; onModuleClick: (i: number) => void }) {
+  if (!graph.nodes.length) return null;
+
+  return (
+    <div className="v2-overview-graph">
+      <h3 className="v2-overview-graph-title">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="18" cy="5" r="3" />
+          <circle cx="6" cy="12" r="3" />
+          <circle cx="18" cy="19" r="3" />
+          <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+          <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+        </svg>
+        Abstraction Relationships
+      </h3>
+      <div className="v2-overview-nodes">
+        {graph.nodes.map((node) => (
+          <button
+            key={node.id}
+            className="v2-overview-node"
+            onClick={() => onModuleClick(node.moduleIndex)}
+            title={`Go to Module ${node.moduleIndex + 1}`}
+          >
+            <span className="v2-overview-node-label">{node.label}</span>
+            <span className="v2-overview-node-connections">
+              {node.connections} connection{node.connections !== 1 ? "s" : ""}
+            </span>
+          </button>
+        ))}
+      </div>
+      {graph.edges.length > 0 && (
+        <div className="v2-overview-edges">
+          {graph.edges.map((edge, i) => (
+            <div key={i} className="v2-overview-edge">
+              <span className="v2-overview-edge-from">{graph.nodes.find(n => n.id === edge.from)?.label || edge.from}</span>
+              <span className="v2-overview-edge-arrow">→</span>
+              <span className="v2-overview-edge-relation">{edge.label || edge.relation}</span>
+              <span className="v2-overview-edge-arrow">→</span>
+              <span className="v2-overview-edge-to">{graph.nodes.find(n => n.id === edge.to)?.label || edge.to}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function V2ModuleSidebar({
   modules,
   activeIndex,
@@ -104,7 +178,15 @@ function V2ModuleSidebar({
             <div className="v2-module-nav-text">
               <span className="v2-module-nav-label">Module {i + 1}</span>
               <span className="v2-module-nav-title">{mod.title}</span>
+              {mod.estimatedMinutes && (
+                <span className="v2-module-nav-time">~{mod.estimatedMinutes} min</span>
+              )}
             </div>
+            {isCompleted && (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginLeft: "auto" }}>
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            )}
           </button>
         );
       })}
@@ -141,7 +223,13 @@ function V2ModuleContent({
         )}
         <div className="v2-module-meta">
           {mod.estimatedMinutes && (
-            <span className="v2-module-meta-item">~{mod.estimatedMinutes} min</span>
+            <span className="v2-module-meta-item">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: "middle", marginRight: 3 }}>
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
+              </svg>
+              ~{mod.estimatedMinutes} min
+            </span>
           )}
           {mod.focusAreas && mod.focusAreas.length > 0 && (
             <div className="v2-module-focus-tags">
@@ -163,36 +251,66 @@ function V2ModuleContent({
 
       <footer className="v2-module-footer">
         <button
-          className="btn-secondary"
+          className="v2-nav-btn"
           onClick={onPrev}
           disabled={moduleIndex === 0}
-          style={{ fontSize: "0.85rem" }}
         >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
           Previous
         </button>
 
         <div className="v2-module-footer-center">
           {!isCompleted ? (
             <button className="btn-primary" onClick={onComplete} style={{ fontSize: "0.85rem" }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
               Mark Complete
             </button>
           ) : (
-            <span style={{ color: "var(--teal)", fontWeight: 600, fontSize: "0.85rem" }}>
+            <span style={{ color: "var(--teal)", fontWeight: 600, fontSize: "0.85rem", display: "flex", alignItems: "center", gap: "0.25rem" }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                <polyline points="22 4 12 14.01 9 11.01" />
+              </svg>
               Completed
             </span>
           )}
         </div>
 
         <button
-          className="btn-secondary"
+          className="v2-nav-btn"
           onClick={onNext}
           disabled={moduleIndex === totalModules - 1}
-          style={{ fontSize: "0.85rem" }}
         >
           Next
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
         </button>
       </footer>
     </article>
+  );
+}
+
+function MobileMenuIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="3" y1="12" x2="21" y2="12" />
+      <line x1="3" y1="6" x2="21" y2="6" />
+      <line x1="3" y1="18" x2="21" y2="18" />
+    </svg>
+  );
+}
+
+function CloseMenuIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="18" y1="6" x2="6" y2="18" />
+      <line x1="6" y1="6" x2="18" y2="18" />
+    </svg>
   );
 }
 
@@ -204,6 +322,7 @@ export default function CourseViewer() {
   const queryClient = useQueryClient();
   const [completedModules, setCompletedModules] = useState<number[]>([]);
   const [showSidebar, setShowSidebar] = useState(true);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [iframeSrc, setIframeSrc] = useState<string | null>(null);
   const [webhookToggling, setWebhookToggling] = useState(false);
   const [lastSeenVersion, setLastSeenVersion] = useState<number | null>(null);
@@ -383,6 +502,7 @@ export default function CourseViewer() {
 
   const handleModuleSelect = (i: number) => {
     setActiveModuleIndex(i);
+    setMobileMenuOpen(false);
     mainScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -437,11 +557,23 @@ export default function CourseViewer() {
         padding: "0 1rem", flexShrink: 0,
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+          {isV2 && (
+            <button
+              className="v2-mobile-menu-btn"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              aria-label="Toggle sidebar menu"
+            >
+              {mobileMenuOpen ? <CloseMenuIcon /> : <MobileMenuIcon />}
+            </button>
+          )}
           <button
             onClick={() => router.push("/dashboard")}
-            style={{ background: "none", border: "none", color: "rgba(255,255,255,0.7)", cursor: "pointer", fontSize: "0.85rem", display: "flex", alignItems: "center", gap: "0.25rem", fontFamily: "var(--font-body)" }}
+            className="v2-topbar-back"
           >
-            {"\u2190"} Dashboard
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
+            <span className="v2-topbar-back-text">Dashboard</span>
           </button>
           <span style={{ color: "rgba(255,255,255,0.3)" }}>|</span>
           <code style={{ fontSize: "0.85rem", color: "rgba(255,255,255,0.9)", fontFamily: "var(--font-mono)" }}>
@@ -454,11 +586,11 @@ export default function CourseViewer() {
           )}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-          <span style={{ background: "rgba(255,255,255,0.15)", padding: "0.125rem 0.5rem", borderRadius: "var(--radius-full)", color: "rgba(255,255,255,0.7)", fontSize: "0.75rem" }}>
+          <span className="v2-topbar-audience" style={{ background: "rgba(255,255,255,0.15)", padding: "0.125rem 0.5rem", borderRadius: "var(--radius-full)", color: "rgba(255,255,255,0.7)", fontSize: "0.75rem" }}>
             {AUDIENCE_LABELS[course.targetAudience] || course.targetAudience}
           </span>
           {totalModules > 0 && (
-            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <div className="v2-topbar-progress" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
               <div style={{ width: 100, height: 4, background: "rgba(255,255,255,0.2)", borderRadius: 2, overflow: "hidden" }}>
                 <div style={{ height: "100%", width: `${progress}%`, background: "var(--teal)", borderRadius: 2, transition: "width 0.3s ease" }} />
               </div>
@@ -468,15 +600,25 @@ export default function CourseViewer() {
             </div>
           )}
           {(course.isPublic || course.shareToken) && (
-            <button onClick={handleCopyShare} style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", color: "white", padding: "0.25rem 0.5rem", borderRadius: "var(--radius-sm)", cursor: "pointer", fontSize: "0.75rem", fontFamily: "var(--font-body)" }}>
-              Share
+            <button onClick={handleCopyShare} className="v2-topbar-share-btn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="18" cy="5" r="3" />
+                <circle cx="6" cy="12" r="3" />
+                <circle cx="18" cy="19" r="3" />
+                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+                <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+              </svg>
+              <span className="v2-topbar-share-text">Share</span>
             </button>
           )}
           <button
             onClick={() => setShowSidebar(!showSidebar)}
-            style={{ background: "rgba(255,255,255,0.1)", border: "none", color: "white", padding: "0.25rem 0.5rem", borderRadius: "var(--radius-sm)", cursor: "pointer", fontSize: "0.8rem", fontFamily: "var(--font-body)" }}
+            className="v2-topbar-sidebar-btn"
           >
-            {showSidebar ? "Hide Sidebar" : "Show Sidebar"}
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+              <line x1="9" y1="3" x2="9" y2="21" />
+            </svg>
           </button>
         </div>
       </div>
@@ -498,109 +640,141 @@ export default function CourseViewer() {
       )}
 
       {isV2 && v2Data ? (
-        <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
-          {showSidebar && (
-            <aside className="v2-sidebar course-sidebar">
-              <div className="v2-sidebar-header">
-                <h3 className="v2-sidebar-title">Modules</h3>
-                <div className="v2-sidebar-progress">
-                  <ProgressRing percent={progress} size={32} stroke={3} />
-                  <span className="v2-sidebar-progress-text">{progress}%</span>
+        <>
+          <ReadingProgressBar scrollRef={mainScrollRef} />
+          <div style={{ flex: 1, display: "flex", overflow: "hidden", position: "relative" }}>
+            {showSidebar && (
+              <aside className="v2-sidebar course-sidebar">
+                <div className="v2-sidebar-header">
+                  <h3 className="v2-sidebar-title">Modules</h3>
+                  <div className="v2-sidebar-progress">
+                    <ProgressRing percent={progress} size={32} stroke={3} />
+                    <span className="v2-sidebar-progress-text">{progress}%</span>
+                  </div>
                 </div>
-              </div>
 
-              <V2ModuleSidebar
-                modules={v2Data.modules}
-                activeIndex={activeModuleIndex}
-                completedModules={completedModules}
-                onSelect={handleModuleSelect}
-              />
+                <V2ModuleSidebar
+                  modules={v2Data.modules}
+                  activeIndex={activeModuleIndex}
+                  completedModules={completedModules}
+                  onSelect={handleModuleSelect}
+                />
 
-              <div className="v2-sidebar-info">
-                {v2Data.languages.length > 0 && (
-                  <div className="v2-sidebar-section">
-                    <span className="v2-sidebar-label">Languages</span>
-                    <div style={{ display: "flex", gap: "0.25rem", flexWrap: "wrap" }}>
-                      {v2Data.languages.map((l) => (
-                        <span key={l} className="badge" style={{ background: "var(--teal-light)", color: "var(--teal)" }}>{l}</span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {v2Data.frameworks.length > 0 && (
-                  <div className="v2-sidebar-section">
-                    <span className="v2-sidebar-label">Frameworks</span>
-                    <div style={{ display: "flex", gap: "0.25rem", flexWrap: "wrap" }}>
-                      {v2Data.frameworks.map((f) => (
-                        <span key={f} className="badge" style={{ background: "var(--accent-light)", color: "var(--accent)" }}>{f}</span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {v2Data.estimatedTotalMinutes > 0 && (
-                  <div className="v2-sidebar-section">
-                    <span className="v2-sidebar-label">Duration</span>
-                    <span style={{ fontSize: "0.8rem" }}>~{v2Data.estimatedTotalMinutes} min</span>
-                  </div>
-                )}
-                {user && course.createdBy === user.id && (
-                  <div className="v2-sidebar-section">
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                      <div>
-                        <div style={{ fontSize: "0.8rem", fontWeight: 500 }}>Auto-update</div>
-                        <div style={{ fontSize: "0.7rem", color: "var(--text-tertiary)" }}>Regenerate on push</div>
+                <div className="v2-sidebar-info">
+                  {v2Data.languages.length > 0 && (
+                    <div className="v2-sidebar-section">
+                      <span className="v2-sidebar-label">Languages</span>
+                      <div style={{ display: "flex", gap: "0.25rem", flexWrap: "wrap" }}>
+                        {v2Data.languages.map((l) => (
+                          <span key={l} className="badge" style={{ background: "var(--teal-light)", color: "var(--teal)" }}>{l}</span>
+                        ))}
                       </div>
-                      <button
-                        onClick={handleToggleWebhook}
-                        disabled={webhookToggling}
-                        style={{
-                          width: 44, height: 24, borderRadius: 12, border: "none",
-                          cursor: webhookToggling ? "wait" : "pointer",
-                          background: webhookInfo?.autoRegenerate ? "var(--teal)" : "var(--border-color)",
-                          position: "relative", transition: "background 0.2s ease",
-                        }}
-                      >
-                        <div style={{
-                          width: 18, height: 18, borderRadius: "50%", background: "white",
-                          position: "absolute", top: 3,
-                          left: webhookInfo?.autoRegenerate ? 23 : 3,
-                          transition: "left 0.2s ease",
-                          boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
-                        }} />
-                      </button>
+                    </div>
+                  )}
+                  {v2Data.frameworks.length > 0 && (
+                    <div className="v2-sidebar-section">
+                      <span className="v2-sidebar-label">Frameworks</span>
+                      <div style={{ display: "flex", gap: "0.25rem", flexWrap: "wrap" }}>
+                        {v2Data.frameworks.map((f) => (
+                          <span key={f} className="badge" style={{ background: "var(--accent-light)", color: "var(--accent)" }}>{f}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {v2Data.estimatedTotalMinutes > 0 && (
+                    <div className="v2-sidebar-section">
+                      <span className="v2-sidebar-label">Duration</span>
+                      <span style={{ fontSize: "0.8rem" }}>~{v2Data.estimatedTotalMinutes} min</span>
+                    </div>
+                  )}
+                  {user && course.createdBy === user.id && (
+                    <div className="v2-sidebar-section">
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                        <div>
+                          <div style={{ fontSize: "0.8rem", fontWeight: 500 }}>Auto-update</div>
+                          <div style={{ fontSize: "0.7rem", color: "var(--text-tertiary)" }}>Regenerate on push</div>
+                        </div>
+                        <button
+                          onClick={handleToggleWebhook}
+                          disabled={webhookToggling}
+                          style={{
+                            width: 44, height: 24, borderRadius: 12, border: "none",
+                            cursor: webhookToggling ? "wait" : "pointer",
+                            background: webhookInfo?.autoRegenerate ? "var(--teal)" : "var(--border-color)",
+                            position: "relative", transition: "background 0.2s ease",
+                          }}
+                        >
+                          <div style={{
+                            width: 18, height: 18, borderRadius: "50%", background: "white",
+                            position: "absolute", top: 3,
+                            left: webhookInfo?.autoRegenerate ? 23 : 3,
+                            transition: "left 0.2s ease",
+                            boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+                          }} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  <a
+                    href={course.githubUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn-secondary"
+                    style={{ width: "100%", justifyContent: "center", textDecoration: "none", fontSize: "0.8rem", marginTop: "0.5rem" }}
+                  >
+                    View on GitHub ↗
+                  </a>
+                </div>
+              </aside>
+            )}
+
+            {mobileMenuOpen && (
+              <>
+                <div className="v2-mobile-overlay" onClick={() => setMobileMenuOpen(false)} />
+                <aside className="v2-mobile-sidebar">
+                  <div className="v2-sidebar-header">
+                    <h3 className="v2-sidebar-title">Modules</h3>
+                    <div className="v2-sidebar-progress">
+                      <ProgressRing percent={progress} size={32} stroke={3} />
+                      <span className="v2-sidebar-progress-text">{progress}%</span>
                     </div>
                   </div>
-                )}
-                <a
-                  href={course.githubUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn-secondary"
-                  style={{ width: "100%", justifyContent: "center", textDecoration: "none", fontSize: "0.8rem", marginTop: "0.5rem" }}
-                >
-                  View on GitHub {"\u2197"}
-                </a>
-              </div>
-            </aside>
-          )}
-
-          <div ref={mainScrollRef} className="v2-main-scroll">
-            <ErrorBoundary>
-            {v2Data.modules[activeModuleIndex] && (
-              <V2ModuleContent
-                module={v2Data.modules[activeModuleIndex]}
-                moduleIndex={activeModuleIndex}
-                totalModules={v2Data.totalModules}
-                githubUrl={v2Data.githubUrl}
-                isCompleted={completedModules.includes(activeModuleIndex)}
-                onComplete={() => markModuleComplete(activeModuleIndex)}
-                onPrev={() => handleModuleSelect(Math.max(0, activeModuleIndex - 1))}
-                onNext={() => handleModuleSelect(Math.min(v2Data.totalModules - 1, activeModuleIndex + 1))}
-              />
+                  <V2ModuleSidebar
+                    modules={v2Data.modules}
+                    activeIndex={activeModuleIndex}
+                    completedModules={completedModules}
+                    onSelect={handleModuleSelect}
+                  />
+                </aside>
+              </>
             )}
-            </ErrorBoundary>
+
+            <div ref={mainScrollRef} className="v2-main-scroll">
+              <ErrorBoundary>
+              {activeModuleIndex === 0 && v2Data.overviewGraph && (
+                <div className="v2-overview-section">
+                  <OverviewGraphDisplay
+                    graph={v2Data.overviewGraph}
+                    onModuleClick={handleModuleSelect}
+                  />
+                </div>
+              )}
+              {v2Data.modules[activeModuleIndex] && (
+                <V2ModuleContent
+                  module={v2Data.modules[activeModuleIndex]}
+                  moduleIndex={activeModuleIndex}
+                  totalModules={v2Data.totalModules}
+                  githubUrl={v2Data.githubUrl}
+                  isCompleted={completedModules.includes(activeModuleIndex)}
+                  onComplete={() => markModuleComplete(activeModuleIndex)}
+                  onPrev={() => handleModuleSelect(Math.max(0, activeModuleIndex - 1))}
+                  onNext={() => handleModuleSelect(Math.min(v2Data.totalModules - 1, activeModuleIndex + 1))}
+                />
+              )}
+              </ErrorBoundary>
+            </div>
           </div>
-        </div>
+        </>
       ) : (
         <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
           <iframe
@@ -688,7 +862,7 @@ export default function CourseViewer() {
                 className="btn-secondary"
                 style={{ width: "100%", justifyContent: "center", textDecoration: "none", fontSize: "0.85rem" }}
               >
-                View on GitHub {"\u2197"}
+                View on GitHub ↗
               </a>
             </aside>
           )}
