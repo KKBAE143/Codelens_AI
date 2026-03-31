@@ -13,7 +13,7 @@ const STAGES = [
   { key: "analyzing", label: "Analyzing Codebase", icon: "🔍", avgSeconds: 30 },
   { key: "designing", label: "Designing Curriculum", icon: "📐", avgSeconds: 45 },
   { key: "generating", label: "Building Course", icon: "⚡", avgSeconds: 90 },
-  { key: "polishing", label: "Polishing Output", icon: "✏️", avgSeconds: 30 },
+  { key: "polishing", label: "Polishing Output", icon: "✏️", avgSeconds: 15 },
   { key: "completed", label: "Course Ready!", icon: "✨", avgSeconds: 0 },
 ];
 
@@ -28,9 +28,8 @@ export function GenerationModal({ courseId, onClose }: GenerationModalProps) {
   const [status, setStatus] = useState<string>("pending");
   const [progress, setProgress] = useState({ stage: "pending", detail: "Waiting to start...", percent: 0 });
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [startTime] = useState(() => Date.now());
   const [stageStartTime, setStageStartTime] = useState(() => Date.now());
-  const [lastStage, setLastStage] = useState("pending");
+  const lastStageRef = useRef("pending");
   const router = useRouter();
   const intervalRef = useRef<ReturnType<typeof setInterval>>(null);
 
@@ -42,8 +41,8 @@ export function GenerationModal({ courseId, onClose }: GenerationModalProps) {
       setStatus(data.status);
       if (data.progress) {
         setProgress(data.progress);
-        if (data.progress.stage !== lastStage) {
-          setLastStage(data.progress.stage);
+        if (data.progress.stage !== lastStageRef.current) {
+          lastStageRef.current = data.progress.stage;
           setStageStartTime(Date.now());
         }
       }
@@ -57,7 +56,7 @@ export function GenerationModal({ courseId, onClose }: GenerationModalProps) {
         if (intervalRef.current) clearInterval(intervalRef.current);
       }
     } catch {}
-  }, [courseId, router, lastStage]);
+  }, [courseId, router]);
 
   useEffect(() => {
     pollStatus();

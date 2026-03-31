@@ -184,7 +184,11 @@ function buildMessages(options: GenerateTextOptions) {
       {
         role: "system",
         content:
-          "Return valid JSON only. Do not include markdown fences, commentary, or extra prose.",
+          `You are a world-class technical writer creating detailed, production-quality educational content about codebases. Return valid JSON only — no markdown fences, no commentary, no prose outside the JSON structure.
+
+CRITICAL: Every response must contain SUBSTANTIAL, DETAILED content. Never produce placeholder text. Never write generic summaries like "This chapter covers..." or "In this section we will..." or "Let's explore...". Instead, write real technical explanations with specific details from the actual code provided.
+
+Each text block must contain multiple paragraphs of real technical explanation. Each code block must quote EXACT code from the files provided. Each mermaid diagram must show REAL relationships between components in the codebase.`,
       },
       { role: "user", content: options.prompt },
     ];

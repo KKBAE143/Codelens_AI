@@ -307,15 +307,16 @@ function buildFallbackBlocks(
     : [];
   const fileList = relatedFiles.slice(0, 8).map((file) => ({
     path: file.path,
-    role: "Implements part of this chapter's topic",
+    role: `Core implementation file for ${chapter.abstractionRef || chapter.title} — contains key logic and data structures`,
     lineCount: file.content.split("\n").length,
   }));
-  const relationshipSummary = relationships
-    .filter(
-      (rel) =>
-        rel.from === chapter.abstractionRef ||
-        rel.to === chapter.abstractionRef,
-    )
+
+  const relatedRels = relationships.filter(
+    (rel) =>
+      rel.from === chapter.abstractionRef ||
+      rel.to === chapter.abstractionRef,
+  );
+  const relationshipSummary = relatedRels
     .slice(0, 5)
     .map((rel) => `- ${rel.from} ${rel.relation} ${rel.to}: ${rel.description}`)
     .join("\n");
@@ -323,7 +324,7 @@ function buildFallbackBlocks(
   const blocks: unknown[] = [
     {
       type: "text",
-      content: `## ${chapter.title}\n\n${chapter.learningObjective || "Understand how this part of the system works."}\n\n${abstraction?.description || `This chapter explains ${chapter.title} in the context of ${extraction.owner}/${extraction.repoName}.`}`,
+      content: `## ${chapter.title}\n\n${abstraction?.description || `This chapter explains ${chapter.title} in the context of ${extraction.owner}/${extraction.repoName}.`}\n\n${chapter.learningObjective ? `**Learning objective:** ${chapter.learningObjective}` : ""}\n\nThis abstraction is implemented across ${relatedFiles.length} file${relatedFiles.length !== 1 ? "s" : ""} in the \`${extraction.repoName}\` repository. ${relatedRels.length > 0 ? `It connects to ${relatedRels.length} other abstraction${relatedRels.length !== 1 ? "s" : ""} in the system.` : "It operates relatively independently within the codebase."}`,
     },
   ];
 
@@ -331,53 +332,105 @@ function buildFallbackBlocks(
     blocks.push({ type: "file-list", files: fileList });
   }
 
+  if (relatedRels.length > 0) {
+    const escapeMermaid = (text: string) => text.replace(/["\[\]|{}()<>]/g, " ").replace(/\s+/g, " ").trim();
+    const mermaidNodes = new Set<string>();
+    const mermaidEdges: string[] = [];
+    relatedRels.slice(0, 6).forEach((rel) => {
+      const fromId = rel.from.replace(/[^a-zA-Z0-9]/g, "_");
+      const toId = rel.to.replace(/[^a-zA-Z0-9]/g, "_");
+      mermaidNodes.add(`    ${fromId}["${escapeMermaid(rel.from)}"]`);
+      mermaidNodes.add(`    ${toId}["${escapeMermaid(rel.to)}"]`);
+      mermaidEdges.push(`    ${fromId} -->|${escapeMermaid(rel.relation)}| ${toId}`);
+    });
+    blocks.push({
+      type: "mermaid",
+      diagramType: "flowchart",
+      source: `graph TD\n${Array.from(mermaidNodes).join("\n")}\n${mermaidEdges.join("\n")}`,
+      caption: `How ${chapter.abstractionRef || chapter.title} connects to other parts of the system`,
+    });
+  }
+
   if (relationshipSummary) {
     blocks.push({
       type: "callout",
       variant: "tip",
-      content: `Key relationships to watch:\n${relationshipSummary}`,
+      content: `**Key relationships:**\n${relationshipSummary}`,
     });
   }
 
-  if (relatedFiles.length > 0) {
-    const sample = relatedFiles[0];
-    blocks.push({
-      type: "code",
-      language: sample.path.split(".").pop() || "text",
-      filePath: sample.path,
-      content: sample.content.split("\n").slice(0, 40).join("\n"),
-      caption: `Representative excerpt from ${sample.path}`,
-    });
+  for (const file of relatedFiles.slice(0, 3)) {
+    const lines = file.content.split("\n");
+    const importEnd = lines.findIndex((l, i) => i > 0 && !l.startsWith("import") && !l.startsWith("from") && !l.startsWith("//") && !l.startsWith("#") && l.trim() !== "");
+    const startLine = Math.max(0, importEnd > 0 ? importEnd : 0);
+    const excerpt = lines.slice(startLine, startLine + 50).join("\n").trim();
+    if (excerpt) {
+      blocks.push({
+        type: "code",
+        language: file.path.split(".").pop() || "text",
+        filePath: file.path,
+        content: excerpt,
+        caption: `Key implementation from ${file.path} — shows the core logic and data structures for ${chapter.abstractionRef || chapter.title}`,
+      });
+    }
   }
 
   blocks.push({
+    type: "callout",
+    variant: "first-pr",
+    content: `**Good first contribution:** Look at \`${relatedFiles[0]?.path || "the main implementation file"}\` to understand the core behavior. A good starter task would be adding input validation, improving error messages, or adding unit tests for edge cases.`,
+  });
+
+  blocks.push({
     type: "quiz",
-    question: `Which file would you inspect first when debugging ${chapter.title}?`,
-    scenario: `You need to understand how ${chapter.abstractionRef || chapter.title} behaves in ${extraction.repoName}.`,
+    question: `You're investigating a bug related to ${chapter.abstractionRef || chapter.title}. A user reports unexpected behavior. Which file would you check first and why?`,
+    scenario: `A production issue has been reported in the ${extraction.repoName} project. The error logs point to something related to ${chapter.abstractionRef || chapter.title}. You need to quickly identify the root cause.`,
     options:
-      fileList.length > 0
-        ? fileList.slice(0, 4).map((file, index) => ({
-            text: file.path,
-            correct: index === 0,
-            explanation:
-              index === 0
-                ? "This file is directly tied to the chapter topic and is the best starting point."
-                : "This file may matter later, but it is less central than the first listed implementation file.",
-          }))
+      fileList.length >= 3
+        ? [
+            {
+              text: fileList[0].path,
+              correct: true,
+              explanation: `This is the primary implementation file for ${chapter.abstractionRef || chapter.title}. It contains the core logic and is the most likely source of bugs related to this component. Start here to understand the main code path.`,
+            },
+            {
+              text: fileList[1].path,
+              correct: false,
+              explanation: `While this file is part of the ${chapter.abstractionRef || chapter.title} implementation, it handles supporting functionality. Check ${fileList[0].path} first for the core logic, then come here if the issue isn't in the main path.`,
+            },
+            {
+              text: fileList[2].path,
+              correct: false,
+              explanation: `This file provides auxiliary support for ${chapter.abstractionRef || chapter.title}. It's less likely to be the root cause — start with the primary implementation file instead.`,
+            },
+            {
+              text: "Check the test files first",
+              correct: false,
+              explanation: "Tests can help you understand expected behavior, but when debugging a production issue, start with the implementation files to trace the actual code path that's failing.",
+            },
+          ]
         : [
             {
-              text: "Start with the core implementation file for this chapter.",
+              text: "Start with the primary implementation file for this component",
               correct: true,
-              explanation:
-                "The implementation file usually shows the real control flow and data transformations.",
+              explanation: "The main implementation file shows the real control flow and data transformations. It's the most efficient starting point for debugging.",
             },
             {
-              text: "Start with a random utility file.",
+              text: "Start with utility or helper files",
               correct: false,
-              explanation:
-                "Utilities are useful later, but they rarely explain the main behavior first.",
+              explanation: "Utilities are important but secondary. The core implementation file will show you the main execution path first.",
+            },
+            {
+              text: "Start with configuration files",
+              correct: false,
+              explanation: "Configuration issues are possible but less common. The implementation file is a better starting point for most bugs.",
             },
           ],
+  });
+
+  blocks.push({
+    type: "text",
+    content: `### Summary\n\n${chapter.abstractionRef || chapter.title} is a fundamental part of the ${extraction.repoName} architecture. Understanding how it works — and how it connects to ${relatedRels.map(r => r.from === chapter.abstractionRef ? r.to : r.from).slice(0, 3).join(", ") || "the rest of the system"} — is essential for working effectively with this codebase.\n\nThe key files to study are: ${relatedFiles.slice(0, 3).map(f => `\`${f.path}\``).join(", ") || "the implementation files listed above"}.`,
   });
 
   return blocks;

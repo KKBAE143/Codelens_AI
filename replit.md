@@ -13,7 +13,7 @@ CodeLens AI — a SaaS platform where users paste a GitHub URL and receive an AI
 - **Frontend**: Next.js 15 App Router (React 19, Tailwind CSS 4)
 - **API framework**: Express 5 (legacy api-server, not primary)
 - **Database**: PostgreSQL (Neon DB) + Drizzle ORM
-- **AI**: Gemini (via Replit AI Integrations proxy) — models: `gemini-2.5-pro`, `gemini-3.1-pro-preview`
+- **AI**: Cloudflare Workers AI — models: `glm-4.7-flash`, `gpt-oss-20b`, `gpt-oss-120b` (via `llm.ts`)
 - **Background jobs**: Inngest (optional) or direct async execution
 - **Auth**: GitHub OAuth (sole sign-in, token encrypted + stored)
 - **Validation**: Zod (`zod/v4`), `drizzle-zod`

@@ -7,6 +7,15 @@ const PERSONA_CONTEXT: Record<TargetAudience, string> = {
   security_auditor: `The learner is a Security Auditor. Focus on: authentication flows, authorization boundaries, input validation, API security, secrets management, dependency risks, data exposure, error handling information leaks.`,
 };
 
+const ANTI_PLACEHOLDER_RULES = `
+ABSOLUTE RULES — VIOLATION MEANS FAILURE:
+- NEVER write generic placeholder text like "This chapter covers...", "In this section we will...", "Let's explore...", "This component handles..."
+- NEVER write one-sentence text blocks. Every text block must have AT LEAST 2-3 substantial paragraphs
+- NEVER invent or fabricate code. Every code block must quote EXACTLY from the provided file contents
+- NEVER create empty or trivial mermaid diagrams. Each diagram must show REAL relationships with proper node labels and edge descriptions
+- NEVER write trivial quiz questions like "What does X do?" — questions must test APPLICATION-level understanding with realistic scenarios
+- Every chapter MUST feel like a section from a well-written O'Reilly book, not AI-generated filler`;
+
 export function getAbstractionPrompt(
   audience: TargetAudience,
   depth: "quick" | "full" | "deep",
@@ -107,10 +116,10 @@ export function getChapterWritePrompt(
   customContext?: string,
 ): string {
   const depthGuidance = depth === "quick"
-    ? "Keep it concise: 3-5 blocks per chapter. Focus on the essential 'what' and 'why'."
+    ? "Write 5-8 blocks for this chapter. Cover the essential 'what' and 'why' with concrete examples."
     : depth === "full"
-      ? "Moderate depth: 6-10 blocks per chapter. Cover 'what', 'why', and key 'how'."
-      : "Deep dive: 8-15 blocks per chapter. Thorough coverage including edge cases, alternatives, and internals.";
+      ? "Write 8-12 blocks for this chapter. Cover 'what', 'why', and key 'how' with code examples and diagrams."
+      : "Write 12-18 blocks for this chapter. Deep dive including edge cases, alternatives, internals, and advanced patterns.";
 
   return `You are writing a single chapter of a codebase tutorial about the "${abstractionName}" abstraction.
 
@@ -129,25 +138,27 @@ ${depthGuidance}
 Write the chapter content as a JSON array of blocks. Each block has a "type" and type-specific fields.
 
 Available block types:
-1. "text": { "type": "text", "content": "markdown text" }
-2. "code": { "type": "code", "language": "typescript", "filePath": "src/file.ts", "content": "exact code from files", "caption": "explanation" }
-3. "mermaid": { "type": "mermaid", "diagramType": "flowchart"|"sequenceDiagram"|"erDiagram"|"classDiagram", "source": "valid mermaid syntax", "caption": "what this shows" }
-4. "quiz": { "type": "quiz", "question": "scenario-based question", "scenario": "context", "options": [{"text": "option", "correct": true/false, "explanation": "why"}] }
-5. "callout": { "type": "callout", "variant": "warning"|"tip"|"ai-hint"|"first-pr"|"security"|"command", "content": "text" }
-6. "file-list": { "type": "file-list", "files": [{"path": "src/file.ts", "role": "description", "lineCount": 100}] }
-7. "architecture-card": { "type": "architecture-card", "decision": "what", "rationale": "why", "tradeoffs": "gained/lost", "alternatives": "what else" }
-8. "dependency-card": { "type": "dependency-card", "packageName": "pkg", "version": "1.0", "purpose": "why", "whatBreaksWithout": "consequence", "alternatives": "other options" }
-9. "env-var-card": { "type": "env-var-card", "varName": "KEY", "required": true, "purpose": "why", "exampleValue": "value", "whatBreaksWithout": "consequence" }
-10. "command-card": { "type": "command-card", "command": "npm run dev", "when": "when to use", "expectedOutput": "what you see", "commonErrors": [{"error": "msg", "fix": "solution"}] }
+1. "text": { "type": "text", "content": "markdown text — MUST be 2+ substantial paragraphs, never a single sentence" }
+2. "code": { "type": "code", "language": "typescript", "filePath": "src/file.ts", "content": "exact code from files — MUST be real code copied verbatim", "caption": "explanation of what this code does and why it matters" }
+3. "mermaid": { "type": "mermaid", "diagramType": "flowchart"|"sequenceDiagram"|"erDiagram"|"classDiagram", "source": "valid mermaid syntax showing REAL component relationships", "caption": "what this diagram reveals about the architecture" }
+4. "quiz": { "type": "quiz", "question": "scenario-based question testing APPLICATION not memorization", "scenario": "realistic debugging or development scenario", "options": [{"text": "option", "correct": true/false, "explanation": "detailed why — 2-3 sentences"}] }
+5. "callout": { "type": "callout", "variant": "warning"|"tip"|"ai-hint"|"first-pr"|"security"|"command", "content": "actionable insight, not generic advice" }
+6. "file-list": { "type": "file-list", "files": [{"path": "src/file.ts", "role": "specific role description", "lineCount": 100}] }
+7. "architecture-card": { "type": "architecture-card", "decision": "specific architectural decision", "rationale": "why this approach was chosen", "tradeoffs": "what was gained and lost", "alternatives": "what else could have been used" }
+8. "dependency-card": { "type": "dependency-card", "packageName": "pkg", "version": "1.0", "purpose": "specific purpose in this project", "whatBreaksWithout": "concrete consequence", "alternatives": "other options" }
+9. "env-var-card": { "type": "env-var-card", "varName": "KEY", "required": true, "purpose": "what this configures", "exampleValue": "value", "whatBreaksWithout": "specific failure mode" }
+10. "command-card": { "type": "command-card", "command": "npm run dev", "when": "when and why to use this", "expectedOutput": "what you see", "commonErrors": [{"error": "msg", "fix": "solution"}] }
 
-CRITICAL RULES:
-- Code blocks MUST quote EXACTLY from the provided file contents — never invent or modify code
-- If a code example isn't in the files, use a callout[tip] instead
-- Include exactly ONE mermaid diagram per chapter — choose the type that best fits the abstraction
-- Include at least ONE quiz per chapter — test application, not memorization
-- Start with a text block introducing the abstraction
-- Include a file-list block listing all files in this abstraction
-- Mermaid syntax must be valid: use quotes around node labels with special chars, proper arrow syntax
+REQUIRED CHAPTER STRUCTURE:
+1. Start with a text block that explains WHAT this abstraction is and WHY it exists — use a real-world analogy, reference specific files, explain the problem it solves. Minimum 3 paragraphs.
+2. Include a file-list block listing all files in this abstraction with specific role descriptions
+3. Include 2-4 code blocks quoting EXACT code from the provided files — show the key functions, data structures, or patterns. Each code block needs a caption explaining the significance.
+4. Include EXACTLY ONE mermaid diagram showing how this abstraction connects to other parts of the system — use the relationship data provided. The diagram must have labeled nodes and edges.
+5. Include at least ONE quiz with a realistic scenario (e.g., "You're debugging X and see error Y in the logs. What's the most likely cause?") with 3-4 options, each with detailed explanations.
+6. Include 1-2 callout blocks with actionable tips, warnings, or first-PR suggestions specific to this abstraction.
+7. End with a text block summarizing key takeaways and how this connects to the next chapter.
+
+${ANTI_PLACEHOLDER_RULES}
 
 Return ONLY a valid JSON object (no markdown fences):
 {
@@ -160,12 +171,18 @@ export function getSetupChapterPrompt(audience: TargetAudience): string {
 
 ${PERSONA_CONTEXT[audience]}
 
-Using the package.json data, .env.example data, and Dockerfile data provided, generate a chapter with:
-1. A text block with prerequisites (Node version, required tools)
-2. One env-var-card per environment variable from .env.example
-3. One command-card per important package.json script
-4. A callout[command] with the full install + start sequence
-5. Any setup gotchas or common issues
+Using the package.json data, .env.example data, and Dockerfile data provided, generate a comprehensive setup chapter.
+
+REQUIRED STRUCTURE (minimum 8 blocks):
+1. A text block (2+ paragraphs) explaining prerequisites — required Node/Python version, required global tools, OS-specific notes
+2. A text block explaining the project structure and what each directory contains
+3. One env-var-card per environment variable from .env.example (with specific purpose and what breaks without it)
+4. One command-card per important package.json script (dev, build, test, lint, etc.)
+5. A callout[command] with the complete install + start sequence from clone to running app
+6. A callout[tip] about common setup gotchas specific to THIS project
+7. A mermaid flowchart showing the setup process flow (clone → install → configure env → run)
+
+${ANTI_PLACEHOLDER_RULES}
 
 Return ONLY a valid JSON object: { "blocks": [ ... ] }`;
 }
@@ -175,11 +192,18 @@ export function getDependenciesChapterPrompt(audience: TargetAudience): string {
 
 ${PERSONA_CONTEXT[audience]}
 
-Using the package.json dependencies provided, generate a chapter with:
-1. A text block introducing the dependency landscape
-2. One dependency-card per significant package (skip trivial type packages)
-3. Group by category: Runtime essentials, Framework, Database, Testing, Build tools, Utilities
-4. A callout[tip] about dependency management best practices
+Using the package.json dependencies provided, generate a comprehensive dependencies chapter.
+
+REQUIRED STRUCTURE (minimum 8 blocks):
+1. A text block (2+ paragraphs) introducing the dependency landscape — total count, categories, key architectural choices reflected in the dependency list
+2. Group dependencies by category with a text block introducing each group: Runtime essentials, Framework, Database, Testing, Build tools, Utilities
+3. One dependency-card per significant package — skip trivial type packages (@types/*) but include ALL runtime and build dependencies
+4. For each major dependency, explain WHY this project chose it over alternatives
+5. A callout[tip] about dependency management best practices relevant to this project
+6. A callout[warning] about any dependencies with known security considerations
+7. A mermaid diagram showing the dependency layers (e.g., framework → middleware → database → utilities)
+
+${ANTI_PLACEHOLDER_RULES}
 
 Return ONLY a valid JSON object: { "blocks": [ ... ] }`;
 }
@@ -189,7 +213,7 @@ export function getTroubleshootingChapterPrompt(audience: TargetAudience): strin
 
 ${PERSONA_CONTEXT[audience]}
 
-Based on the codebase analysis, identify the 5 most likely failure points. Consider:
+Based on the codebase analysis, identify the 5-8 most likely failure points. Consider:
 - Missing environment variables
 - Database connection issues
 - Authentication failures
@@ -197,14 +221,21 @@ Based on the codebase analysis, identify the 5 most likely failure points. Consi
 - CORS errors
 - Missing dependencies
 - Build failures
+- Runtime type errors
 
 For each issue, provide the specific file and function where the error originates.
 
-Generate a chapter with:
-1. A text block introducing the troubleshooting guide
-2. For each issue: a callout[warning] with the symptom, then a text block with root cause and fix
-3. A command-card for common diagnostic commands
-4. A callout[tip] with general debugging advice
+REQUIRED STRUCTURE (minimum 10 blocks):
+1. A text block (2+ paragraphs) introducing common failure modes for this type of project
+2. For each of the 5-8 issues:
+   a. A callout[warning] describing the symptom (exact error message the developer would see)
+   b. A text block with root cause analysis (which file, which function, why it fails)
+   c. A code block showing the fix or the relevant code that causes the issue
+3. A command-card for diagnostic commands (checking logs, testing connections, verifying config)
+4. A callout[tip] with a general debugging strategy for this codebase
+5. A mermaid flowchart showing a debugging decision tree for the most common failure
+
+${ANTI_PLACEHOLDER_RULES}
 
 Return ONLY a valid JSON object: { "blocks": [ ... ] }`;
 }
@@ -214,12 +245,18 @@ export function getOverviewChapterPrompt(audience: TargetAudience): string {
 
 ${PERSONA_CONTEXT[audience]}
 
-Generate an introductory chapter with:
-1. A text block with a one-paragraph summary of what this codebase does
-2. A mermaid flowchart (graph TD) showing the high-level architecture — main components and how they connect
-3. A file-list block showing the key directories/files and their roles
-4. Key statistics: file count, main languages, estimated complexity
-5. A callout[tip] about how to navigate the course
+Generate a comprehensive introductory chapter that gives the reader a complete mental model of the system.
+
+REQUIRED STRUCTURE (minimum 8 blocks):
+1. A text block (3+ paragraphs) with a thorough summary of what this codebase does, who it's for, and what problem it solves. Use a real-world analogy to explain the architecture.
+2. A mermaid flowchart (graph TD) showing the high-level architecture — main components and how data flows between them. Every node must be labeled with the actual component/module name from the codebase. Edges must describe what data or control flows between components.
+3. A file-list block showing the key directories/files and their specific roles in the architecture
+4. A text block with key statistics: file count, main languages and their percentage, estimated complexity, lines of code
+5. A text block explaining the main data flow — what happens from user input to final output, step by step
+6. A callout[tip] about how to navigate this course effectively based on the reader's goals
+7. A callout[ai-hint] with the single most important thing to understand about this codebase
+
+${ANTI_PLACEHOLDER_RULES}
 
 Return ONLY a valid JSON object: { "blocks": [ ... ] }`;
 }
