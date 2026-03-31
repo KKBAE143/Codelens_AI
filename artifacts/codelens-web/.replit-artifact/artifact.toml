@@ -1,0 +1,36 @@
+kind = "web"
+previewPath = "/"
+title = "CodeLens AI"
+version = "1.0.0"
+id = "artifacts/codelens-web"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 3000
+
+[services.development]
+run = "pnpm --filter @workspace/codelens-web run dev"
+
+[services.production]
+
+[services.production.build]
+args = ["pnpm", "--filter", "@workspace/codelens-web", "run", "build"]
+
+[services.production.build.env]
+NODE_ENV = "production"
+
+[services.production.run]
+args = ["pnpm", "--filter", "@workspace/codelens-web", "run", "start"]
+
+[services.production.run.env]
+PORT = "3000"
+NODE_ENV = "production"
+
+[services.env]
+PORT = "3000"
