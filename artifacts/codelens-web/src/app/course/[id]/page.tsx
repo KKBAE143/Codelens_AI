@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/components/Toast";
+import dynamic from "next/dynamic";
 import { BlockRenderer } from "@/components/course-blocks/BlockRenderer";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import {
@@ -14,6 +15,14 @@ import {
   type V2Module,
   type V2OverviewGraph,
 } from "@/lib/course-types";
+
+const KnowledgeGraph = dynamic(
+  () =>
+    import("@/components/course-blocks/KnowledgeGraph").then(
+      (m) => m.KnowledgeGraph
+    ),
+  { ssr: false }
+);
 
 const AUDIENCE_LABELS: Record<string, string> = {
   vibe_coder: "Vibe Coder",
@@ -323,6 +332,7 @@ export default function CourseViewer() {
   const [completedModules, setCompletedModules] = useState<number[]>([]);
   const [showSidebar, setShowSidebar] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [overviewTab, setOverviewTab] = useState<"graph" | "diagram">("graph");
   const [iframeSrc, setIframeSrc] = useState<string | null>(null);
   const [webhookToggling, setWebhookToggling] = useState(false);
   const [lastSeenVersion, setLastSeenVersion] = useState<number | null>(null);
@@ -755,10 +765,71 @@ export default function CourseViewer() {
               <ErrorBoundary>
               {activeModuleIndex === 0 && v2Data.overviewGraph && (
                 <div className="v2-overview-section">
-                  <OverviewGraphDisplay
-                    graph={v2Data.overviewGraph}
-                    onModuleClick={handleModuleSelect}
-                  />
+                  <div className="v2-overview-tabs" role="tablist" aria-label="Overview visualization tabs">
+                    <button
+                      id="tab-graph"
+                      className={`v2-overview-tab ${overviewTab === "graph" ? "v2-overview-tab-active" : ""}`}
+                      onClick={() => setOverviewTab("graph")}
+                      role="tab"
+                      aria-selected={overviewTab === "graph"}
+                      aria-controls="tabpanel-graph"
+                      tabIndex={overviewTab === "graph" ? 0 : -1}
+                      onKeyDown={(e) => {
+                        if (e.key === "ArrowRight") {
+                          setOverviewTab("diagram");
+                          (document.getElementById("tab-diagram") as HTMLElement)?.focus();
+                        }
+                      }}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="18" cy="5" r="3" />
+                        <circle cx="6" cy="12" r="3" />
+                        <circle cx="18" cy="19" r="3" />
+                        <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+                        <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+                      </svg>
+                      Knowledge Graph
+                    </button>
+                    <button
+                      id="tab-diagram"
+                      className={`v2-overview-tab ${overviewTab === "diagram" ? "v2-overview-tab-active" : ""}`}
+                      onClick={() => setOverviewTab("diagram")}
+                      role="tab"
+                      aria-selected={overviewTab === "diagram"}
+                      aria-controls="tabpanel-diagram"
+                      tabIndex={overviewTab === "diagram" ? 0 : -1}
+                      onKeyDown={(e) => {
+                        if (e.key === "ArrowLeft") {
+                          setOverviewTab("graph");
+                          (document.getElementById("tab-graph") as HTMLElement)?.focus();
+                        }
+                      }}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="3" y="3" width="7" height="7" />
+                        <rect x="14" y="3" width="7" height="7" />
+                        <rect x="14" y="14" width="7" height="7" />
+                        <rect x="3" y="14" width="7" height="7" />
+                      </svg>
+                      Abstraction Map
+                    </button>
+                  </div>
+
+                  {overviewTab === "graph" ? (
+                    <div id="tabpanel-graph" role="tabpanel" aria-labelledby="tab-graph">
+                      <KnowledgeGraph
+                        overviewGraph={v2Data.overviewGraph}
+                        onModuleClick={handleModuleSelect}
+                      />
+                    </div>
+                  ) : (
+                    <div id="tabpanel-diagram" role="tabpanel" aria-labelledby="tab-diagram">
+                      <OverviewGraphDisplay
+                        graph={v2Data.overviewGraph}
+                        onModuleClick={handleModuleSelect}
+                      />
+                    </div>
+                  )}
                 </div>
               )}
               {v2Data.modules[activeModuleIndex] && (

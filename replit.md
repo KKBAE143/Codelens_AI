@@ -33,6 +33,8 @@ CodeLens AI — a SaaS platform where users paste a GitHub URL and receive an AI
 - Block renderers: `artifacts/codelens-web/src/components/course-blocks/`
 - Wizard: `artifacts/codelens-web/src/components/CourseWizardModal.tsx` (4-step: repo preview, persona, depth/focus, confirm+generate)
 - Syntax highlighting: Shiki with `catppuccin-mocha` theme
+- Knowledge graph: Interactive Sigma.js/WebGL force-directed graph on overview page, Louvain community detection for node clustering, search/filter, minimap, click-to-navigate, zoom/pan/drag. Component: `KnowledgeGraph.tsx`, utilities: `graph-utils.ts`. Uses `sigma`, `graphology`, `graphology-communities-louvain`, `graphology-types`.
+- Overview page tabs: "Knowledge Graph" (Sigma.js interactive) and "Abstraction Map" (existing node/edge list)
 - Viewer: Two-column layout (sidebar with module nav + progress rings, main content with block rendering)
 - Keyboard navigation: j/k or arrow keys to navigate between modules
 - Deep linking: `#module-N` hash in URL for direct module access
