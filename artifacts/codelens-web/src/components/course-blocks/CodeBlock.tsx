@@ -128,10 +128,11 @@ export function CodeBlock({ block, githubUrl }: { block: V2CodeBlock; githubUrl?
           {showLineToggle && (
             <button
               onClick={() => setShowLineNumbers(!showLineNumbers)}
-              className="v2-code-action-btn"
+              className={`v2-code-action-btn ${showLineNumbers ? "v2-code-action-active" : ""}`}
               title={showLineNumbers ? "Hide line numbers" : "Show line numbers"}
+              aria-pressed={showLineNumbers}
             >
-              {showLineNumbers ? "#" : "#"}
+              #
             </button>
           )}
           <button onClick={handleCopy} className="v2-code-copy" title="Copy code">

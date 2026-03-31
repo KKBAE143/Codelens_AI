@@ -690,6 +690,12 @@ a.v2-code-filepath:hover {
   color: var(--text-primary);
 }
 
+.v2-code-action-active {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border-color: var(--text-tertiary);
+}
+
 .v2-code-copy {
   background: none;
   border: 1px solid var(--border-color);
@@ -797,10 +803,6 @@ a.v2-code-filepath:hover {
   position: relative;
 }
 
-.v2-mermaid-block:hover .v2-mermaid-zoom-btn {
-  opacity: 1;
-}
-
 .v2-mermaid-svg {
   overflow-x: auto;
   cursor: zoom-in;
@@ -826,9 +828,19 @@ a.v2-code-filepath:hover {
   font-family: var(--font-body);
   color: var(--text-secondary);
   cursor: pointer;
-  opacity: 0;
+  opacity: 0.7;
   transition: opacity 0.2s, background 0.15s;
   box-shadow: var(--shadow-sm);
+}
+
+.v2-mermaid-block:hover .v2-mermaid-zoom-btn {
+  opacity: 1;
+}
+
+@media (pointer: coarse) {
+  .v2-mermaid-zoom-btn {
+    opacity: 1;
+  }
 }
 
 .v2-mermaid-zoom-btn:hover {

@@ -94,6 +94,11 @@ export function MermaidBlock({ block }: { block: V2MermaidBlock }) {
             <div
               ref={containerRef}
               className="v2-mermaid-svg"
+              onClick={() => setShowModal(true)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setShowModal(true); }}
+              aria-label="Click to enlarge diagram"
               dangerouslySetInnerHTML={{ __html: svg }}
             />
             <button
