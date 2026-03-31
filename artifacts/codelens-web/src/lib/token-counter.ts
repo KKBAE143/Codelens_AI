@@ -52,24 +52,35 @@ export function truncateAtFunctionBoundary(content: string, maxTokens: number): 
   const tokenCount = countTokens(content);
   if (tokenCount <= maxTokens) return content;
 
+  const lines = content.split("\n");
   const rough = truncateToTokenBudget(content, maxTokens);
-  const lines = rough.split("\n");
+  const roughLineCount = rough.split("\n").length;
 
-  for (let i = lines.length - 1; i >= Math.max(0, lines.length - 30); i--) {
-    if (isFunctionBoundary(lines[i])) {
+  for (let i = roughLineCount - 1; i >= Math.max(0, roughLineCount - 50); i--) {
+    if (i < lines.length && isFunctionBoundary(lines[i])) {
       const result = lines.slice(0, i).join("\n");
-      if (result.length > rough.length * 0.5) {
-        return result + "\n// ... truncated for brevity";
+      if (result.length > rough.length * 0.4) {
+        return result;
       }
     }
   }
 
-  const braceIdx = rough.lastIndexOf("\n}");
-  if (braceIdx > rough.length * 0.5) {
-    return rough.slice(0, braceIdx + 2) + "\n// ... truncated for brevity";
+  for (let i = roughLineCount - 1; i >= Math.max(0, roughLineCount - 50); i--) {
+    if (i < lines.length && lines[i].trimStart() === "}") {
+      const result = lines.slice(0, i + 1).join("\n");
+      if (result.length > rough.length * 0.4) {
+        return result;
+      }
+    }
   }
 
-  return rough + "\n// ... truncated for brevity";
+  for (let i = roughLineCount - 1; i >= Math.max(0, roughLineCount - 30); i--) {
+    if (i < lines.length && lines[i].trim() === "") {
+      return lines.slice(0, i).join("\n");
+    }
+  }
+
+  return rough;
 }
 
 export function getDepthTokenBudget(depth: "quick" | "full" | "deep"): number {

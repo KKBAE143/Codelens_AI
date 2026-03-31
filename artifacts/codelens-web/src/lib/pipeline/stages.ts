@@ -1031,8 +1031,15 @@ function packAbstractionContext(
   files: Array<{ path: string; content: string; size: number }>,
   contextBudget: number,
 ): string {
-  const parts: string[] = [];
-  let tokensSoFar = 0;
+  const fileTree = files.map((f) => {
+    const lines = f.content.split("\n").length;
+    return `  ${f.path} (${lines} lines)`;
+  }).join("\n");
+  const treeSummary = `=== File Tree (${files.length} files, ordered by importance) ===\n${fileTree}\n`;
+  const treeSummaryTokens = countTokens(treeSummary);
+
+  const parts: string[] = [treeSummary];
+  let tokensSoFar = treeSummaryTokens;
 
   for (const f of files) {
     const header = `\n=== File: ${f.path} ===\n`;
