@@ -131,6 +131,8 @@ export const v2CourseSchema = z.object({
       label: z.string(),
       moduleIndex: z.number(),
       connections: z.number(),
+      description: z.string().optional(),
+      fileCount: z.number().optional(),
     })),
     edges: z.array(z.object({
       from: z.string(),

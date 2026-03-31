@@ -59,8 +59,8 @@ export function buildGraphologyGraph(overviewGraph: V2OverviewGraph) {
         label: node.label,
         moduleIndex: node.moduleIndex,
         connections: node.connections,
-        description: (node as Record<string, unknown>).description || "",
-        fileCount: (node as Record<string, unknown>).fileCount || 0,
+        description: node.description || "",
+        fileCount: node.fileCount || 0,
       });
     }
   }

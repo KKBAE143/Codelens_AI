@@ -508,6 +508,21 @@ function ClusterHulls({
         path.setAttribute("stroke-width", "1.5");
         path.setAttribute("stroke-linejoin", "round");
         svg.appendChild(path);
+
+        const cx = viewportPoints.reduce((s, p) => s + p.x, 0) / viewportPoints.length;
+        const minY = Math.min(...viewportPoints.map((p) => p.y));
+        const labelY = minY - 6;
+
+        const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        text.setAttribute("x", String(cx));
+        text.setAttribute("y", String(labelY));
+        text.setAttribute("text-anchor", "middle");
+        text.setAttribute("fill", cluster.color + "99");
+        text.setAttribute("font-size", "10");
+        text.setAttribute("font-family", "Inter, system-ui, sans-serif");
+        text.setAttribute("font-weight", "600");
+        text.textContent = cluster.name;
+        svg.appendChild(text);
       }
     };
 
