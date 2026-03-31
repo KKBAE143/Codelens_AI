@@ -184,11 +184,7 @@ function buildMessages(options: GenerateTextOptions) {
       {
         role: "system",
         content:
-          "You are a technical content writer producing detailed, production-quality educational material. " +
-          "Return valid JSON only. Do not include markdown fences, commentary, or extra prose. " +
-          "CRITICAL: Every text block must contain SUBSTANTIAL content — at minimum 3-5 sentences of real explanation with concrete details from the code. " +
-          "NEVER produce placeholder or filler text like 'This chapter covers...', 'In this section we will...', or 'Let us explore...'. " +
-          "Write as if you are a senior engineer explaining code to a colleague — be specific, reference actual functions, variables, and data flows.",
+          "Return valid JSON only. Do not include markdown fences, commentary, or extra prose.",
       },
       { role: "user", content: options.prompt },
     ];

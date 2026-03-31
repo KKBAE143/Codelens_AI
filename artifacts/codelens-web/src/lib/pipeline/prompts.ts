@@ -144,18 +144,10 @@ CRITICAL RULES:
 - Code blocks MUST quote EXACTLY from the provided file contents — never invent or modify code
 - If a code example isn't in the files, use a callout[tip] instead
 - Include exactly ONE mermaid diagram per chapter — choose the type that best fits the abstraction
-- Include at least ONE quiz per chapter with 4 options — test application, not memorization. Each option MUST have a detailed explanation (2+ sentences).
-- Start with a text block introducing the abstraction — this MUST be at least 4-5 sentences explaining WHAT it does, WHY it exists, and HOW it fits into the bigger picture. Reference specific functions and data flows.
+- Include at least ONE quiz per chapter — test application, not memorization
+- Start with a text block introducing the abstraction
 - Include a file-list block listing all files in this abstraction
 - Mermaid syntax must be valid: use quotes around node labels with special chars, proper arrow syntax
-- Include at least one callout block (tip, warning, or ai-hint) with practical advice
-- Include at least 2 code blocks showing key functions or patterns from the files
-
-ANTI-PLACEHOLDER RULES (CRITICAL):
-- NEVER write generic filler like "This chapter covers...", "In this section we will explore...", "Let's dive into...", or "This component is responsible for..."
-- Every text block MUST contain specific, concrete information: name actual functions, describe real data flows, reference actual variable names and types from the code
-- Each text block must be at least 3-5 sentences of substantive technical content
-- Quiz scenarios must describe a realistic debugging or development situation, not just "What does X do?"
 
 Return ONLY a valid JSON object (no markdown fences):
 {
@@ -169,14 +161,11 @@ export function getSetupChapterPrompt(audience: TargetAudience): string {
 ${PERSONA_CONTEXT[audience]}
 
 Using the package.json data, .env.example data, and Dockerfile data provided, generate a chapter with:
-1. A text block with prerequisites (Node version, required tools) — be SPECIFIC about versions and system requirements, at least 4 sentences
+1. A text block with prerequisites (Node version, required tools)
 2. One env-var-card per environment variable from .env.example
-3. One command-card per important package.json script (at minimum: install, dev, build, test)
+3. One command-card per important package.json script
 4. A callout[command] with the full install + start sequence
-5. A callout[warning] about common setup pitfalls specific to this project
-6. A text block explaining the development workflow after setup is complete
-
-ANTI-PLACEHOLDER: Every text block must contain specific, actionable information. Never write "Set up the project by following these steps..." — instead describe the exact tools, versions, and configuration needed.
+5. Any setup gotchas or common issues
 
 Return ONLY a valid JSON object: { "blocks": [ ... ] }`;
 }
@@ -187,14 +176,10 @@ export function getDependenciesChapterPrompt(audience: TargetAudience): string {
 ${PERSONA_CONTEXT[audience]}
 
 Using the package.json dependencies provided, generate a chapter with:
-1. A text block introducing the dependency landscape — explain the overall technology stack philosophy in at least 4 sentences, referencing specific package choices and WHY they were picked over alternatives
-2. One dependency-card per significant package (skip trivial type packages) — at minimum 8 cards
+1. A text block introducing the dependency landscape
+2. One dependency-card per significant package (skip trivial type packages)
 3. Group by category: Runtime essentials, Framework, Database, Testing, Build tools, Utilities
-4. A mermaid diagram showing how the key dependencies relate to each other (e.g., framework -> ORM -> database driver)
-5. A callout[tip] about dependency management best practices specific to this stack
-6. A callout[warning] about known compatibility issues or version constraints
-
-ANTI-PLACEHOLDER: Never write "This project uses several dependencies..." — instead name the specific packages and explain the concrete role each plays.
+4. A callout[tip] about dependency management best practices
 
 Return ONLY a valid JSON object: { "blocks": [ ... ] }`;
 }
@@ -216,14 +201,10 @@ Based on the codebase analysis, identify the 5 most likely failure points. Consi
 For each issue, provide the specific file and function where the error originates.
 
 Generate a chapter with:
-1. A text block introducing the troubleshooting approach for this specific codebase — reference the actual tech stack and common failure patterns, at least 4 sentences
-2. For each issue: a callout[warning] with the exact error message or symptom the user will see, then a text block with root cause analysis (referencing specific files and functions) and step-by-step fix
-3. A command-card for common diagnostic commands relevant to this project's stack
-4. A mermaid flowchart showing a debugging decision tree for the most common errors
-5. A callout[tip] with debugging strategies specific to this codebase's architecture
-6. A quiz testing the reader's ability to diagnose a realistic error scenario
-
-ANTI-PLACEHOLDER: Never write "If you encounter an error..." generically. Reference actual file paths, function names, and error messages from the codebase.
+1. A text block introducing the troubleshooting guide
+2. For each issue: a callout[warning] with the symptom, then a text block with root cause and fix
+3. A command-card for common diagnostic commands
+4. A callout[tip] with general debugging advice
 
 Return ONLY a valid JSON object: { "blocks": [ ... ] }`;
 }
@@ -234,15 +215,11 @@ export function getOverviewChapterPrompt(audience: TargetAudience): string {
 ${PERSONA_CONTEXT[audience]}
 
 Generate an introductory chapter with:
-1. A text block with a substantial summary (at least 5-6 sentences) of what this codebase does — cover its purpose, key features, target users, and the core problem it solves. Reference specific technologies and architectural patterns.
-2. A mermaid flowchart (graph TD) showing the high-level architecture — main components and how they connect. Include at least 6 nodes with labeled edges.
+1. A text block with a one-paragraph summary of what this codebase does
+2. A mermaid flowchart (graph TD) showing the high-level architecture — main components and how they connect
 3. A file-list block showing the key directories/files and their roles
-4. A text block with key statistics: file count, main languages, estimated complexity, and what each language is used for
-5. An architecture-card describing the primary architectural decision (e.g., monolith vs microservices, choice of framework)
-6. A callout[tip] about how to navigate the course and which chapters to prioritize based on role
-7. A quiz asking the reader to identify which component handles a specific responsibility
-
-ANTI-PLACEHOLDER: The overview must contain real, specific information about THIS codebase. Never write "This is a software project that..." — name the actual technologies, patterns, and business domain.
+4. Key statistics: file count, main languages, estimated complexity
+5. A callout[tip] about how to navigate the course
 
 Return ONLY a valid JSON object: { "blocks": [ ... ] }`;
 }
