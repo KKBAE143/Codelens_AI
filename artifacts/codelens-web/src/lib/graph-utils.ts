@@ -1,5 +1,7 @@
 import Graph, { DirectedGraph, UndirectedGraph } from "graphology";
 import louvain from "graphology-communities-louvain";
+import forceAtlas2 from "graphology-layout-forceatlas2";
+import betweennessCentrality from "graphology-metrics/centrality/betweenness";
 import type { V2OverviewGraph } from "./course-types";
 
 export interface GraphNode {
@@ -12,7 +14,9 @@ export interface GraphNode {
   size: number;
   color: string;
   cluster: number;
+  betweenness: number;
   description?: string;
+  fileCount?: number;
 }
 
 export interface GraphEdge {
@@ -28,6 +32,7 @@ export interface ClusterInfo {
   color: string;
   name: string;
   nodeCount: number;
+  hull: Array<{ x: number; y: number }>;
 }
 
 const CLUSTER_COLORS = [
@@ -54,6 +59,8 @@ export function buildGraphologyGraph(overviewGraph: V2OverviewGraph) {
         label: node.label,
         moduleIndex: node.moduleIndex,
         connections: node.connections,
+        description: (node as Record<string, unknown>).description || "",
+        fileCount: (node as Record<string, unknown>).fileCount || 0,
       });
     }
   }
@@ -110,66 +117,127 @@ export function detectCommunities(graph: Graph): Map<string, number> {
   return communities;
 }
 
-export function layoutCircular(graph: Graph): Map<string, { x: number; y: number }> {
-  const positions = new Map<string, { x: number; y: number }>();
-  const nodes = graph.nodes();
-  const n = nodes.length;
-
-  if (n === 0) return positions;
-  if (n === 1) {
-    positions.set(nodes[0], { x: 0, y: 0 });
-    return positions;
-  }
-
-  const communities = detectCommunities(graph);
-  const clusterNodes = new Map<number, string[]>();
-  for (const [node, cluster] of communities) {
-    if (!clusterNodes.has(cluster)) clusterNodes.set(cluster, []);
-    clusterNodes.get(cluster)!.push(node);
-  }
-
-  const clusterCount = clusterNodes.size;
-  const clusterRadius = Math.max(150, clusterCount * 80);
-  let clusterIdx = 0;
-
-  for (const [, nodesInCluster] of clusterNodes) {
-    const clusterAngle = (2 * Math.PI * clusterIdx) / clusterCount;
-    const cx = clusterRadius * Math.cos(clusterAngle);
-    const cy = clusterRadius * Math.sin(clusterAngle);
-
-    const intraRadius = Math.max(50, nodesInCluster.length * 25);
-    nodesInCluster.forEach((node, i) => {
-      const angle = (2 * Math.PI * i) / nodesInCluster.length;
-      positions.set(node, {
-        x: cx + intraRadius * Math.cos(angle),
-        y: cy + intraRadius * Math.sin(angle),
-      });
-    });
-
-    clusterIdx++;
-  }
-
-  return positions;
+function assignRandomPositions(graph: Graph): void {
+  graph.forEachNode((node) => {
+    graph.setNodeAttribute(node, "x", Math.random() * 100 - 50);
+    graph.setNodeAttribute(node, "y", Math.random() * 100 - 50);
+  });
 }
 
-export function computeNodeSizes(graph: Graph): Map<string, number> {
+function runForceAtlas2Layout(graph: Graph): void {
+  assignRandomPositions(graph);
+
+  if (graph.order < 2 || graph.size < 1) return;
+
+  try {
+    forceAtlas2.assign(graph, {
+      iterations: 100,
+      settings: {
+        gravity: 1,
+        scalingRatio: 10,
+        barnesHutOptimize: graph.order > 50,
+        strongGravityMode: false,
+        slowDown: 5,
+        adjustSizes: true,
+      },
+    });
+  } catch {
+    // fallback: keep random positions
+  }
+}
+
+function computeBetweenness(graph: Graph): Map<string, number> {
+  const result = new Map<string, number>();
+
+  if (graph.order < 3 || graph.size < 2) {
+    graph.forEachNode((node) => result.set(node, 0));
+    return result;
+  }
+
+  try {
+    const bc = betweennessCentrality(graph, { normalized: true });
+    for (const [node, val] of Object.entries(bc)) {
+      result.set(node, val);
+    }
+  } catch {
+    graph.forEachNode((node) => result.set(node, 0));
+  }
+
+  return result;
+}
+
+export function computeNodeSizes(
+  graph: Graph,
+  betweennessMap: Map<string, number>
+): Map<string, number> {
   const sizes = new Map<string, number>();
   const minSize = 8;
-  const maxSize = 25;
+  const maxSize = 28;
 
-  let maxDegree = 0;
+  let maxScore = 0;
   graph.forEachNode((node) => {
     const degree = graph.degree(node);
-    if (degree > maxDegree) maxDegree = degree;
+    const bc = betweennessMap.get(node) || 0;
+    const score = degree + bc * 10;
+    if (score > maxScore) maxScore = score;
   });
 
   graph.forEachNode((node) => {
     const degree = graph.degree(node);
-    const normalized = maxDegree > 0 ? degree / maxDegree : 0;
+    const bc = betweennessMap.get(node) || 0;
+    const score = degree + bc * 10;
+    const normalized = maxScore > 0 ? score / maxScore : 0;
     sizes.set(node, minSize + normalized * (maxSize - minSize));
   });
 
   return sizes;
+}
+
+function convexHull(points: Array<{ x: number; y: number }>): Array<{ x: number; y: number }> {
+  if (points.length < 3) return points;
+
+  const sorted = [...points].sort((a, b) => a.x - b.x || a.y - b.y);
+
+  const cross = (o: { x: number; y: number }, a: { x: number; y: number }, b: { x: number; y: number }) =>
+    (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+
+  const lower: Array<{ x: number; y: number }> = [];
+  for (const p of sorted) {
+    while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0) {
+      lower.pop();
+    }
+    lower.push(p);
+  }
+
+  const upper: Array<{ x: number; y: number }> = [];
+  for (let i = sorted.length - 1; i >= 0; i--) {
+    const p = sorted[i];
+    while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 0) {
+      upper.pop();
+    }
+    upper.push(p);
+  }
+
+  lower.pop();
+  upper.pop();
+  return lower.concat(upper);
+}
+
+function expandHull(hull: Array<{ x: number; y: number }>, pad: number): Array<{ x: number; y: number }> {
+  if (hull.length < 2) return hull;
+
+  const cx = hull.reduce((s, p) => s + p.x, 0) / hull.length;
+  const cy = hull.reduce((s, p) => s + p.y, 0) / hull.length;
+
+  return hull.map((p) => {
+    const dx = p.x - cx;
+    const dy = p.y - cy;
+    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+    return {
+      x: p.x + (dx / dist) * pad,
+      y: p.y + (dy / dist) * pad,
+    };
+  });
 }
 
 export function buildVisualizationData(overviewGraph: V2OverviewGraph): {
@@ -183,9 +251,11 @@ export function buildVisualizationData(overviewGraph: V2OverviewGraph): {
     return { nodes: [], edges: [], clusters: [] };
   }
 
+  runForceAtlas2Layout(graph);
+
   const communities = detectCommunities(graph);
-  const positions = layoutCircular(graph);
-  const sizes = computeNodeSizes(graph);
+  const betweennessMap = computeBetweenness(graph);
+  const sizes = computeNodeSizes(graph, betweennessMap);
 
   const uniqueClusters = [...new Set(communities.values())].sort();
   const clusterColorMap = new Map<number, string>();
@@ -196,7 +266,8 @@ export function buildVisualizationData(overviewGraph: V2OverviewGraph): {
   const nodes: GraphNode[] = [];
   graph.forEachNode((nodeId, attrs) => {
     const cluster = communities.get(nodeId) ?? 0;
-    const pos = positions.get(nodeId) ?? { x: 0, y: 0 };
+    const x = (attrs.x as number) ?? 0;
+    const y = (attrs.y as number) ?? 0;
     const size = sizes.get(nodeId) ?? 10;
 
     nodes.push({
@@ -204,11 +275,14 @@ export function buildVisualizationData(overviewGraph: V2OverviewGraph): {
       label: attrs.label || nodeId,
       moduleIndex: attrs.moduleIndex ?? 0,
       connections: attrs.connections ?? 0,
-      x: pos.x,
-      y: pos.y,
+      x,
+      y,
       size,
       color: clusterColorMap.get(cluster) || CLUSTER_COLORS[0],
       cluster,
+      betweenness: betweennessMap.get(nodeId) ?? 0,
+      description: attrs.description || "",
+      fileCount: attrs.fileCount || 0,
     });
   });
 
@@ -225,24 +299,32 @@ export function buildVisualizationData(overviewGraph: V2OverviewGraph): {
     });
   });
 
-  const clusterNodeCounts = new Map<number, number>();
-  const clusterLabels = new Map<number, string[]>();
+  const clusterNodeMap = new Map<number, GraphNode[]>();
   for (const node of nodes) {
-    clusterNodeCounts.set(node.cluster, (clusterNodeCounts.get(node.cluster) || 0) + 1);
-    if (!clusterLabels.has(node.cluster)) clusterLabels.set(node.cluster, []);
-    clusterLabels.get(node.cluster)!.push(node.label);
+    if (!clusterNodeMap.has(node.cluster)) clusterNodeMap.set(node.cluster, []);
+    clusterNodeMap.get(node.cluster)!.push(node);
   }
 
   const clusters: ClusterInfo[] = uniqueClusters.map((c) => {
-    const labels = clusterLabels.get(c) || [];
+    const clusterNodes = clusterNodeMap.get(c) || [];
+    const labels = clusterNodes.map((n) => n.label);
     const name = labels.length <= 3
       ? labels.join(", ")
       : labels.slice(0, 2).join(", ") + ` +${labels.length - 2}`;
+
+    const points = clusterNodes.map((n) => ({ x: n.x, y: n.y }));
+    const hull = clusterNodes.length >= 3
+      ? expandHull(convexHull(points), 30)
+      : points.length === 2
+        ? expandHull(points, 40)
+        : points.map((p) => ({ x: p.x, y: p.y }));
+
     return {
       id: c,
       color: clusterColorMap.get(c) || CLUSTER_COLORS[0],
       name,
-      nodeCount: clusterNodeCounts.get(c) || 0,
+      nodeCount: clusterNodes.length,
+      hull,
     };
   });
 

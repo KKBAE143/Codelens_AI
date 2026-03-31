@@ -27,11 +27,12 @@ export function KnowledgeGraph({ overviewGraph, onModuleClick }: KnowledgeGraphP
   const graphRef = useRef<DirectedGraph | null>(null);
   const [search, setSearch] = useState("");
   const [hoveredNode, setHoveredNode] = useState<GraphNode | null>(null);
-  const [hoveredEdge, setHoveredEdge] = useState<{ relation: string; from: string; to: string } | null>(null);
+  const [hoveredEdge, setHoveredEdge] = useState<{ relation: string; from: string; to: string; description?: string } | null>(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
   const [showMinimap, setShowMinimap] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
   const minimapDrawRef = useRef<(() => void) | null>(null);
+  const dragStateRef = useRef<{ node: string; active: boolean } | null>(null);
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth <= 768);
@@ -65,6 +66,9 @@ export function KnowledgeGraph({ overviewGraph, onModuleClick }: KnowledgeGraphP
         moduleIndex: node.moduleIndex,
         connections: node.connections,
         cluster: node.cluster,
+        betweenness: node.betweenness,
+        description: node.description || "",
+        fileCount: node.fileCount || 0,
         originalColor: node.color,
         originalSize: node.size,
       });
@@ -104,6 +108,7 @@ export function KnowledgeGraph({ overviewGraph, onModuleClick }: KnowledgeGraphP
     });
 
     sigma.on("enterNode", ({ node, event }) => {
+      if (dragStateRef.current?.active) return;
       const attrs = graph.getNodeAttributes(node);
       const nodeData: GraphNode = {
         id: node,
@@ -113,8 +118,11 @@ export function KnowledgeGraph({ overviewGraph, onModuleClick }: KnowledgeGraphP
         x: attrs.x,
         y: attrs.y,
         size: attrs.size,
-        color: attrs.color,
+        color: attrs.originalColor,
         cluster: attrs.cluster,
+        betweenness: attrs.betweenness ?? 0,
+        description: attrs.description || "",
+        fileCount: attrs.fileCount || 0,
       };
       setHoveredNode(nodeData);
       setHoveredEdge(null);
@@ -145,6 +153,7 @@ export function KnowledgeGraph({ overviewGraph, onModuleClick }: KnowledgeGraphP
     });
 
     sigma.on("leaveNode", () => {
+      if (dragStateRef.current?.active) return;
       setHoveredNode(null);
       graph.forEachNode((n) => {
         graph.setNodeAttribute(n, "color", graph.getNodeAttribute(n, "originalColor"));
@@ -166,6 +175,7 @@ export function KnowledgeGraph({ overviewGraph, onModuleClick }: KnowledgeGraphP
         relation: attrs.relation || attrs.label || "",
         from: graph.getNodeAttribute(src, "label") || src,
         to: graph.getNodeAttribute(tgt, "label") || tgt,
+        description: attrs.label || attrs.relation || "",
       });
       setHoveredNode(null);
       setTooltipPos({ x: event.x, y: event.y });
@@ -176,11 +186,32 @@ export function KnowledgeGraph({ overviewGraph, onModuleClick }: KnowledgeGraphP
     });
 
     sigma.on("clickNode", ({ node }) => {
+      if (dragStateRef.current?.active) return;
       const attrs = graph.getNodeAttributes(node);
       if (typeof attrs.moduleIndex === "number") {
         onModuleClick(attrs.moduleIndex);
       }
     });
+
+    sigma.on("downNode", ({ node }) => {
+      dragStateRef.current = { node, active: false };
+    });
+
+    sigma.getMouseCaptor().on("mousemovebody", (e) => {
+      if (!dragStateRef.current) return;
+      dragStateRef.current.active = true;
+      const pos = sigma.viewportToGraph(e);
+      graph.setNodeAttribute(dragStateRef.current.node, "x", pos.x);
+      graph.setNodeAttribute(dragStateRef.current.node, "y", pos.y);
+      e.preventSigmaDefault();
+      e.original.preventDefault();
+      e.original.stopPropagation();
+    });
+
+    const handleMouseUp = () => {
+      dragStateRef.current = null;
+    };
+    sigma.getMouseCaptor().on("mouseup", handleMouseUp);
 
     sigma.getCamera().on("updated", () => {
       minimapDrawRef.current?.();
@@ -361,6 +392,7 @@ export function KnowledgeGraph({ overviewGraph, onModuleClick }: KnowledgeGraphP
       </div>
 
       <div className="kg-graph-wrapper">
+        <ClusterHulls clusters={vizData.clusters} sigmaRef={sigmaRef} containerRef={containerRef} />
         <div ref={containerRef} className="kg-graph-canvas" />
 
         {(hoveredNode || hoveredEdge) && (
@@ -368,7 +400,7 @@ export function KnowledgeGraph({ overviewGraph, onModuleClick }: KnowledgeGraphP
             className="kg-tooltip"
             style={{
               left: Math.min(tooltipPos.x + 12, (containerRef.current?.clientWidth ?? 400) - 240),
-              top: Math.min(tooltipPos.y + 12, (containerRef.current?.clientHeight ?? 300) - 100),
+              top: Math.min(tooltipPos.y + 12, (containerRef.current?.clientHeight ?? 300) - 120),
             }}
           >
             {hoveredNode && (
@@ -377,18 +409,29 @@ export function KnowledgeGraph({ overviewGraph, onModuleClick }: KnowledgeGraphP
                   <span className="kg-tooltip-dot" style={{ background: hoveredNode.color }} />
                   {hoveredNode.label}
                 </div>
+                {hoveredNode.description && (
+                  <div className="kg-tooltip-desc">{hoveredNode.description}</div>
+                )}
                 <div className="kg-tooltip-meta">
                   Module {hoveredNode.moduleIndex + 1}
                 </div>
                 <div className="kg-tooltip-meta">
                   {hoveredNode.connections} connection{hoveredNode.connections !== 1 ? "s" : ""}
                 </div>
-                <div className="kg-tooltip-hint">Click to navigate</div>
+                {(hoveredNode.fileCount ?? 0) > 0 && (
+                  <div className="kg-tooltip-meta">
+                    {hoveredNode.fileCount} file{(hoveredNode.fileCount ?? 0) !== 1 ? "s" : ""}
+                  </div>
+                )}
+                <div className="kg-tooltip-hint">Click to navigate · Drag to reposition</div>
               </>
             )}
             {hoveredEdge && (
               <>
                 <div className="kg-tooltip-title">{hoveredEdge.relation}</div>
+                {hoveredEdge.description && hoveredEdge.description !== hoveredEdge.relation && (
+                  <div className="kg-tooltip-desc">{hoveredEdge.description}</div>
+                )}
                 <div className="kg-tooltip-meta">
                   {hoveredEdge.from} → {hoveredEdge.to}
                 </div>
@@ -418,6 +461,75 @@ export function KnowledgeGraph({ overviewGraph, onModuleClick }: KnowledgeGraphP
         </div>
       )}
     </div>
+  );
+}
+
+function ClusterHulls({
+  clusters,
+  sigmaRef,
+  containerRef,
+}: {
+  clusters: ClusterInfo[];
+  sigmaRef: React.RefObject<Sigma | null>;
+  containerRef: React.RefObject<HTMLDivElement | null>;
+}) {
+  const svgRef = useRef<SVGSVGElement>(null);
+
+  useEffect(() => {
+    const sigma = sigmaRef.current;
+    if (!sigma || clusters.length < 2) return;
+
+    const updateHulls = () => {
+      const svg = svgRef.current;
+      if (!svg || !containerRef.current) return;
+
+      const w = containerRef.current.clientWidth;
+      const h = containerRef.current.clientHeight;
+      svg.setAttribute("width", String(w));
+      svg.setAttribute("height", String(h));
+
+      while (svg.firstChild) svg.removeChild(svg.firstChild);
+
+      for (const cluster of clusters) {
+        if (cluster.hull.length < 2) continue;
+
+        const viewportPoints = cluster.hull.map((p) => {
+          const vp = sigma.graphToViewport({ x: p.x, y: p.y });
+          return vp;
+        });
+
+        const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        const d = viewportPoints
+          .map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`)
+          .join(" ") + " Z";
+        path.setAttribute("d", d);
+        path.setAttribute("fill", cluster.color + "12");
+        path.setAttribute("stroke", cluster.color + "30");
+        path.setAttribute("stroke-width", "1.5");
+        path.setAttribute("stroke-linejoin", "round");
+        svg.appendChild(path);
+      }
+    };
+
+    updateHulls();
+
+    sigma.getCamera().on("updated", updateHulls);
+    const resizeOb = new ResizeObserver(updateHulls);
+    if (containerRef.current) resizeOb.observe(containerRef.current);
+
+    return () => {
+      sigma.getCamera().removeListener("updated", updateHulls);
+      resizeOb.disconnect();
+    };
+  }, [clusters, sigmaRef, containerRef]);
+
+  if (clusters.length < 2) return null;
+
+  return (
+    <svg
+      ref={svgRef}
+      className="kg-cluster-hulls"
+    />
   );
 }
 
