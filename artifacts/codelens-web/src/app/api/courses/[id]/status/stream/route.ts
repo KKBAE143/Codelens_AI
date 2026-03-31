@@ -22,6 +22,8 @@ function mapStage(stage: string): string {
       return "designing";
     case "write_chapters":
       return "generating";
+    case "polishing":
+      return "polishing";
     case "assembly":
       return "completed";
     default:
@@ -34,6 +36,24 @@ function percentFromProgress(current: number, total: number): number {
   return Math.max(0, Math.min(100, Math.round((current / total) * 100)));
 }
 
+const STAGE_PERCENT_RANGES: Record<string, [number, number]> = {
+  extracting: [2, 15],
+  analyzing: [15, 45],
+  designing: [45, 58],
+  generating: [58, 90],
+  polishing: [90, 98],
+  completed: [100, 100],
+};
+
+function stagePercent(mappedStage: string, current: number, total: number): number {
+  const range = STAGE_PERCENT_RANGES[mappedStage];
+  if (!range) return 0;
+  const [lo, hi] = range;
+  if (!total || total <= 0) return lo;
+  const frac = Math.min(1, Math.max(0, current / total));
+  return Math.round(lo + frac * (hi - lo));
+}
+
 function toStatusPayload(event: PipelineEvent) {
   const status =
     event.type === "failed"
@@ -41,15 +61,16 @@ function toStatusPayload(event: PipelineEvent) {
       : event.type === "completed"
         ? "completed"
         : "generating";
+  const mapped = status === "completed" ? "completed" : mapStage(event.stage);
   return {
     status,
     progress: {
-      stage: status === "completed" ? "completed" : mapStage(event.stage),
+      stage: mapped,
       detail: event.message,
       percent:
         status === "completed"
           ? 100
-          : percentFromProgress(event.progress.current, event.progress.total),
+          : stagePercent(mapped, event.progress.current, event.progress.total),
     },
     errorMessage: status === "failed" ? event.message : undefined,
   };
