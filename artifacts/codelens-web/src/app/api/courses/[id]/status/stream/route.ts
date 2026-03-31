@@ -8,11 +8,56 @@ import { eq, and, isNull } from "drizzle-orm";
 import { getOrCreateEmitter } from "@/lib/pipeline/events";
 import type { PipelineEvent } from "@/lib/pipeline/events";
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function mapStage(stage: string): string {
+  switch (stage) {
+    case "extraction":
+      return "extracting";
+    case "identify_abstractions":
+    case "analyze_relationships":
+      return "analyzing";
+    case "order_chapters":
+      return "designing";
+    case "write_chapters":
+      return "generating";
+    case "assembly":
+      return "completed";
+    default:
+      return stage;
+  }
+}
+
+function percentFromProgress(current: number, total: number): number {
+  if (!total || total <= 0) return 0;
+  return Math.max(0, Math.min(100, Math.round((current / total) * 100)));
+}
+
+function toStatusPayload(event: PipelineEvent) {
+  const status =
+    event.type === "failed"
+      ? "failed"
+      : event.type === "completed"
+        ? "completed"
+        : "generating";
+  return {
+    status,
+    progress: {
+      stage: status === "completed" ? "completed" : mapStage(event.stage),
+      detail: event.message,
+      percent:
+        status === "completed"
+          ? 100
+          : percentFromProgress(event.progress.current, event.progress.total),
+    },
+    errorMessage: status === "failed" ? event.message : undefined,
+  };
+}
 
 export async function GET(
   _request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   let user;
   try {
@@ -29,6 +74,8 @@ export async function GET(
   const [course] = await db
     .select({
       status: courses.status,
+      progress: courses.progress,
+      errorMessage: courses.errorMessage,
       createdBy: courses.createdBy,
     })
     .from(courses)
@@ -45,10 +92,17 @@ export async function GET(
 
   if (course.status === "completed" || course.status === "failed") {
     const body = JSON.stringify({
-      type: course.status,
-      stage: course.status,
-      message: course.status === "completed" ? "Course generation complete" : "Generation failed",
-      progress: { current: 1, total: 1 },
+      status: course.status,
+      progress: course.progress || {
+        stage: course.status === "completed" ? "completed" : "failed",
+        detail:
+          course.status === "completed"
+            ? "Course generation complete"
+            : course.errorMessage || "Generation failed",
+        percent: course.status === "completed" ? 100 : 0,
+      },
+      errorMessage:
+        course.status === "failed" ? course.errorMessage : undefined,
     });
     return new Response(`data: ${body}\n\n`, {
       headers: {
@@ -85,13 +139,15 @@ export async function GET(
 
       sendEvent = (event: PipelineEvent) => {
         try {
-          const data = JSON.stringify(event);
+          const data = JSON.stringify(toStatusPayload(event));
           controller.enqueue(encoder.encode(`data: ${data}\n\n`));
 
           if (event.type === "completed" || event.type === "failed") {
             cleanup();
             setTimeout(() => {
-              try { controller.close(); } catch {}
+              try {
+                controller.close();
+              } catch {}
             }, 500);
           }
         } catch {
@@ -111,10 +167,25 @@ export async function GET(
 
       timeout = setTimeout(() => {
         cleanup();
-        try { controller.close(); } catch {}
+        try {
+          controller.close();
+        } catch {}
       }, 600000);
 
-      controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "stage_start", stage: "connecting", message: "Connected to pipeline stream", progress: { current: 0, total: 5 } })}\n\n`));
+      controller.enqueue(
+        encoder.encode(
+          `data: ${JSON.stringify({
+            status: course.status,
+            progress: course.progress || {
+              stage: "pending",
+              detail: "Connected to pipeline stream",
+              percent: 0,
+            },
+            errorMessage:
+              course.status === "failed" ? course.errorMessage : undefined,
+          })}\n\n`,
+        ),
+      );
     },
     cancel() {
       cleanup();

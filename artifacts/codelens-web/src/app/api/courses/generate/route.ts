@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { getUserGithubToken } from "@/lib/github-auth";
 import { checkAndIncrementUsage } from "@/lib/rate-limit";
@@ -190,8 +190,12 @@ export async function POST(request: Request) {
       data: { courseId: course.id },
     });
   } else {
-    generateCourseDirect(course.id).catch((err) => {
-      console.error("Direct course generation failed:", err);
+    after(async () => {
+      try {
+        await generateCourseDirect(course.id);
+      } catch (err) {
+        console.error("Direct course generation failed:", err);
+      }
     });
   }
 
