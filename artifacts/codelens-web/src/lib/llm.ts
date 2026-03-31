@@ -17,6 +17,11 @@ interface ModelConfig {
   model: string;
 }
 
+interface CloudflareCredentials {
+  accountId: string;
+  authToken: string;
+}
+
 interface CloudflareRunSuccess {
   success?: boolean;
   result?: unknown;
@@ -51,6 +56,53 @@ const ENV_MODEL_KEYS: Record<LlmTask, string> = {
   summary: "COURSE_SUMMARY_MODEL",
 };
 
+const TASK_POOL_INDEX: Record<LlmTask, number> = {
+  stage1: 0,
+  stage2: 1,
+  stage3: 2,
+  summary: 0,
+};
+
+function getCredentialPool(): CloudflareCredentials[] {
+  const pool: CloudflareCredentials[] = [];
+
+  for (let i = 1; i <= 10; i++) {
+    const accountId = process.env[`CLOUDFLARE_ACCOUNT_ID_${i}`]?.trim();
+    const authToken = process.env[`CLOUDFLARE_AUTH_TOKEN_${i}`]?.trim();
+    if (accountId && authToken) {
+      pool.push({ accountId, authToken });
+    }
+  }
+
+  if (pool.length > 0) return pool;
+
+  const accountId = process.env.CLOUDFLARE_ACCOUNT_ID?.trim();
+  const authToken = process.env.CLOUDFLARE_AUTH_TOKEN?.trim();
+  if (accountId && authToken) {
+    pool.push({ accountId, authToken });
+  }
+
+  return pool;
+}
+
+function getCredentialsForTask(task: LlmTask): CloudflareCredentials[] {
+  const pool = getCredentialPool();
+  if (pool.length === 0) {
+    throw new Error(
+      "Cloudflare Workers AI is not configured. Set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_AUTH_TOKEN (or _1/_2/_3 variants for pool rotation).",
+    );
+  }
+
+  if (pool.length === 1) return pool;
+
+  const primaryIdx = TASK_POOL_INDEX[task] % pool.length;
+  const ordered: CloudflareCredentials[] = [];
+  for (let i = 0; i < pool.length; i++) {
+    ordered.push(pool[(primaryIdx + i) % pool.length]);
+  }
+  return ordered;
+}
+
 function getTaskConfigs(task: LlmTask): ModelConfig[] {
   const overrideModel = process.env[ENV_MODEL_KEYS[task]]?.trim();
 
@@ -64,43 +116,54 @@ function getTaskConfigs(task: LlmTask): ModelConfig[] {
 export async function generateText(
   options: GenerateTextOptions,
 ): Promise<GenerateTextResult> {
-  const accountId = process.env.CLOUDFLARE_ACCOUNT_ID?.trim();
-  const authToken = process.env.CLOUDFLARE_AUTH_TOKEN?.trim();
-
-  if (!accountId || !authToken) {
-    throw new Error(
-      "Cloudflare Workers AI is not configured. Set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_AUTH_TOKEN.",
-    );
-  }
-
+  const credentials = getCredentialsForTask(options.task);
   const errors: string[] = [];
 
-  for (const config of getTaskConfigs(options.task)) {
-    for (let attempt = 1; attempt <= 3; attempt++) {
-      try {
-        const text = await generateWithCloudflare(
-          accountId,
-          authToken,
-          config.model,
-          options,
-        );
-
-        return { text, provider: "cloudflare", model: config.model };
-      } catch (error) {
-        const retryDelayMs = getRetryDelayMs(error);
-        const shouldRetry =
-          attempt < 3 && retryDelayMs !== null && isRetryableError(error);
-
-        if (!shouldRetry) {
-          errors.push(
-            `cloudflare:${config.model} -> ${getErrorMessage(error)}`,
+  for (const cred of credentials) {
+    for (const config of getTaskConfigs(options.task)) {
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          const text = await generateWithCloudflare(
+            cred.accountId,
+            cred.authToken,
+            config.model,
+            options,
           );
-          break;
-        }
 
-        await sleep(retryDelayMs);
+          return { text, provider: "cloudflare", model: config.model };
+        } catch (error) {
+          const message = getErrorMessage(error);
+
+          if (isQuotaError(message)) {
+            errors.push(
+              `cloudflare:${config.model}[pool] -> ${message}`,
+            );
+            break;
+          }
+
+          const retryDelayMs = getRetryDelayMs(error);
+          const shouldRetry =
+            attempt < 3 && retryDelayMs !== null && isRetryableError(error);
+
+          if (!shouldRetry) {
+            errors.push(
+              `cloudflare:${config.model} -> ${message}`,
+            );
+            break;
+          }
+
+          await sleep(retryDelayMs);
+        }
       }
     }
+  }
+
+  const quotaHits = errors.filter((e) => e.includes("free allocation") || e.includes("neurons"));
+  if (quotaHits.length > 0 && quotaHits.length === errors.length) {
+    throw new Error(
+      `All Cloudflare accounts have exhausted their daily free quota. ` +
+        `Add more API keys (CLOUDFLARE_ACCOUNT_ID_2/3, CLOUDFLARE_AUTH_TOKEN_2/3) or upgrade to a paid plan.`,
+    );
   }
 
   throw new Error(
@@ -292,6 +355,10 @@ function getErrorMessage(error: unknown): string {
   return "Unknown error";
 }
 
+function isQuotaError(message: string): boolean {
+  return /free allocation|neurons.*upgrade|daily.*limit.*exceeded/i.test(message);
+}
+
 function getRetryDelayMs(error: unknown): number | null {
   const message = getErrorMessage(error);
   const match = message.match(/(?:retry|try again) in\s+([0-9.]+)s/i);
@@ -311,6 +378,7 @@ function getRetryDelayMs(error: unknown): number | null {
 
 function isRetryableError(error: unknown): boolean {
   const message = getErrorMessage(error);
+  if (isQuotaError(message)) return false;
   return /rate limit|too many requests|temporar|capacity|overloaded/i.test(
     message,
   );
