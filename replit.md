@@ -40,10 +40,12 @@ CodeLens AI — a SaaS platform where users paste a GitHub URL and receive an AI
 - Deep linking: `#module-N` hash in URL for direct module access
 - Generation progress: SSE with polling fallback, queue position/ETA display
 
-## Public Gallery & SEO (Task #3)
+## Public Gallery & SEO
 
-- **Explore page**: `/explore` — public course gallery with search, language filter, focus area filter, sort (recent/views/stars/modules), pagination
+- **Explore page**: `/explore` — public course gallery with search (repos, orgs, keywords, GitHub URLs), language filter, audience type filter (vibe coder, new engineer, PM, security auditor), depth filter (quick/full/deep), focus area filter, sort (recent/views/stars/modules), pagination
+- **Featured courses**: Landing page dynamically fetches top 6 courses (ranked by views + stars) from `/api/courses/featured`, shows rich preview cards with avatar, description, language badges, difficulty, module count, estimated time, view count. Falls back to static demo cards when no featured courses available.
 - **Public course viewer**: `/explore/[owner]/[repo]` — full V2 course viewer for public courses, anonymous progress via localStorage, "last generated" timestamp, stars display, completion-triggered sign-in CTA
+- **Generate course CTA**: Explore 404 pages show "Generate Course for owner/repo" deep-link button that pre-fills the repo URL on the landing page via `?repo=` query param
 - **Existing course check**: Home page checks `/api/courses/check-existing?url=` on URL paste, shows banner linking to existing course
 - **View analytics**: `course_views` table, POST `/api/courses/[id]/view` records views, view counts shown on cards + course pages
 - **SEO**: Dynamic sitemap.ts, robots.ts, `generateMetadata` on explore layout (server-side), JSON-LD with `@type: LearningResource` in server layout, OG image endpoint at `/api/og/course/[id]`
@@ -51,7 +53,7 @@ CodeLens AI — a SaaS platform where users paste a GitHub URL and receive an AI
 - **GitHub stars**: Fetched from GitHub API during course generation, stored in `courses.stars`, displayed in explore cards + public course sidebar
 - **Email notifications**: Resend-based email utility (`lib/email.ts`), sends on course generation complete + course completion, respects `users.emailNotifications` opt-out, graceful when `RESEND_API_KEY` not set
 - **Email preferences**: GET/PATCH `/api/user/email-preferences` — toggle email notifications
-- **API endpoints**: GET `/api/courses/explore` (listing with `focusArea` + `stars` sort), GET `/api/courses/explore/[owner]/[repo]` (detail with HTML + stars + focusAreas + timestamps), GET `/api/courses/check-existing`
+- **API endpoints**: GET `/api/courses/explore` (listing with `audience`, `depth`, `focusArea`, `stars` sort, `githubUrl` search), GET `/api/courses/explore/[owner]/[repo]` (detail), GET `/api/courses/featured` (top 6 by popularity), GET `/api/courses/check-existing`
 
 ## Replit Setup
 

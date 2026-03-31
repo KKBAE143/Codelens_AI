@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/hooks/use-auth";
 import { CourseWizardModal } from "@/components/CourseWizardModal";
 import { UpgradePrompt } from "@/components/UpgradePrompt";
@@ -28,6 +29,21 @@ interface ExistingCourseInfo {
   oneLiner: string | null;
   updatedAt: string;
   exploreUrl: string;
+}
+
+interface FeaturedCourse {
+  id: string;
+  repoName: string;
+  ownerName: string;
+  oneLiner: string | null;
+  difficulty: string | null;
+  estimatedMinutes: number | null;
+  moduleCount: number | null;
+  techStack: { languages: string[]; frameworks: string[] } | null;
+  stars: number | null;
+  viewCount: number;
+  updatedAt: string;
+  targetAudience: string;
 }
 
 interface DemoCourse {
@@ -65,7 +81,8 @@ const DEMOS: DemoCourse[] = [
 
 export default function Home() {
   const { isAuthenticated, login } = useAuth();
-  const [url, setUrl] = useState("");
+  const searchParams = useSearchParams();
+  const [url, setUrl] = useState(searchParams.get("repo") || "");
   const [selectedOrg, setSelectedOrg] = useState<string>("");
   const [userOrgs, setUserOrgs] = useState<
     Array<{ slug: string; name: string }>
@@ -75,6 +92,7 @@ export default function Home() {
     null,
   );
   const [demoCourses, setDemoCourses] = useState<DemoCourse[]>(DEMOS);
+  const [featuredCourses, setFeaturedCourses] = useState<FeaturedCourse[]>([]);
   const [showRepoPicker, setShowRepoPicker] = useState(false);
   const [inputMode, setInputMode] = useState<"picker" | "url">("picker");
   const [repoPreview, setRepoPreview] = useState<RepoPreview | null>(null);
@@ -105,6 +123,15 @@ export default function Home() {
               return match ? { ...d, shareToken: match.shareToken } : d;
             }),
           );
+        }
+      })
+      .catch(() => {});
+
+    fetch("/api/courses/featured")
+      .then((r) => (r.ok ? r.json() : { courses: [] }))
+      .then((data) => {
+        if (data.courses?.length) {
+          setFeaturedCourses(data.courses);
         }
       })
       .catch(() => {});
@@ -664,7 +691,7 @@ export default function Home() {
             background: "var(--bg-secondary)",
           }}
         >
-          <div style={{ maxWidth: 900, margin: "0 auto" }}>
+          <div style={{ maxWidth: 1100, margin: "0 auto" }}>
             <h2
               style={{
                 fontFamily: "var(--font-heading)",
@@ -674,7 +701,7 @@ export default function Home() {
                 marginBottom: "0.5rem",
               }}
             >
-              See What&apos;s Possible
+              {featuredCourses.length > 0 ? "Featured Courses" : "See What's Possible"}
             </h2>
             <p
               style={{
@@ -684,42 +711,102 @@ export default function Home() {
                 fontSize: "1rem",
               }}
             >
-              Pre-built courses from popular open-source projects
+              {featuredCourses.length > 0
+                ? "Popular AI-generated courses from the community"
+                : "Pre-built courses from popular open-source projects"}
             </p>
 
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-                gap: "1.25rem",
-              }}
-            >
-              {demoCourses.map((demo) => {
-                const isAvailable = !!demo.shareToken;
-                return (
-                  <div
-                    key={demo.repo}
-                    className="card"
-                    style={{
-                      background: "white",
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "0.75rem",
-                      opacity: isAvailable ? 1 : 0.65,
-                      cursor: isAvailable ? "pointer" : "default",
-                      transition: "opacity 0.2s, transform 0.2s",
-                    }}
-                    onClick={() => {
-                      if (isAvailable)
-                        window.location.href = `/share/${demo.shareToken}`;
-                    }}
-                  >
-                    <div
+            {featuredCourses.length > 0 ? (
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
+                  gap: "1.25rem",
+                }}
+              >
+                {featuredCourses.map((fc) => {
+                  const languages = fc.techStack?.languages || [];
+                  return (
+                    <Link
+                      key={fc.id}
+                      href={`/explore/${fc.ownerName}/${fc.repoName}`}
+                      className="card"
                       style={{
+                        background: "white",
                         display: "flex",
-                        alignItems: "center",
-                        gap: "0.5rem",
-                        flexWrap: "wrap",
+                        flexDirection: "column",
+                        gap: "0.625rem",
+                        textDecoration: "none",
+                        color: "inherit",
+                        transition: "transform 0.2s, box-shadow 0.2s",
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                        <img
+                          src={`https://github.com/${fc.ownerName}.png?size=32`}
+                          alt=""
+                          width={24}
+                          height={24}
+                          style={{ borderRadius: "var(--radius-full)", flexShrink: 0 }}
+                          onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                        />
+                        <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.85rem", fontWeight: 600 }}>
+                          {fc.ownerName}/{fc.repoName}
+                        </span>
+                      </div>
+                      {fc.oneLiner && (
+                        <p style={{ fontSize: "0.8rem", color: "var(--text-secondary)", lineHeight: 1.5, margin: 0, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                          {fc.oneLiner}
+                        </p>
+                      )}
+                      <div style={{ display: "flex", gap: "0.3rem", flexWrap: "wrap" }}>
+                        {languages.slice(0, 3).map((lang) => (
+                          <span key={lang} className="badge" style={{ background: "var(--teal-light)", color: "var(--teal)" }}>{lang}</span>
+                        ))}
+                        {fc.difficulty && (
+                          <span className="badge" style={{ background: fc.difficulty === "Advanced" ? "#FFF0EE" : "#FFF8E1", color: fc.difficulty === "Advanced" ? "var(--accent)" : "var(--warning)" }}>
+                            {fc.difficulty}
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ display: "flex", gap: "0.75rem", fontSize: "0.75rem", color: "var(--text-tertiary)", marginTop: "auto" }}>
+                        {fc.stars != null && fc.stars > 0 && (
+                          <span>&#9733; {fc.stars >= 1000 ? `${(fc.stars / 1000).toFixed(1)}k` : fc.stars}</span>
+                        )}
+                        {fc.moduleCount && <span>{fc.moduleCount} modules</span>}
+                        {fc.estimatedMinutes && <span>~{fc.estimatedMinutes} min</span>}
+                        {fc.viewCount > 0 && <span>{fc.viewCount} views</span>}
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            ) : (
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+                  gap: "1.25rem",
+                }}
+              >
+                {demoCourses.map((demo) => {
+                  const isAvailable = !!demo.shareToken;
+                  return (
+                    <div
+                      key={demo.repo}
+                      className="card"
+                      style={{
+                        background: "white",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "0.75rem",
+                        opacity: isAvailable ? 1 : 0.65,
+                        cursor: isAvailable ? "pointer" : "default",
+                        transition: "opacity 0.2s, transform 0.2s",
+                      }}
+                      onClick={() => {
+                        if (isAvailable)
+                          window.location.href = `/share/${demo.shareToken}`;
                       }}
                     >
                       <code
@@ -730,96 +817,53 @@ export default function Home() {
                           borderRadius: "var(--radius-sm)",
                           color: "var(--text-primary)",
                           fontWeight: 500,
+                          alignSelf: "flex-start",
                         }}
                       >
                         {demo.repo}
                       </code>
-                    </div>
-                    <p
-                      style={{
-                        fontSize: "0.85rem",
-                        color: "var(--text-secondary)",
-                        lineHeight: 1.5,
-                      }}
-                    >
-                      {demo.desc}
-                    </p>
-                    <div
-                      style={{
-                        display: "flex",
-                        gap: "0.375rem",
-                        flexWrap: "wrap",
-                      }}
-                    >
-                      {demo.techs.map((t) => (
-                        <span
-                          key={t}
-                          className="badge"
-                          style={{
-                            background: "var(--teal-light)",
-                            color: "var(--teal)",
-                          }}
-                        >
-                          {t}
+                      <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", lineHeight: 1.5 }}>
+                        {demo.desc}
+                      </p>
+                      <div style={{ display: "flex", gap: "0.375rem", flexWrap: "wrap" }}>
+                        {demo.techs.map((t) => (
+                          <span key={t} className="badge" style={{ background: "var(--teal-light)", color: "var(--teal)" }}>{t}</span>
+                        ))}
+                        <span className="badge" style={{ background: demo.difficulty === "Advanced" ? "#FFF0EE" : "#FFF8E1", color: demo.difficulty === "Advanced" ? "var(--accent)" : "var(--warning)" }}>
+                          {demo.difficulty}
                         </span>
-                      ))}
-                      <span
-                        className="badge"
-                        style={{
-                          background:
-                            demo.difficulty === "Advanced"
-                              ? "#FFF0EE"
-                              : "#FFF8E1",
-                          color:
-                            demo.difficulty === "Advanced"
-                              ? "var(--accent)"
-                              : "var(--warning)",
-                        }}
-                      >
-                        {demo.difficulty}
-                      </span>
-                      <span
-                        className="badge"
-                        style={{
-                          background: "var(--bg-secondary)",
-                          color: "var(--text-secondary)",
-                        }}
-                      >
-                        {demo.time}
-                      </span>
-                    </div>
-                    {isAvailable ? (
-                      <Link
-                        href={`/share/${demo.shareToken}`}
-                        className="btn-secondary"
-                        style={{
-                          textAlign: "center",
-                          textDecoration: "none",
-                          fontSize: "0.8rem",
-                          padding: "0.5rem",
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        View Course {"\u2192"}
-                      </Link>
-                    ) : (
-                      <div
-                        style={{
-                          padding: "0.5rem",
-                          background: "var(--bg-secondary)",
-                          borderRadius: "var(--radius-sm)",
-                          textAlign: "center",
-                          fontSize: "0.8rem",
-                          color: "var(--text-tertiary)",
-                          fontWeight: 500,
-                        }}
-                      >
-                        Coming soon
+                        <span className="badge" style={{ background: "var(--bg-secondary)", color: "var(--text-secondary)" }}>
+                          {demo.time}
+                        </span>
                       </div>
-                    )}
-                  </div>
-                );
-              })}
+                      {isAvailable ? (
+                        <Link
+                          href={`/share/${demo.shareToken}`}
+                          className="btn-secondary"
+                          style={{ textAlign: "center", textDecoration: "none", fontSize: "0.8rem", padding: "0.5rem" }}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          View Course {"\u2192"}
+                        </Link>
+                      ) : (
+                        <div style={{ padding: "0.5rem", background: "var(--bg-secondary)", borderRadius: "var(--radius-sm)", textAlign: "center", fontSize: "0.8rem", color: "var(--text-tertiary)", fontWeight: 500 }}>
+                          Coming soon
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <div style={{ textAlign: "center", marginTop: "2rem" }}>
+              <Link
+                href="/explore"
+                className="btn-secondary"
+                style={{ textDecoration: "none", fontSize: "0.9rem", padding: "0.625rem 1.5rem" }}
+              >
+                Browse All Courses {"\u2192"}
+              </Link>
             </div>
           </div>
         </section>
