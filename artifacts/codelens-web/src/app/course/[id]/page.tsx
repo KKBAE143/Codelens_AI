@@ -1,0 +1,946 @@
+"use client";
+
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/use-auth";
+import { useToast } from "@/components/Toast";
+import dynamic from "next/dynamic";
+import { BlockRenderer } from "@/components/course-blocks/BlockRenderer";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import {
+  isV2Course,
+  parseV2Course,
+  type V2CourseData,
+  type V2Module,
+  type V2OverviewGraph,
+} from "@/lib/course-types";
+
+const KnowledgeGraph = dynamic(
+  () =>
+    import("@/components/course-blocks/KnowledgeGraph").then(
+      (m) => m.KnowledgeGraph
+    ),
+  { ssr: false }
+);
+
+const AUDIENCE_LABELS: Record<string, string> = {
+  vibe_coder: "Vibe Coder",
+  new_engineer: "New Engineer",
+  product_manager: "PM",
+  security_auditor: "Security",
+};
+
+interface ChangesSince {
+  summary: string;
+  changedFiles: string[];
+  addedFiles: string[];
+  modifiedFiles: string[];
+  removedFiles: string[];
+  previousVersionId: string;
+  detectedAt: string;
+}
+
+interface WebhookInfo {
+  autoRegenerate: boolean;
+  lastTriggeredAt: string | null;
+}
+
+interface CourseData {
+  id: string;
+  repoName: string;
+  ownerName: string;
+  githubUrl: string;
+  targetAudience: string;
+  techStack: { languages: string[]; frameworks: string[] } | null;
+  oneLiner: string | null;
+  difficulty: string | null;
+  estimatedMinutes: number | null;
+  moduleCount: number | null;
+  html: string;
+  version: number;
+  changesSince: ChangesSince | null;
+  shareToken: string | null;
+  isPublic: boolean;
+  createdBy: string;
+}
+
+async function fetchCourse(id: string): Promise<{ course: CourseData; webhook: WebhookInfo | null }> {
+  const res = await fetch(`/api/courses/${id}`, { credentials: "include" });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({ error: "Course not found" }));
+    throw new Error(data.error || "Course not found");
+  }
+  return res.json();
+}
+
+function ProgressRing({ percent, size = 28, stroke = 3 }: { percent: number; size?: number; stroke?: number }) {
+  const radius = (size - stroke) / 2;
+  const circumference = radius * 2 * Math.PI;
+  const offset = circumference - (percent / 100) * circumference;
+  return (
+    <svg width={size} height={size} style={{ transform: "rotate(-90deg)", flexShrink: 0 }}>
+      <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="var(--bg-tertiary)" strokeWidth={stroke} />
+      <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={percent >= 100 ? "var(--teal)" : "var(--accent)"} strokeWidth={stroke} strokeDasharray={circumference} strokeDashoffset={offset} strokeLinecap="round" style={{ transition: "stroke-dashoffset 0.4s ease" }} />
+    </svg>
+  );
+}
+
+function ReadingProgressBar({ scrollRef }: { scrollRef: React.RefObject<HTMLDivElement | null> }) {
+  const [progress, setProgress] = useState(0);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+
+    const handleScroll = () => {
+      const scrollTop = el.scrollTop;
+      const scrollHeight = el.scrollHeight - el.clientHeight;
+      if (scrollHeight > 0) {
+        setProgress(Math.min(100, (scrollTop / scrollHeight) * 100));
+      }
+    };
+
+    el.addEventListener("scroll", handleScroll, { passive: true });
+    return () => el.removeEventListener("scroll", handleScroll);
+  }, [scrollRef]);
+
+  return (
+    <div className="v2-reading-progress">
+      <div className="v2-reading-progress-bar" style={{ width: `${progress}%` }} />
+    </div>
+  );
+}
+
+function OverviewGraphDisplay({ graph, onModuleClick }: { graph: V2OverviewGraph; onModuleClick: (i: number) => void }) {
+  if (!graph.nodes.length) return null;
+
+  return (
+    <div className="v2-overview-graph">
+      <h3 className="v2-overview-graph-title">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="18" cy="5" r="3" />
+          <circle cx="6" cy="12" r="3" />
+          <circle cx="18" cy="19" r="3" />
+          <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+          <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+        </svg>
+        Abstraction Relationships
+      </h3>
+      <div className="v2-overview-nodes">
+        {graph.nodes.map((node) => (
+          <button
+            key={node.id}
+            className="v2-overview-node"
+            onClick={() => onModuleClick(node.moduleIndex)}
+            title={`Go to Module ${node.moduleIndex + 1}`}
+          >
+            <span className="v2-overview-node-label">{node.label}</span>
+            <span className="v2-overview-node-connections">
+              {node.connections} connection{node.connections !== 1 ? "s" : ""}
+            </span>
+          </button>
+        ))}
+      </div>
+      {graph.edges.length > 0 && (
+        <div className="v2-overview-edges">
+          {graph.edges.map((edge, i) => (
+            <div key={i} className="v2-overview-edge">
+              <span className="v2-overview-edge-from">{graph.nodes.find(n => n.id === edge.from)?.label || edge.from}</span>
+              <span className="v2-overview-edge-arrow">→</span>
+              <span className="v2-overview-edge-relation">{edge.label || edge.relation}</span>
+              <span className="v2-overview-edge-arrow">→</span>
+              <span className="v2-overview-edge-to">{graph.nodes.find(n => n.id === edge.to)?.label || edge.to}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function V2ModuleSidebar({
+  modules,
+  activeIndex,
+  completedModules,
+  onSelect,
+}: {
+  modules: V2Module[];
+  activeIndex: number;
+  completedModules: number[];
+  onSelect: (i: number) => void;
+}) {
+  return (
+    <nav className="v2-module-nav" aria-label="Course modules">
+      {modules.map((mod, i) => {
+        const isActive = i === activeIndex;
+        const isCompleted = completedModules.includes(i);
+        return (
+          <button
+            key={i}
+            className={`v2-module-nav-item ${isActive ? "v2-module-nav-active" : ""} ${isCompleted ? "v2-module-nav-completed" : ""}`}
+            onClick={() => onSelect(i)}
+            aria-current={isActive ? "step" : undefined}
+            aria-label={`Module ${i + 1}: ${mod.title}${isCompleted ? " (completed)" : ""}`}
+          >
+            <ProgressRing percent={isCompleted ? 100 : isActive ? 50 : 0} size={24} stroke={2.5} />
+            <div className="v2-module-nav-text">
+              <span className="v2-module-nav-label">Module {i + 1}</span>
+              <span className="v2-module-nav-title">{mod.title}</span>
+              {mod.estimatedMinutes && (
+                <span className="v2-module-nav-time">~{mod.estimatedMinutes} min</span>
+              )}
+            </div>
+            {isCompleted && (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginLeft: "auto" }}>
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            )}
+          </button>
+        );
+      })}
+    </nav>
+  );
+}
+
+function V2ModuleContent({
+  module: mod,
+  moduleIndex,
+  totalModules,
+  githubUrl,
+  isCompleted,
+  onComplete,
+  onPrev,
+  onNext,
+}: {
+  module: V2Module;
+  moduleIndex: number;
+  totalModules: number;
+  githubUrl: string;
+  isCompleted: boolean;
+  onComplete: () => void;
+  onPrev: () => void;
+  onNext: () => void;
+}) {
+  return (
+    <article className="v2-module-content">
+      <header className="v2-module-header">
+        <span className="v2-module-index">Module {moduleIndex + 1} of {totalModules}</span>
+        <h2 className="v2-module-title">{mod.title}</h2>
+        {mod.learningObjective && (
+          <p className="v2-module-objective">{mod.learningObjective}</p>
+        )}
+        <div className="v2-module-meta">
+          {mod.estimatedMinutes && (
+            <span className="v2-module-meta-item">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: "middle", marginRight: 3 }}>
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
+              </svg>
+              ~{mod.estimatedMinutes} min
+            </span>
+          )}
+          {mod.focusAreas && mod.focusAreas.length > 0 && (
+            <div className="v2-module-focus-tags">
+              {mod.focusAreas.map((fa) => (
+                <span key={fa} className="badge" style={{ background: "var(--accent-light)", color: "var(--accent)" }}>{fa}</span>
+              ))}
+            </div>
+          )}
+        </div>
+      </header>
+
+      <div className="v2-blocks">
+        {mod.blocks.map((block, bi) => (
+          <div key={bi} className="v2-block-wrapper">
+            <BlockRenderer block={block} githubUrl={githubUrl} />
+          </div>
+        ))}
+      </div>
+
+      <footer className="v2-module-footer">
+        <button
+          className="v2-nav-btn"
+          onClick={onPrev}
+          disabled={moduleIndex === 0}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
+          Previous
+        </button>
+
+        <div className="v2-module-footer-center">
+          {!isCompleted ? (
+            <button className="btn-primary" onClick={onComplete} style={{ fontSize: "0.85rem" }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+              Mark Complete
+            </button>
+          ) : (
+            <span style={{ color: "var(--teal)", fontWeight: 600, fontSize: "0.85rem", display: "flex", alignItems: "center", gap: "0.25rem" }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                <polyline points="22 4 12 14.01 9 11.01" />
+              </svg>
+              Completed
+            </span>
+          )}
+        </div>
+
+        <button
+          className="v2-nav-btn"
+          onClick={onNext}
+          disabled={moduleIndex === totalModules - 1}
+        >
+          Next
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
+        </button>
+      </footer>
+    </article>
+  );
+}
+
+function MobileMenuIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="3" y1="12" x2="21" y2="12" />
+      <line x1="3" y1="6" x2="21" y2="6" />
+      <line x1="3" y1="18" x2="21" y2="18" />
+    </svg>
+  );
+}
+
+function CloseMenuIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="18" y1="6" x2="6" y2="18" />
+      <line x1="6" y1="6" x2="18" y2="18" />
+    </svg>
+  );
+}
+
+export default function CourseViewer() {
+  const params = useParams();
+  const router = useRouter();
+  const { user, isAuthenticated, isLoading: authLoading, login } = useAuth();
+  const { showToast } = useToast();
+  const queryClient = useQueryClient();
+  const [completedModules, setCompletedModules] = useState<number[]>([]);
+  const [showSidebar, setShowSidebar] = useState(true);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [overviewTab, setOverviewTab] = useState<"graph" | "diagram">("graph");
+  const [iframeSrc, setIframeSrc] = useState<string | null>(null);
+  const [webhookToggling, setWebhookToggling] = useState(false);
+  const [lastSeenVersion, setLastSeenVersion] = useState<number | null>(null);
+  const [showWhatsNew, setShowWhatsNew] = useState(false);
+  const [activeModuleIndex, setActiveModuleIndex] = useState(() => {
+    if (typeof window !== "undefined") {
+      const hash = window.location.hash;
+      const match = hash.match(/^#module-(\d+)$/);
+      if (match) return Math.max(0, parseInt(match[1], 10) - 1);
+    }
+    return 0;
+  });
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const moduleCountRef = useRef(0);
+  const mainScrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) login();
+  }, [authLoading, isAuthenticated, login]);
+
+  const courseId = params.id as string;
+
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["course", courseId],
+    queryFn: () => fetchCourse(courseId),
+    enabled: isAuthenticated && !!courseId,
+  });
+
+  const course = data?.course ?? null;
+  const webhookInfo = data?.webhook ?? null;
+
+  const v2Data: V2CourseData | null = useMemo(() => {
+    if (!course?.html) return null;
+    return parseV2Course(course.html);
+  }, [course?.html]);
+
+  const isV2 = !!v2Data;
+
+  useEffect(() => {
+    if (course) {
+      moduleCountRef.current = v2Data?.totalModules || course.moduleCount || 0;
+      document.title = `${course.ownerName}/${course.repoName} — CodeLens AI`;
+    }
+  }, [course, v2Data]);
+
+  useEffect(() => {
+    if (!courseId || !isAuthenticated) return;
+    fetch(`/api/courses/${courseId}/progress`, { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((progressData) => {
+        if (progressData?.completedModules?.length) {
+          setCompletedModules(progressData.completedModules);
+        }
+        setLastSeenVersion(typeof progressData?.lastSeenVersion === "number" ? progressData.lastSeenVersion : 0);
+      })
+      .catch(() => {});
+  }, [courseId, isAuthenticated]);
+
+  useEffect(() => {
+    if (course && lastSeenVersion !== null && course.version > lastSeenVersion && course.changesSince) {
+      setShowWhatsNew(true);
+    }
+  }, [course, lastSeenVersion]);
+
+  useEffect(() => {
+    if (!course?.html || isV2) return;
+    const url = URL.createObjectURL(new Blob([course.html], { type: "text/html" }));
+    setIframeSrc(url);
+    return () => URL.revokeObjectURL(url);
+  }, [course?.html, isV2]);
+
+  const handleMessage = useCallback((event: MessageEvent) => {
+    if (iframeRef.current && event.source !== iframeRef.current.contentWindow) return;
+    if (!event.data || typeof event.data !== "object") return;
+
+    if (event.data.type === "moduleComplete" && typeof event.data.moduleIndex === "number") {
+      markModuleComplete(event.data.moduleIndex);
+    }
+  }, [courseId]);
+
+  useEffect(() => {
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, [handleMessage]);
+
+  useEffect(() => {
+    if (!v2Data) return;
+    const totalMods = v2Data.totalModules;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) return;
+      if (e.key === "j" || e.key === "ArrowDown") {
+        e.preventDefault();
+        setActiveModuleIndex((prev) => Math.min(totalMods - 1, prev + 1));
+        mainScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+      } else if (e.key === "k" || e.key === "ArrowUp") {
+        e.preventDefault();
+        setActiveModuleIndex((prev) => Math.max(0, prev - 1));
+        mainScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [v2Data]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.history.replaceState(null, "", `#module-${activeModuleIndex + 1}`);
+    }
+  }, [activeModuleIndex]);
+
+  const markModuleComplete = useCallback((moduleIndex: number) => {
+    setCompletedModules((prev) => {
+      if (prev.includes(moduleIndex)) return prev;
+      const updated = [...prev, moduleIndex];
+      fetch(`/api/courses/${courseId}/progress`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ moduleIndex, totalModules: moduleCountRef.current }),
+      }).catch(() => {});
+      return updated;
+    });
+  }, [courseId]);
+
+  const handleCopyShare = () => {
+    if (!course) return;
+    let url: string;
+    if (course.isPublic) {
+      url = `${window.location.origin}/explore/${course.ownerName}/${course.repoName}`;
+    } else if (course.shareToken) {
+      url = `${window.location.origin}/share/${course.shareToken}`;
+    } else {
+      return;
+    }
+    navigator.clipboard.writeText(url);
+    showToast("Share link copied!", "success");
+  };
+
+  const handleDismissWhatsNew = async () => {
+    if (!course) return;
+    setShowWhatsNew(false);
+    setLastSeenVersion(course.version);
+    try {
+      await fetch(`/api/courses/${courseId}/progress`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ markVersionSeen: course.version }),
+      });
+    } catch {}
+  };
+
+  const handleToggleWebhook = async () => {
+    if (!course || webhookToggling) return;
+    setWebhookToggling(true);
+    try {
+      const newState = !webhookInfo?.autoRegenerate;
+      const res = await fetch(`/api/courses/${courseId}/webhook`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ enabled: newState }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error((data as Record<string, string>).error || "Failed to update auto-update");
+      }
+      showToast(newState ? "Auto-updates enabled" : "Auto-updates disabled", "success");
+      queryClient.invalidateQueries({ queryKey: ["course", courseId] });
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Failed to toggle auto-updates", "error");
+    } finally {
+      setWebhookToggling(false);
+    }
+  };
+
+  const handleModuleSelect = (i: number) => {
+    setActiveModuleIndex(i);
+    setMobileMenuOpen(false);
+    mainScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  if (isLoading || authLoading) {
+    return (
+      <main style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ textAlign: "center" }}>
+          <div className="skeleton" style={{ width: 300, height: 24, margin: "0 auto 1rem" }} />
+          <div className="skeleton" style={{ width: 200, height: 16, margin: "0 auto" }} />
+        </div>
+      </main>
+    );
+  }
+
+  if (error) {
+    return (
+      <main style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: "1rem" }}>
+        <h2 style={{ fontFamily: "var(--font-heading)", fontSize: "1.5rem", color: "var(--error)" }}>
+          {error instanceof Error ? error.message : "Failed to load course"}
+        </h2>
+        <button className="btn-secondary" onClick={() => router.push("/dashboard")}>
+          Back to Dashboard
+        </button>
+      </main>
+    );
+  }
+
+  if (!course || !course.html) {
+    return (
+      <main style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <p style={{ color: "var(--text-secondary)" }}>Course content is not available yet.</p>
+      </main>
+    );
+  }
+
+  if (!isV2 && !iframeSrc) {
+    return (
+      <main style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <p style={{ color: "var(--text-secondary)" }}>Loading course...</p>
+      </main>
+    );
+  }
+
+  const totalModules = v2Data?.totalModules || course.moduleCount || 0;
+  const progress = totalModules ? Math.round((completedModules.length / totalModules) * 100) : 0;
+
+  return (
+    <div style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
+      <div className="course-topbar" style={{
+        height: 48, background: "var(--code-bg)", color: "white",
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "0 1rem", flexShrink: 0,
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+          {isV2 && (
+            <button
+              className="v2-mobile-menu-btn"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              aria-label="Toggle sidebar menu"
+            >
+              {mobileMenuOpen ? <CloseMenuIcon /> : <MobileMenuIcon />}
+            </button>
+          )}
+          <button
+            onClick={() => router.push("/dashboard")}
+            className="v2-topbar-back"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
+            <span className="v2-topbar-back-text">Dashboard</span>
+          </button>
+          <span style={{ color: "rgba(255,255,255,0.3)" }}>|</span>
+          <code style={{ fontSize: "0.85rem", color: "rgba(255,255,255,0.9)", fontFamily: "var(--font-mono)" }}>
+            {course.ownerName}/{course.repoName}
+          </code>
+          {course.version > 1 && (
+            <span style={{ background: "rgba(46,125,50,0.3)", color: "#A5D6A7", padding: "0.1rem 0.4rem", borderRadius: "var(--radius-full)", fontSize: "0.7rem", fontWeight: 600 }}>
+              v{course.version}
+            </span>
+          )}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+          <span className="v2-topbar-audience" style={{ background: "rgba(255,255,255,0.15)", padding: "0.125rem 0.5rem", borderRadius: "var(--radius-full)", color: "rgba(255,255,255,0.7)", fontSize: "0.75rem" }}>
+            {AUDIENCE_LABELS[course.targetAudience] || course.targetAudience}
+          </span>
+          {totalModules > 0 && (
+            <div className="v2-topbar-progress" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <div style={{ width: 100, height: 4, background: "rgba(255,255,255,0.2)", borderRadius: 2, overflow: "hidden" }}>
+                <div style={{ height: "100%", width: `${progress}%`, background: "var(--teal)", borderRadius: 2, transition: "width 0.3s ease" }} />
+              </div>
+              <span style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.6)" }}>
+                {completedModules.length}/{totalModules}
+              </span>
+            </div>
+          )}
+          {(course.isPublic || course.shareToken) && (
+            <button onClick={handleCopyShare} className="v2-topbar-share-btn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="18" cy="5" r="3" />
+                <circle cx="6" cy="12" r="3" />
+                <circle cx="18" cy="19" r="3" />
+                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+                <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+              </svg>
+              <span className="v2-topbar-share-text">Share</span>
+            </button>
+          )}
+          <button
+            onClick={() => setShowSidebar(!showSidebar)}
+            className="v2-topbar-sidebar-btn"
+            aria-label={showSidebar ? "Hide sidebar" : "Show sidebar"}
+            title={showSidebar ? "Hide sidebar" : "Show sidebar"}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+              <line x1="9" y1="3" x2="9" y2="21" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      {showWhatsNew && course.changesSince && (
+        <div style={{ background: "linear-gradient(90deg, #E8F5E9, #C8E6C9)", padding: "0.75rem 1rem", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "1rem", borderBottom: "1px solid #A5D6A7", flexShrink: 0 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: "0.8rem", fontWeight: 600, color: "#2E7D32", marginBottom: "0.25rem", fontFamily: "var(--font-heading)" }}>
+              What&apos;s new in version {course.version}
+            </div>
+            <p style={{ fontSize: "0.8rem", color: "#388E3C", lineHeight: 1.4, margin: 0 }}>
+              {course.changesSince.summary}
+            </p>
+          </div>
+          <button onClick={handleDismissWhatsNew} style={{ background: "#2E7D32", color: "white", border: "none", borderRadius: "var(--radius-sm)", padding: "0.375rem 0.75rem", fontSize: "0.8rem", cursor: "pointer", fontFamily: "var(--font-body)", whiteSpace: "nowrap", flexShrink: 0 }}>
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      {isV2 && v2Data ? (
+        <>
+          <ReadingProgressBar scrollRef={mainScrollRef} />
+          <div style={{ flex: 1, display: "flex", overflow: "hidden", position: "relative" }}>
+            {showSidebar && (
+              <aside className="v2-sidebar course-sidebar">
+                <div className="v2-sidebar-header">
+                  <h3 className="v2-sidebar-title">Modules</h3>
+                  <div className="v2-sidebar-progress">
+                    <ProgressRing percent={progress} size={32} stroke={3} />
+                    <span className="v2-sidebar-progress-text">{progress}%</span>
+                  </div>
+                </div>
+
+                <V2ModuleSidebar
+                  modules={v2Data.modules}
+                  activeIndex={activeModuleIndex}
+                  completedModules={completedModules}
+                  onSelect={handleModuleSelect}
+                />
+
+                <div className="v2-sidebar-info">
+                  {v2Data.languages.length > 0 && (
+                    <div className="v2-sidebar-section">
+                      <span className="v2-sidebar-label">Languages</span>
+                      <div style={{ display: "flex", gap: "0.25rem", flexWrap: "wrap" }}>
+                        {v2Data.languages.map((l) => (
+                          <span key={l} className="badge" style={{ background: "var(--teal-light)", color: "var(--teal)" }}>{l}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {v2Data.frameworks.length > 0 && (
+                    <div className="v2-sidebar-section">
+                      <span className="v2-sidebar-label">Frameworks</span>
+                      <div style={{ display: "flex", gap: "0.25rem", flexWrap: "wrap" }}>
+                        {v2Data.frameworks.map((f) => (
+                          <span key={f} className="badge" style={{ background: "var(--accent-light)", color: "var(--accent)" }}>{f}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {v2Data.estimatedTotalMinutes > 0 && (
+                    <div className="v2-sidebar-section">
+                      <span className="v2-sidebar-label">Duration</span>
+                      <span style={{ fontSize: "0.8rem" }}>~{v2Data.estimatedTotalMinutes} min</span>
+                    </div>
+                  )}
+                  {user && course.createdBy === user.id && (
+                    <div className="v2-sidebar-section">
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                        <div>
+                          <div style={{ fontSize: "0.8rem", fontWeight: 500 }}>Auto-update</div>
+                          <div style={{ fontSize: "0.7rem", color: "var(--text-tertiary)" }}>Regenerate on push</div>
+                        </div>
+                        <button
+                          onClick={handleToggleWebhook}
+                          disabled={webhookToggling}
+                          style={{
+                            width: 44, height: 24, borderRadius: 12, border: "none",
+                            cursor: webhookToggling ? "wait" : "pointer",
+                            background: webhookInfo?.autoRegenerate ? "var(--teal)" : "var(--border-color)",
+                            position: "relative", transition: "background 0.2s ease",
+                          }}
+                        >
+                          <div style={{
+                            width: 18, height: 18, borderRadius: "50%", background: "white",
+                            position: "absolute", top: 3,
+                            left: webhookInfo?.autoRegenerate ? 23 : 3,
+                            transition: "left 0.2s ease",
+                            boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+                          }} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  <a
+                    href={course.githubUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn-secondary"
+                    style={{ width: "100%", justifyContent: "center", textDecoration: "none", fontSize: "0.8rem", marginTop: "0.5rem" }}
+                  >
+                    View on GitHub ↗
+                  </a>
+                </div>
+              </aside>
+            )}
+
+            {mobileMenuOpen && (
+              <>
+                <div className="v2-mobile-overlay" onClick={() => setMobileMenuOpen(false)} />
+                <aside className="v2-mobile-sidebar">
+                  <div className="v2-sidebar-header">
+                    <h3 className="v2-sidebar-title">Modules</h3>
+                    <div className="v2-sidebar-progress">
+                      <ProgressRing percent={progress} size={32} stroke={3} />
+                      <span className="v2-sidebar-progress-text">{progress}%</span>
+                    </div>
+                  </div>
+                  <V2ModuleSidebar
+                    modules={v2Data.modules}
+                    activeIndex={activeModuleIndex}
+                    completedModules={completedModules}
+                    onSelect={handleModuleSelect}
+                  />
+                </aside>
+              </>
+            )}
+
+            <div ref={mainScrollRef} className="v2-main-scroll">
+              <ErrorBoundary>
+              {activeModuleIndex === 0 && v2Data.overviewGraph && (
+                <div className="v2-overview-section">
+                  <div className="v2-overview-tabs" role="tablist" aria-label="Overview visualization tabs">
+                    <button
+                      id="tab-graph"
+                      className={`v2-overview-tab ${overviewTab === "graph" ? "v2-overview-tab-active" : ""}`}
+                      onClick={() => setOverviewTab("graph")}
+                      role="tab"
+                      aria-selected={overviewTab === "graph"}
+                      aria-controls="tabpanel-graph"
+                      tabIndex={overviewTab === "graph" ? 0 : -1}
+                      onKeyDown={(e) => {
+                        if (e.key === "ArrowRight") {
+                          setOverviewTab("diagram");
+                          (document.getElementById("tab-diagram") as HTMLElement)?.focus();
+                        }
+                      }}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="18" cy="5" r="3" />
+                        <circle cx="6" cy="12" r="3" />
+                        <circle cx="18" cy="19" r="3" />
+                        <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+                        <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+                      </svg>
+                      Knowledge Graph
+                    </button>
+                    <button
+                      id="tab-diagram"
+                      className={`v2-overview-tab ${overviewTab === "diagram" ? "v2-overview-tab-active" : ""}`}
+                      onClick={() => setOverviewTab("diagram")}
+                      role="tab"
+                      aria-selected={overviewTab === "diagram"}
+                      aria-controls="tabpanel-diagram"
+                      tabIndex={overviewTab === "diagram" ? 0 : -1}
+                      onKeyDown={(e) => {
+                        if (e.key === "ArrowLeft") {
+                          setOverviewTab("graph");
+                          (document.getElementById("tab-graph") as HTMLElement)?.focus();
+                        }
+                      }}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="3" y="3" width="7" height="7" />
+                        <rect x="14" y="3" width="7" height="7" />
+                        <rect x="14" y="14" width="7" height="7" />
+                        <rect x="3" y="14" width="7" height="7" />
+                      </svg>
+                      Abstraction Map
+                    </button>
+                  </div>
+
+                  {overviewTab === "graph" ? (
+                    <div id="tabpanel-graph" role="tabpanel" aria-labelledby="tab-graph">
+                      <KnowledgeGraph
+                        overviewGraph={v2Data.overviewGraph}
+                        onModuleClick={handleModuleSelect}
+                      />
+                    </div>
+                  ) : (
+                    <div id="tabpanel-diagram" role="tabpanel" aria-labelledby="tab-diagram">
+                      <OverviewGraphDisplay
+                        graph={v2Data.overviewGraph}
+                        onModuleClick={handleModuleSelect}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+              {v2Data.modules[activeModuleIndex] && (
+                <V2ModuleContent
+                  module={v2Data.modules[activeModuleIndex]}
+                  moduleIndex={activeModuleIndex}
+                  totalModules={v2Data.totalModules}
+                  githubUrl={v2Data.githubUrl}
+                  isCompleted={completedModules.includes(activeModuleIndex)}
+                  onComplete={() => markModuleComplete(activeModuleIndex)}
+                  onPrev={() => handleModuleSelect(Math.max(0, activeModuleIndex - 1))}
+                  onNext={() => handleModuleSelect(Math.min(v2Data.totalModules - 1, activeModuleIndex + 1))}
+                />
+              )}
+              </ErrorBoundary>
+            </div>
+          </div>
+        </>
+      ) : (
+        <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
+          <iframe
+            ref={iframeRef}
+            src={iframeSrc!}
+            sandbox="allow-scripts allow-same-origin"
+            style={{ flex: 1, border: "none", background: "white" }}
+            title={`${course.ownerName}/${course.repoName} Course`}
+          />
+
+          {showSidebar && (
+            <aside className="course-sidebar" style={{
+              width: 280, background: "var(--bg-primary)",
+              borderLeft: "1px solid var(--border-color)",
+              padding: "1.25rem", overflowY: "auto", flexShrink: 0,
+            }}>
+              <h3 style={{ fontFamily: "var(--font-heading)", fontSize: "1rem", fontWeight: 600, marginBottom: "0.75rem" }}>
+                Course Info
+              </h3>
+              {course.oneLiner && (
+                <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", lineHeight: 1.5, marginBottom: "1rem" }}>
+                  {course.oneLiner}
+                </p>
+              )}
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", marginBottom: "1.25rem" }}>
+                {course.difficulty && (
+                  <div>
+                    <div style={{ fontSize: "0.7rem", color: "var(--text-tertiary)", marginBottom: "0.125rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>Difficulty</div>
+                    <div style={{ fontSize: "0.85rem" }}>{course.difficulty}</div>
+                  </div>
+                )}
+                {course.estimatedMinutes && (
+                  <div>
+                    <div style={{ fontSize: "0.7rem", color: "var(--text-tertiary)", marginBottom: "0.125rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>Duration</div>
+                    <div style={{ fontSize: "0.85rem" }}>~{course.estimatedMinutes} minutes</div>
+                  </div>
+                )}
+                {course.moduleCount && (
+                  <div>
+                    <div style={{ fontSize: "0.7rem", color: "var(--text-tertiary)", marginBottom: "0.125rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>Progress</div>
+                    <div style={{ fontSize: "0.85rem" }}>{completedModules.length} / {course.moduleCount} modules</div>
+                  </div>
+                )}
+              </div>
+              {course.techStack && (
+                <div style={{ marginBottom: "1.25rem" }}>
+                  <div style={{ fontSize: "0.7rem", color: "var(--text-tertiary)", marginBottom: "0.375rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>Tech Stack</div>
+                  <div style={{ display: "flex", gap: "0.25rem", flexWrap: "wrap" }}>
+                    {[...(course.techStack.languages || []), ...(course.techStack.frameworks || [])].map((t) => (
+                      <span key={t} className="badge" style={{ background: "var(--teal-light)", color: "var(--teal)" }}>{t}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {user && course.createdBy === user.id && (
+                <div style={{ marginBottom: "1rem", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.5rem 0.625rem", background: "var(--bg-secondary)", borderRadius: "var(--radius-sm)" }}>
+                  <div>
+                    <div style={{ fontSize: "0.8rem", fontWeight: 500 }}>Auto-update</div>
+                    <div style={{ fontSize: "0.7rem", color: "var(--text-tertiary)" }}>Regenerate on push</div>
+                  </div>
+                  <button
+                    onClick={handleToggleWebhook}
+                    disabled={webhookToggling}
+                    style={{
+                      width: 44, height: 24, borderRadius: 12, border: "none",
+                      cursor: webhookToggling ? "wait" : "pointer",
+                      background: webhookInfo?.autoRegenerate ? "var(--teal)" : "var(--border-color)",
+                      position: "relative", transition: "background 0.2s ease",
+                    }}
+                  >
+                    <div style={{
+                      width: 18, height: 18, borderRadius: "50%", background: "white",
+                      position: "absolute", top: 3,
+                      left: webhookInfo?.autoRegenerate ? 23 : 3,
+                      transition: "left 0.2s ease",
+                      boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+                    }} />
+                  </button>
+                </div>
+              )}
+              <a
+                href={course.githubUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-secondary"
+                style={{ width: "100%", justifyContent: "center", textDecoration: "none", fontSize: "0.85rem" }}
+              >
+                View on GitHub ↗
+              </a>
+            </aside>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

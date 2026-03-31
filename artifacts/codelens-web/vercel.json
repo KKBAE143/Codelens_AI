@@ -1,0 +1,23 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "outputDirectory": ".next",
+  "regions": ["bom1"],
+  "functions": {
+    "src/app/api/inngest/route.ts": {
+      "maxDuration": 300
+    },
+    "src/app/api/courses/generate/route.ts": {
+      "maxDuration": 300
+    },
+    "src/app/api/courses/[id]/regenerate/route.ts": {
+      "maxDuration": 300
+    },
+    "src/app/api/webhooks/github/route.ts": {
+      "maxDuration": 120
+    },
+    "src/app/api/stripe/webhook/route.ts": {
+      "maxDuration": 60
+    }
+  }
+}

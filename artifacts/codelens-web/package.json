@@ -1,0 +1,49 @@
+{
+  "name": "@workspace/codelens-web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev --hostname 0.0.0.0 --port ${PORT:-3000}",
+    "build": "next build",
+    "start": "next start --hostname 0.0.0.0 --port ${PORT:-3000}"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "catalog:",
+    "@workspace/db": "workspace:*",
+    "canvas-confetti": "^1.9.4",
+    "crypto-js": "^4.2.0",
+    "drizzle-orm": "catalog:",
+    "framer-motion": "catalog:",
+    "fuse.js": "^7.1.0",
+    "graphology": "^0.26.0",
+    "graphology-communities-louvain": "^2.0.2",
+    "graphology-layout": "^0.6.1",
+    "graphology-layout-forceatlas2": "^0.10.1",
+    "graphology-metrics": "^2.4.0",
+    "graphology-types": "^0.24.8",
+    "inngest": "^4.1.0",
+    "js-tiktoken": "^1.0.21",
+    "mermaid": "^11.13.0",
+    "next": "^15.3.3",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
+    "shiki": "^4.0.2",
+    "sigma": "^3.0.2",
+    "yaml": "^2.8.3",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.14",
+    "@types/canvas-confetti": "^1.9.0",
+    "@types/crypto-js": "^4.2.2",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "postcss": "^8.5.6",
+    "tailwindcss": "catalog:",
+    "typescript": "^5.8.3"
+  }
+}
