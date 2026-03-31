@@ -86,7 +86,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 function buildJsonLd(course: CourseForMeta, baseUrl: string) {
   return {
     "@context": "https://schema.org",
-    "@type": "LearningResource",
+    "@type": ["Course", "LearningResource"],
     name: `${course.ownerName}/${course.repoName}`,
     description: course.oneLiner || `AI-generated course for ${course.ownerName}/${course.repoName}`,
     url: `${baseUrl}/explore/${course.ownerName}/${course.repoName}`,

@@ -784,6 +784,12 @@ function HomeInner() {
                         {fc.moduleCount && <span>{fc.moduleCount} modules</span>}
                         {fc.estimatedMinutes && <span>~{fc.estimatedMinutes} min</span>}
                         {fc.viewCount > 0 && <span>{fc.viewCount} views</span>}
+                        {fc.updatedAt && (
+                          <span>{(() => {
+                            const days = Math.floor((Date.now() - new Date(fc.updatedAt).getTime()) / (1000 * 60 * 60 * 24));
+                            return days === 0 ? "Today" : days === 1 ? "Yesterday" : `${days}d ago`;
+                          })()}</span>
+                        )}
                       </div>
                     </Link>
                   );
