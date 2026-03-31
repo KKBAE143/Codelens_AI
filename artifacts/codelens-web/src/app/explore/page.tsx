@@ -11,6 +11,7 @@ interface ExploreCourse {
   repoName: string;
   ownerName: string;
   targetAudience: string;
+  depthPreset: string | null;
   techStack: { languages: string[]; frameworks: string[] } | null;
   oneLiner: string | null;
   difficulty: string | null;
@@ -46,9 +47,29 @@ const SORT_OPTIONS = [
   { value: "modules", label: "Most Modules" },
 ];
 
+const AUDIENCES = [
+  { value: "vibe_coder", label: "Vibe Coder" },
+  { value: "new_engineer", label: "New Engineer" },
+  { value: "product_manager", label: "Product Manager" },
+  { value: "security_auditor", label: "Security Auditor" },
+];
+
+const DEPTHS = [
+  { value: "quick", label: "Quick Overview" },
+  { value: "full", label: "Full Course" },
+  { value: "deep", label: "Deep Dive" },
+];
+
 const FOCUS_AREAS = [
   "Architecture", "API", "Authentication", "Database", "Testing", "CI/CD", "Security", "Performance",
 ];
+
+const AUDIENCE_SHORT: Record<string, string> = {
+  vibe_coder: "Vibe Coder",
+  new_engineer: "New Engineer",
+  product_manager: "PM",
+  security_auditor: "Security",
+};
 
 function CourseCard({ course }: { course: ExploreCourse }) {
   const languages = course.techStack?.languages || [];
@@ -82,13 +103,21 @@ function CourseCard({ course }: { course: ExploreCourse }) {
         <p className="explore-card-description">{course.oneLiner}</p>
       )}
 
-      {languages.length > 0 && (
-        <div className="explore-card-badges">
-          {languages.slice(0, 3).map((lang) => (
-            <span key={lang} className="explore-lang-badge">{lang}</span>
-          ))}
-        </div>
-      )}
+      <div className="explore-card-badges">
+        {languages.slice(0, 3).map((lang) => (
+          <span key={lang} className="explore-lang-badge">{lang}</span>
+        ))}
+        {course.difficulty && (
+          <span className="badge" style={{ background: course.difficulty === "Advanced" ? "#FFF0EE" : "#FFF8E1", color: course.difficulty === "Advanced" ? "var(--accent)" : "var(--warning)", fontSize: "0.7rem" }}>
+            {course.difficulty}
+          </span>
+        )}
+        {AUDIENCE_SHORT[course.targetAudience] && (
+          <span className="badge" style={{ background: "var(--accent-light)", color: "var(--accent)", fontSize: "0.7rem" }}>
+            {AUDIENCE_SHORT[course.targetAudience]}
+          </span>
+        )}
+      </div>
 
       <div className="explore-card-meta">
         {course.stars != null && course.stars > 0 && (
@@ -121,19 +150,23 @@ export default function ExplorePage() {
   const [search, setSearch] = useState("");
   const [language, setLanguage] = useState("");
   const [focusArea, setFocusArea] = useState("");
+  const [audience, setAudience] = useState("");
+  const [depth, setDepth] = useState("");
   const [sort, setSort] = useState("recent");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const searchTimeout = useRef<ReturnType<typeof setTimeout>>(undefined);
 
-  const fetchCourses = useCallback(async (p: number, s: string, l: string, st: string, fa?: string) => {
+  const fetchCourses = useCallback(async (p: number, s: string, l: string, st: string, fa?: string, aud?: string, dep?: string) => {
     setLoading(true);
     try {
       const params = new URLSearchParams({ page: String(p), limit: "20", sort: st });
       if (s) params.set("search", s);
       if (l) params.set("language", l);
       if (fa) params.set("focusArea", fa);
+      if (aud) params.set("audience", aud);
+      if (dep) params.set("depth", dep);
       const res = await fetch(`/api/courses/explore?${params}`);
       if (res.ok) {
         const data: ExploreResponse = await res.json();
@@ -149,15 +182,15 @@ export default function ExplorePage() {
   }, []);
 
   useEffect(() => {
-    fetchCourses(page, search, language, sort, focusArea);
-  }, [page, language, sort, focusArea, fetchCourses]);
+    fetchCourses(page, search, language, sort, focusArea, audience, depth);
+  }, [page, language, sort, focusArea, audience, depth, fetchCourses]);
 
   const handleSearchChange = (value: string) => {
     setSearch(value);
     clearTimeout(searchTimeout.current);
     searchTimeout.current = setTimeout(() => {
       setPage(1);
-      fetchCourses(1, value, language, sort, focusArea);
+      fetchCourses(1, value, language, sort, focusArea, audience, depth);
     }, 400);
   };
 
@@ -197,6 +230,28 @@ export default function ExplorePage() {
             <option value="">All Languages</option>
             {LANGUAGES.map((l) => (
               <option key={l} value={l}>{l}</option>
+            ))}
+          </select>
+
+          <select
+            value={audience}
+            onChange={(e) => { setAudience(e.target.value); setPage(1); }}
+            className="explore-select"
+          >
+            <option value="">All Audiences</option>
+            {AUDIENCES.map((a) => (
+              <option key={a.value} value={a.value}>{a.label}</option>
+            ))}
+          </select>
+
+          <select
+            value={depth}
+            onChange={(e) => { setDepth(e.target.value); setPage(1); }}
+            className="explore-select"
+          >
+            <option value="">All Depths</option>
+            {DEPTHS.map((d) => (
+              <option key={d.value} value={d.value}>{d.label}</option>
             ))}
           </select>
 

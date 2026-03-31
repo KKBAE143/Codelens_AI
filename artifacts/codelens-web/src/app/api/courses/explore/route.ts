@@ -15,6 +15,8 @@ export async function GET(request: NextRequest) {
   const search = (searchParams.get("search") || "").slice(0, 200);
   const language = (searchParams.get("language") || "").slice(0, 50);
   const focusArea = (searchParams.get("focusArea") || "").slice(0, 100);
+  const audience = (searchParams.get("audience") || "").slice(0, 50);
+  const depth = (searchParams.get("depth") || "").slice(0, 20);
   const sort = ["recent", "views", "modules", "stars"].includes(searchParams.get("sort") || "") ? searchParams.get("sort")! : "recent";
   const offset = (page - 1) * limit;
 
@@ -31,6 +33,7 @@ export async function GET(request: NextRequest) {
         ilike(courses.repoName, `%${search}%`),
         ilike(courses.ownerName, `%${search}%`),
         ilike(courses.oneLiner, `%${search}%`),
+        ilike(courses.githubUrl, `%${search}%`),
       )!,
     );
   }
@@ -45,6 +48,14 @@ export async function GET(request: NextRequest) {
     conditions.push(
       sql`${courses.focusAreas}::text ILIKE ${"%" + focusArea + "%"}`,
     );
+  }
+
+  if (audience && ["vibe_coder", "new_engineer", "product_manager", "security_auditor"].includes(audience)) {
+    conditions.push(eq(courses.targetAudience, audience as "vibe_coder" | "new_engineer" | "product_manager" | "security_auditor"));
+  }
+
+  if (depth && ["quick", "full", "deep"].includes(depth)) {
+    conditions.push(eq(courses.depthPreset, depth as "quick" | "full" | "deep"));
   }
 
   let orderBy;
@@ -76,6 +87,7 @@ export async function GET(request: NextRequest) {
       estimatedMinutes: courses.estimatedMinutes,
       moduleCount: courses.moduleCount,
       stars: courses.stars,
+      depthPreset: courses.depthPreset,
       focusAreas: courses.focusAreas,
       version: courses.version,
       createdAt: courses.createdAt,

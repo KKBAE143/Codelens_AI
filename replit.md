@@ -13,7 +13,7 @@ CodeLens AI — a SaaS platform where users paste a GitHub URL and receive an AI
 - **Frontend**: Next.js 15 App Router (React 19, Tailwind CSS 4)
 - **API framework**: Express 5 (legacy api-server, not primary)
 - **Database**: PostgreSQL (Neon DB) + Drizzle ORM
-- **AI**: Gemini (via Replit AI Integrations proxy) — models: `gemini-2.5-pro`, `gemini-3.1-pro-preview`
+- **AI**: Cloudflare Workers AI — models: `glm-4.7-flash`, `gpt-oss-20b`, `gpt-oss-120b` (via `llm.ts`)
 - **Background jobs**: Inngest (optional) or direct async execution
 - **Auth**: GitHub OAuth (sole sign-in, token encrypted + stored)
 - **Validation**: Zod (`zod/v4`), `drizzle-zod`
@@ -33,15 +33,19 @@ CodeLens AI — a SaaS platform where users paste a GitHub URL and receive an AI
 - Block renderers: `artifacts/codelens-web/src/components/course-blocks/`
 - Wizard: `artifacts/codelens-web/src/components/CourseWizardModal.tsx` (4-step: repo preview, persona, depth/focus, confirm+generate)
 - Syntax highlighting: Shiki with `catppuccin-mocha` theme
+- Knowledge graph: Interactive Sigma.js/WebGL force-directed graph on overview page, Louvain community detection for node clustering, search/filter, minimap, click-to-navigate, zoom/pan/drag. Component: `KnowledgeGraph.tsx`, utilities: `graph-utils.ts`. Uses `sigma`, `graphology`, `graphology-communities-louvain`, `graphology-types`.
+- Overview page tabs: "Knowledge Graph" (Sigma.js interactive) and "Abstraction Map" (existing node/edge list)
 - Viewer: Two-column layout (sidebar with module nav + progress rings, main content with block rendering)
 - Keyboard navigation: j/k or arrow keys to navigate between modules
 - Deep linking: `#module-N` hash in URL for direct module access
 - Generation progress: SSE with polling fallback, queue position/ETA display
 
-## Public Gallery & SEO (Task #3)
+## Public Gallery & SEO
 
-- **Explore page**: `/explore` — public course gallery with search, language filter, focus area filter, sort (recent/views/stars/modules), pagination
+- **Explore page**: `/explore` — public course gallery with search (repos, orgs, keywords, GitHub URLs), language filter, audience type filter (vibe coder, new engineer, PM, security auditor), depth filter (quick/full/deep), focus area filter, sort (recent/views/stars/modules), pagination
+- **Featured courses**: Landing page dynamically fetches top 6 courses (ranked by views + stars) from `/api/courses/featured`, shows rich preview cards with avatar, description, language badges, difficulty, module count, estimated time, view count. Falls back to static demo cards when no featured courses available.
 - **Public course viewer**: `/explore/[owner]/[repo]` — full V2 course viewer for public courses, anonymous progress via localStorage, "last generated" timestamp, stars display, completion-triggered sign-in CTA
+- **Generate course CTA**: Explore 404 pages show "Generate Course for owner/repo" deep-link button that pre-fills the repo URL on the landing page via `?repo=` query param
 - **Existing course check**: Home page checks `/api/courses/check-existing?url=` on URL paste, shows banner linking to existing course
 - **View analytics**: `course_views` table, POST `/api/courses/[id]/view` records views, view counts shown on cards + course pages
 - **SEO**: Dynamic sitemap.ts, robots.ts, `generateMetadata` on explore layout (server-side), JSON-LD with `@type: LearningResource` in server layout, OG image endpoint at `/api/og/course/[id]`
@@ -49,7 +53,7 @@ CodeLens AI — a SaaS platform where users paste a GitHub URL and receive an AI
 - **GitHub stars**: Fetched from GitHub API during course generation, stored in `courses.stars`, displayed in explore cards + public course sidebar
 - **Email notifications**: Resend-based email utility (`lib/email.ts`), sends on course generation complete + course completion, respects `users.emailNotifications` opt-out, graceful when `RESEND_API_KEY` not set
 - **Email preferences**: GET/PATCH `/api/user/email-preferences` — toggle email notifications
-- **API endpoints**: GET `/api/courses/explore` (listing with `focusArea` + `stars` sort), GET `/api/courses/explore/[owner]/[repo]` (detail with HTML + stars + focusAreas + timestamps), GET `/api/courses/check-existing`
+- **API endpoints**: GET `/api/courses/explore` (listing with `audience`, `depth`, `focusArea`, `stars` sort, `githubUrl` search), GET `/api/courses/explore/[owner]/[repo]` (detail), GET `/api/courses/featured` (top 6 by popularity), GET `/api/courses/check-existing`
 
 ## Replit Setup
 
@@ -133,7 +137,7 @@ Files in `artifacts/codelens-web/src/lib/`:
 - `inngest.ts` — Inngest client + event type definitions
 - `github.ts` — Repomix-style repo extractor: full file tree cataloguing, skip/include lists, health check (file count, binary ratio), PageRank-based file scoring, 200KB max per file, up to 100 files for full content, 90K token budget. Special parsers for package.json, .env.example, Dockerfile. Repo map with function/class signature extraction.
 - `repo-map.ts` — Aider-style repo map: regex-based function/class/method signature extraction for 10+ languages, import graph parsing, PageRank scoring (in-degree + PageRank × extension bonus × directory bonus).
-- `token-counter.ts` — js-tiktoken wrapper: `countTokens()`, `truncateToTokenBudget()`, `estimateTokens()`.
+- `token-counter.ts` — js-tiktoken wrapper: `countTokens()`, `truncateToTokenBudget()`, `estimateTokens()`, `truncateAtFunctionBoundary()` (cuts at nearest function/class boundary), `getDepthTokenBudget()` (quick:4K, full:8K, deep:16K), `getDepthContextBudget()` (quick:20K, full:40K, deep:60K).
 - `v2-schema.ts` — Zod schemas for all v2 block types and chapter validation.
 - `ai-pipeline.ts` — Legacy 3-stage pipeline (kept for reference, no longer used by generation jobs).
 - `prompts.ts` — Legacy prompts (kept for reference).
@@ -141,10 +145,10 @@ Files in `artifacts/codelens-web/src/lib/`:
 - `pipeline/prompts.ts` — New PocketFlow prompts for all 6 stages: abstraction identification (YAML), relationship mapping (YAML adjacency), chapter ordering (YAML), per-chapter writing (JSON blocks), special modules (setup, dependencies, troubleshooting, overview).
 - `pipeline/stages.ts` — 6-stage pipeline:
   - Stage 0: Repo health check + Repomix-style extraction with PageRank file scoring
-  - Stage 1: Identify abstractions (YAML output, name + description + file_indices, retry logic)
+  - Stage 1: Identify abstractions (YAML output, name + description + file_indices, retry logic, robust YAML parsing with multiple fallbacks)
   - Stage 2: Analyze relationships (YAML adjacency list, drives Mermaid diagrams + chapter ordering)
   - Stage 3: Order chapters (learning-complexity sort, focus area weighting, mandatory module injection)
-  - Stage 4: Write chapters in parallel (concurrency 3, per-chapter token budget, Zod validation, partial failure recovery)
+  - Stage 4: Write chapters in parallel (concurrency 3, depth-based token budget, PageRank-scored file ordering per abstraction, function-boundary-aware truncation, cross-abstraction context injection, progressive prompt simplification on retry, Zod validation, partial failure recovery)
   - Stage 5: Assemble v2 course JSON (overview graph from relationships, `__codelens_v2__` prefix)
 - `pipeline/index.ts` — Pipeline exports.
 - `rate-limit.ts` — Plan-based rate limiting.

@@ -1,5 +1,5 @@
 import { generateText } from "../llm";
-import { countTokens } from "../token-counter";
+import { countTokens, truncateAtFunctionBoundary, getDepthTokenBudget, getDepthContextBudget } from "../token-counter";
 import { v2ChapterSchema } from "../v2-schema";
 import type { TargetAudience } from "../prompts";
 import type { RepoExtraction } from "../github";
@@ -15,6 +15,7 @@ import {
   getOverviewChapterPrompt,
 } from "./prompts";
 import YAML from "yaml";
+import { computePageRank } from "../repo-map";
 
 export interface Abstraction {
   name: string;
@@ -307,15 +308,16 @@ function buildFallbackBlocks(
     : [];
   const fileList = relatedFiles.slice(0, 8).map((file) => ({
     path: file.path,
-    role: "Implements part of this chapter's topic",
+    role: `Core implementation file for ${chapter.abstractionRef || chapter.title} — contains key logic and data structures`,
     lineCount: file.content.split("\n").length,
   }));
-  const relationshipSummary = relationships
-    .filter(
-      (rel) =>
-        rel.from === chapter.abstractionRef ||
-        rel.to === chapter.abstractionRef,
-    )
+
+  const relatedRels = relationships.filter(
+    (rel) =>
+      rel.from === chapter.abstractionRef ||
+      rel.to === chapter.abstractionRef,
+  );
+  const relationshipSummary = relatedRels
     .slice(0, 5)
     .map((rel) => `- ${rel.from} ${rel.relation} ${rel.to}: ${rel.description}`)
     .join("\n");
@@ -323,7 +325,7 @@ function buildFallbackBlocks(
   const blocks: unknown[] = [
     {
       type: "text",
-      content: `## ${chapter.title}\n\n${chapter.learningObjective || "Understand how this part of the system works."}\n\n${abstraction?.description || `This chapter explains ${chapter.title} in the context of ${extraction.owner}/${extraction.repoName}.`}`,
+      content: `## ${chapter.title}\n\n${abstraction?.description || `This chapter explains ${chapter.title} in the context of ${extraction.owner}/${extraction.repoName}.`}\n\n${chapter.learningObjective ? `**Learning objective:** ${chapter.learningObjective}` : ""}\n\nThis abstraction is implemented across ${relatedFiles.length} file${relatedFiles.length !== 1 ? "s" : ""} in the \`${extraction.repoName}\` repository. ${relatedRels.length > 0 ? `It connects to ${relatedRels.length} other abstraction${relatedRels.length !== 1 ? "s" : ""} in the system.` : "It operates relatively independently within the codebase."}`,
     },
   ];
 
@@ -331,53 +333,105 @@ function buildFallbackBlocks(
     blocks.push({ type: "file-list", files: fileList });
   }
 
+  if (relatedRels.length > 0) {
+    const escapeMermaid = (text: string) => text.replace(/["\[\]|{}()<>]/g, " ").replace(/\s+/g, " ").trim();
+    const mermaidNodes = new Set<string>();
+    const mermaidEdges: string[] = [];
+    relatedRels.slice(0, 6).forEach((rel) => {
+      const fromId = rel.from.replace(/[^a-zA-Z0-9]/g, "_");
+      const toId = rel.to.replace(/[^a-zA-Z0-9]/g, "_");
+      mermaidNodes.add(`    ${fromId}["${escapeMermaid(rel.from)}"]`);
+      mermaidNodes.add(`    ${toId}["${escapeMermaid(rel.to)}"]`);
+      mermaidEdges.push(`    ${fromId} -->|${escapeMermaid(rel.relation)}| ${toId}`);
+    });
+    blocks.push({
+      type: "mermaid",
+      diagramType: "flowchart",
+      source: `graph TD\n${Array.from(mermaidNodes).join("\n")}\n${mermaidEdges.join("\n")}`,
+      caption: `How ${chapter.abstractionRef || chapter.title} connects to other parts of the system`,
+    });
+  }
+
   if (relationshipSummary) {
     blocks.push({
       type: "callout",
       variant: "tip",
-      content: `Key relationships to watch:\n${relationshipSummary}`,
+      content: `**Key relationships:**\n${relationshipSummary}`,
     });
   }
 
-  if (relatedFiles.length > 0) {
-    const sample = relatedFiles[0];
-    blocks.push({
-      type: "code",
-      language: sample.path.split(".").pop() || "text",
-      filePath: sample.path,
-      content: sample.content.split("\n").slice(0, 40).join("\n"),
-      caption: `Representative excerpt from ${sample.path}`,
-    });
+  for (const file of relatedFiles.slice(0, 3)) {
+    const lines = file.content.split("\n");
+    const importEnd = lines.findIndex((l, i) => i > 0 && !l.startsWith("import") && !l.startsWith("from") && !l.startsWith("//") && !l.startsWith("#") && l.trim() !== "");
+    const startLine = Math.max(0, importEnd > 0 ? importEnd : 0);
+    const excerpt = lines.slice(startLine, startLine + 50).join("\n").trim();
+    if (excerpt) {
+      blocks.push({
+        type: "code",
+        language: file.path.split(".").pop() || "text",
+        filePath: file.path,
+        content: excerpt,
+        caption: `Key implementation from ${file.path} — shows the core logic and data structures for ${chapter.abstractionRef || chapter.title}`,
+      });
+    }
   }
 
   blocks.push({
+    type: "callout",
+    variant: "first-pr",
+    content: `**Good first contribution:** Look at \`${relatedFiles[0]?.path || "the main implementation file"}\` to understand the core behavior. A good starter task would be adding input validation, improving error messages, or adding unit tests for edge cases.`,
+  });
+
+  blocks.push({
     type: "quiz",
-    question: `Which file would you inspect first when debugging ${chapter.title}?`,
-    scenario: `You need to understand how ${chapter.abstractionRef || chapter.title} behaves in ${extraction.repoName}.`,
+    question: `You're investigating a bug related to ${chapter.abstractionRef || chapter.title}. A user reports unexpected behavior. Which file would you check first and why?`,
+    scenario: `A production issue has been reported in the ${extraction.repoName} project. The error logs point to something related to ${chapter.abstractionRef || chapter.title}. You need to quickly identify the root cause.`,
     options:
-      fileList.length > 0
-        ? fileList.slice(0, 4).map((file, index) => ({
-            text: file.path,
-            correct: index === 0,
-            explanation:
-              index === 0
-                ? "This file is directly tied to the chapter topic and is the best starting point."
-                : "This file may matter later, but it is less central than the first listed implementation file.",
-          }))
+      fileList.length >= 3
+        ? [
+            {
+              text: fileList[0].path,
+              correct: true,
+              explanation: `This is the primary implementation file for ${chapter.abstractionRef || chapter.title}. It contains the core logic and is the most likely source of bugs related to this component. Start here to understand the main code path.`,
+            },
+            {
+              text: fileList[1].path,
+              correct: false,
+              explanation: `While this file is part of the ${chapter.abstractionRef || chapter.title} implementation, it handles supporting functionality. Check ${fileList[0].path} first for the core logic, then come here if the issue isn't in the main path.`,
+            },
+            {
+              text: fileList[2].path,
+              correct: false,
+              explanation: `This file provides auxiliary support for ${chapter.abstractionRef || chapter.title}. It's less likely to be the root cause — start with the primary implementation file instead.`,
+            },
+            {
+              text: "Check the test files first",
+              correct: false,
+              explanation: "Tests can help you understand expected behavior, but when debugging a production issue, start with the implementation files to trace the actual code path that's failing.",
+            },
+          ]
         : [
             {
-              text: "Start with the core implementation file for this chapter.",
+              text: "Start with the primary implementation file for this component",
               correct: true,
-              explanation:
-                "The implementation file usually shows the real control flow and data transformations.",
+              explanation: "The main implementation file shows the real control flow and data transformations. It's the most efficient starting point for debugging.",
             },
             {
-              text: "Start with a random utility file.",
+              text: "Start with utility or helper files",
               correct: false,
-              explanation:
-                "Utilities are useful later, but they rarely explain the main behavior first.",
+              explanation: "Utilities are important but secondary. The core implementation file will show you the main execution path first.",
+            },
+            {
+              text: "Start with configuration files",
+              correct: false,
+              explanation: "Configuration issues are possible but less common. The implementation file is a better starting point for most bugs.",
             },
           ],
+  });
+
+  blocks.push({
+    type: "text",
+    content: `### Summary\n\n${chapter.abstractionRef || chapter.title} is a fundamental part of the ${extraction.repoName} architecture. Understanding how it works — and how it connects to ${relatedRels.map(r => r.from === chapter.abstractionRef ? r.to : r.from).slice(0, 3).join(", ") || "the rest of the system"} — is essential for working effectively with this codebase.\n\nThe key files to study are: ${relatedFiles.slice(0, 3).map(f => `\`${f.path}\``).join(", ") || "the implementation files listed above"}.`,
   });
 
   return blocks;
@@ -476,20 +530,51 @@ function escapeControlInJsonStrings(json: string): string {
 
 function safeParseYaml(raw: string): unknown {
   let cleaned = raw.trim().replace(/^\uFEFF/, "");
-  const fenced = cleaned.match(/```(?:ya?ml)?\s*([\s\S]*?)\s*```/);
+
+  const fenced = cleaned.match(/```(?:ya?ml|json)?\s*([\s\S]*?)\s*```/);
   if (fenced) cleaned = fenced[1].trim();
+
+  const preYamlIdx = cleaned.search(/^-\s+\w+:/m);
+  if (preYamlIdx > 0) {
+    const before = cleaned.slice(0, preYamlIdx).trim();
+    if (!before.includes(":") && !before.startsWith("[") && !before.startsWith("{")) {
+      cleaned = cleaned.slice(preYamlIdx);
+    }
+  }
+
+  const postYamlMatch = cleaned.match(/\n\n(?:Note|Explanation|Here|The above|I hope|Let me|Please)[^\n]*\n/i);
+  if (postYamlMatch && postYamlMatch.index && postYamlMatch.index > cleaned.length * 0.3) {
+    cleaned = cleaned.slice(0, postYamlMatch.index);
+  }
 
   try {
     return YAML.parse(cleaned);
-  } catch {
-    const jsonMatch = cleaned.match(/[{[][\s\S]*[\]}]/);
-    if (jsonMatch) {
-      try {
-        return JSON.parse(jsonMatch[0]);
-      } catch {}
-    }
-    throw new Error("Failed to parse YAML from AI response");
+  } catch {}
+
+  try {
+    const fixedQuotes = cleaned.replace(
+      /^(\s*-\s+\w+:\s+)([^"'\n][^\n]*[^"'\n])$/gm,
+      (_, prefix: string, value: string) => {
+        if (value.includes('"') || value.includes("'")) return `${prefix}"${value.replace(/"/g, '\\"')}"`;
+        return `${prefix}"${value}"`;
+      }
+    );
+    return YAML.parse(fixedQuotes);
+  } catch {}
+
+  try {
+    const fixedIndent = cleaned.replace(/^\t/gm, "  ").replace(/^( {3})/gm, "  ");
+    return YAML.parse(fixedIndent);
+  } catch {}
+
+  const jsonMatch = cleaned.match(/[{[][\s\S]*[\]}]/);
+  if (jsonMatch) {
+    try {
+      return JSON.parse(jsonMatch[0]);
+    } catch {}
   }
+
+  throw new Error("Failed to parse YAML from AI response");
 }
 
 export async function runStage1Abstractions(
@@ -894,6 +979,104 @@ export async function runStage4WriteChapters(
   return results;
 }
 
+function getAbstractionFilesByPageRank(
+  abstraction: Abstraction,
+  extraction: RepoExtraction,
+): Array<{ path: string; content: string; size: number }> {
+  const files = abstraction.file_indices
+    .filter((idx) => idx < extraction.files.length)
+    .map((idx) => extraction.files[idx]);
+
+  if (files.length <= 1) return files;
+
+  const pageRank = computePageRank(files);
+
+  return [...files].sort((a, b) => {
+    const scoreA = pageRank.scores.get(a.path) || 0;
+    const scoreB = pageRank.scores.get(b.path) || 0;
+    const degreeA = pageRank.inDegree.get(a.path) || 0;
+    const degreeB = pageRank.inDegree.get(b.path) || 0;
+    return (scoreB * 1000 + degreeB) - (scoreA * 1000 + degreeA);
+  });
+}
+
+function buildCrossAbstractionContext(
+  currentAbstraction: string,
+  abstractions: Abstraction[],
+  relationships: Relationship[],
+): string {
+  const related = relationships.filter(
+    (r) => r.from === currentAbstraction || r.to === currentAbstraction,
+  );
+
+  if (related.length === 0) return "";
+
+  const relatedNames = new Set<string>();
+  for (const r of related) {
+    if (r.from !== currentAbstraction) relatedNames.add(r.from);
+    if (r.to !== currentAbstraction) relatedNames.add(r.to);
+  }
+
+  const summaries = abstractions
+    .filter((a) => relatedNames.has(a.name))
+    .map((a) => `**${a.name}**: ${a.description.slice(0, 200)}`)
+    .slice(0, 5);
+
+  if (summaries.length === 0) return "";
+
+  return `\n\nRelated abstractions the reader already knows about:\n${summaries.join("\n")}`;
+}
+
+function packAbstractionContext(
+  files: Array<{ path: string; content: string; size: number }>,
+  contextBudget: number,
+): string {
+  const fileTree = files.map((f) => {
+    const lines = f.content.split("\n").length;
+    return `  ${f.path} (${lines} lines)`;
+  }).join("\n");
+  const treeSummary = `=== File Tree (${files.length} files, ordered by importance) ===\n${fileTree}\n`;
+  const treeSummaryTokens = countTokens(treeSummary);
+
+  const parts: string[] = [treeSummary];
+  let tokensSoFar = treeSummaryTokens;
+
+  for (const f of files) {
+    const header = `\n=== File: ${f.path} ===\n`;
+    const headerTokens = countTokens(header);
+
+    const remaining = contextBudget - tokensSoFar - headerTokens;
+    if (remaining <= 100) break;
+
+    const truncated = truncateAtFunctionBoundary(f.content, remaining);
+    const blockTokens = countTokens(truncated);
+
+    parts.push(`${header}${truncated}`);
+    tokensSoFar += headerTokens + blockTokens;
+  }
+
+  return parts.join("\n");
+}
+
+function getProgressiveBlockRequirements(attempt: number, depth: "quick" | "full" | "deep"): string {
+  if (attempt === 1) return "";
+
+  if (attempt === 2) {
+    return `\n\nSIMPLIFIED REQUIREMENTS (attempt ${attempt}):
+- Reduce block count: aim for ${depth === "quick" ? "4-6" : depth === "full" ? "6-8" : "8-12"} blocks
+- Mermaid diagram is OPTIONAL — skip if complex
+- Quiz can have 2 options instead of 3-4
+- Code blocks: include 1-2 key excerpts instead of 2-4`;
+  }
+
+  return `\n\nMINIMAL REQUIREMENTS (attempt ${attempt}):
+- Write 3-5 blocks only
+- 1 text block explaining the abstraction
+- 1 code block with the most important function
+- 1 callout with a key insight
+- Skip mermaid, quiz, file-list if they cause issues`;
+}
+
 async function writeOneChapter(
   chapter: OrderedChapter,
   abstractions: Abstraction[],
@@ -904,6 +1087,9 @@ async function writeOneChapter(
   totalChapters: number,
 ): Promise<ChapterResult> {
   emitter.emitChapterStart(chapter.index, chapter.title, totalChapters);
+
+  const outputTokenBudget = getDepthTokenBudget(config.depth);
+  const contextBudget = getDepthContextBudget(config.depth);
 
   let prompt: string;
   let contextData: string;
@@ -945,7 +1131,7 @@ async function writeOneChapter(
       .join(
         "\n",
       )}\n\nAbstractions:\n${abstractions.map((a) => `- ${a.name}: ${a.description}`).join("\n")}`;
-  } else {
+  } else { /* abstraction chapter */
     const abstraction = abstractions.find(
       (a) => a.name === chapter.abstractionRef,
     );
@@ -957,58 +1143,45 @@ async function writeOneChapter(
       .map((r) => `${r.from} --[${r.relation}]--> ${r.to}: ${r.description}`)
       .join("\n");
 
+    const crossContext = buildCrossAbstractionContext(
+      chapter.abstractionRef || chapter.title,
+      abstractions,
+      relationships,
+    );
+
     prompt = getChapterWritePrompt(
       config.audience,
       config.depth,
       chapter.abstractionRef || chapter.title,
       abstraction?.description || "",
-      relContext,
+      relContext + crossContext,
       config.customContext,
     );
 
     if (abstraction) {
-      const fileContents = abstraction.file_indices
-        .filter((idx) => idx < extraction.files.length)
-        .map((idx) => {
-          const f = extraction.files[idx];
-          return `=== ${f.path} ===\n${f.content}`;
-        })
-        .join("\n\n");
-
-      contextData = fileContents;
-
-      const totalTokens = countTokens(prompt + contextData);
-      if (totalTokens > 60000) {
-        const truncatedFiles = abstraction.file_indices
-          .filter((idx) => idx < extraction.files.length)
-          .map((idx) => {
-            const f = extraction.files[idx];
-            const lines = f.content.split("\n");
-            const maxLines = Math.min(lines.length, 200);
-            return `=== ${f.path} (first ${maxLines} lines) ===\n${lines.slice(0, maxLines).join("\n")}`;
-          })
-          .join("\n\n");
-        contextData = truncatedFiles;
-      }
+      const rankedFiles = getAbstractionFilesByPageRank(abstraction, extraction);
+      contextData = packAbstractionContext(rankedFiles, contextBudget);
     } else {
       contextData = `No specific files assigned to this abstraction.`;
     }
   }
-
-  const fullPrompt = `${prompt}\n\n${contextData}`;
 
   let blocks: unknown[] = [];
   let lastError = "";
 
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
+      const isAbstractionChapter = !chapter.chapterType || chapter.chapterType === "abstraction";
+      const progressiveHint = isAbstractionChapter ? getProgressiveBlockRequirements(attempt, config.depth) : "";
+      const fullPrompt = `${prompt}${progressiveHint}\n\n${contextData}`;
+
       const response = await generateText({
         task: "stage3",
         prompt: lastError
           ? `${fullPrompt}\n\nPrevious attempt failed validation with this error:\n${lastError}\n\nFix the schema issues and return JSON only.`
           : fullPrompt,
         responseMimeType: "application/json",
-        maxOutputTokens: 16384,
+        maxOutputTokens: outputTokenBudget,
       });
 
       const parsed = safeParseJson(response.text) as Record<string, unknown>;

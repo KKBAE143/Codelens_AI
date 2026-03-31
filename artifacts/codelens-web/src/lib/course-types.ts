@@ -112,6 +112,8 @@ export interface V2OverviewGraph {
     label: string;
     moduleIndex: number;
     connections: number;
+    description?: string;
+    fileCount?: number;
   }>;
   edges: Array<{
     from: string;

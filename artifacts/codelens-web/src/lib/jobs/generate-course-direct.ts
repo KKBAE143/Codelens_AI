@@ -307,7 +307,7 @@ export async function generateCourseDirect(courseId: string): Promise<void> {
         updatedAt: new Date(),
       }).where(eq(courses.id, courseId));
 
-      await updateProgress(courseId, "generating", `Wrote ${chapters.length} chapters`, 90);
+      await updateProgress(courseId, "generating", `Wrote ${chapters.length} chapters`, 88);
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Chapter writing failed";
       await db.update(courses).set({ status: "failed", errorMessage: msg, updatedAt: new Date() }).where(eq(courses.id, courseId));
@@ -316,7 +316,13 @@ export async function generateCourseDirect(courseId: string): Promise<void> {
       throw error;
     }
 
+    await updateProgress(courseId, "polishing", "Assembling final course structure...", 92);
+    emitter.emitStageStart("polishing", "Assembling final course...", 4, 5);
+
     const html = assembleV2Course(chapters, extraction, relationships, abstractions, pipelineConfig);
+
+    await updateProgress(courseId, "polishing", "Finalizing and saving course...", 96);
+    emitter.emitStageComplete("polishing", "Course assembled", 4, 5);
     const slug = generateSlug(extraction.repoName, extraction.owner);
     const shareToken = crypto.randomBytes(16).toString("hex");
     const totalMinutes = chapters.reduce((sum, c) => sum + (c.estimatedMinutes || 8), 0);
