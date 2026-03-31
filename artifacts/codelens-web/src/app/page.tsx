@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/hooks/use-auth";
 import { CourseWizardModal } from "@/components/CourseWizardModal";
@@ -80,6 +80,14 @@ const DEMOS: DemoCourse[] = [
 ];
 
 export default function Home() {
+  return (
+    <Suspense>
+      <HomeInner />
+    </Suspense>
+  );
+}
+
+function HomeInner() {
   const { isAuthenticated, login } = useAuth();
   const searchParams = useSearchParams();
   const [url, setUrl] = useState(searchParams.get("repo") || "");
