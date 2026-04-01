@@ -2,7 +2,15 @@ import type { TargetAudience } from "../prompts";
 
 const PERSONA_CONTEXT: Record<TargetAudience, string> = {
   vibe_coder: `The learner is a "vibe coder" who builds with AI tools (Cursor, Bolt, Lovable) without a CS background. They can BUILD but cannot debug or maintain. Focus on: debugging strategies, what breaks and how to fix it, how to steer AI tools, dangerous zones AI frequently messes up.`,
-  new_engineer: `The learner is a new software engineer joining a team. They have CS fundamentals but are unfamiliar with this codebase. Focus on: architecture overview, data flows, how to make a first contribution, test coverage, development workflow, code conventions.`,
+  new_engineer: `The learner is a new software engineer joining the team — smart and technically capable, but completely new to this specific codebase. Write as if you are a friendly senior engineer walking them through the code over coffee, not a textbook author.
+
+TONE & STYLE RULES (mandatory):
+- Open EVERY chapter with a "Why this matters" paragraph: one or two sentences that connect this abstraction to a real task the new engineer will actually do (e.g., "When you add your first feature here, you'll touch this layer — here's why it's designed this way").
+- Use at least ONE real-world analogy per major concept (e.g., "think of this like a restaurant kitchen: orders come in from the front-of-house, the chef decides routing, and each station handles its specialty").
+- Write SHORT paragraphs — 3–4 sentences maximum. Break complex ideas into multiple paragraphs rather than one dense block.
+- AVOID jargon walls: never introduce more than two technical terms in a single paragraph without immediately explaining them in plain English.
+- Prefer active, direct sentences: "This function checks if the user is logged in" beats "Authentication verification is performed by this function".
+- Build complexity gradually within each chapter: start simple (what it is, why it exists), then go deeper (how it works, edge cases).`,
   product_manager: `The learner is a Product Manager. They need to understand WHAT the system does and WHY without reading code. Focus on: business-level component descriptions, user journeys, external integrations, performance characteristics. Minimize code, maximize diagrams.`,
   security_auditor: `The learner is a Security Auditor. Focus on: authentication flows, authorization boundaries, input validation, API security, secrets management, dependency risks, data exposure, error handling information leaks.`,
 };
@@ -121,10 +129,20 @@ export function getChapterWritePrompt(
       ? "Write 8-12 blocks for this chapter. Cover 'what', 'why', and key 'how' with code examples and diagrams."
       : "Write 12-18 blocks for this chapter. Deep dive including edge cases, alternatives, internals, and advanced patterns.";
 
+  const newEngineerExtra = audience === "new_engineer" ? `
+
+NEW ENGINEER CHAPTER REQUIREMENTS (in addition to the structure below):
+- The VERY FIRST sentence of the opening text block must be a "Why this matters" hook — one sentence connecting this abstraction to a real task the reader will do (e.g., "Every time you add a new API endpoint, you'll go through this layer — here's exactly how it works.").
+- After the hook, use a real-world analogy to explain the concept before any code appears (e.g., "Think of this like a receptionist: it receives every incoming request, checks ID, and routes you to the right desk.").
+- Keep ALL text paragraphs to 3–4 sentences maximum. If you have more to say, start a new paragraph.
+- Never stack more than two technical terms in the same sentence without explaining both.
+- Quizzes must be scenario-based: "You're on day 2 and need to add X — which file do you open first?" or "You see error Y in the logs — what does that tell you?".
+- Include a callout[first-pr] with a concrete, safe first contribution the reader could make to this part of the codebase.` : "";
+
   return `You are writing a single chapter of a codebase tutorial about the "${abstractionName}" abstraction.
 
 ${PERSONA_CONTEXT[audience]}
-
+${newEngineerExtra}
 Abstraction: ${abstractionName}
 Description: ${abstractionDescription}
 

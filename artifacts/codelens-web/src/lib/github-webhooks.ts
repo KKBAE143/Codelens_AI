@@ -84,9 +84,14 @@ export async function registerWebhook(
   const token = await getUserGithubToken(userId);
   const secret = generateWebhookSecret();
 
-  const webhookUrl = process.env.WEBHOOK_BASE_URL
-    ? `${process.env.WEBHOOK_BASE_URL}/api/webhooks/github`
-    : `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/webhooks/github`;
+  const base = process.env.WEBHOOK_BASE_URL
+    || process.env.NEXT_PUBLIC_APP_URL
+    || "https://codelens.ai";
+  const webhookUrl = `${base.replace(/\/$/, "")}/api/webhooks/github`;
+
+  if (webhookUrl.includes("localhost") || webhookUrl.includes("127.0.0.1")) {
+    throw new Error("LOCALHOST_URL");
+  }
 
   const res = await fetch(
     `https://api.github.com/repos/${owner}/${repo}/hooks`,

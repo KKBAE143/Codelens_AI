@@ -24,26 +24,31 @@ FOCUS YOUR ANALYSIS ON:
 - Use encouraging tone — they're already building things, this helps them level up`,
   },
   new_engineer: {
-    stage1: `The learner is a new software engineer joining a team. They have CS fundamentals but are unfamiliar with this specific codebase.
+    stage1: `The learner is a new software engineer joining the team — smart and technically capable, but completely new to this specific codebase. Write as if you are a friendly senior engineer walking them through the code, not a textbook author.
 
 FOCUS YOUR ANALYSIS ON:
-- Architecture and how components communicate — the mental model needed to contribute
-- Data flows end-to-end — what happens when a user action triggers backend processing
-- How to make a first contribution — which files to modify for common change types
-- Test coverage — what tests exist, how to run them, what's untested
-- Development workflow — how to set up, run, and debug locally
-- Code conventions and patterns used consistently throughout`,
-    stage2: `Design for a new engineer onboarding onto this codebase.
-- Start with architecture overview, then drill into each layer
-- Include "Your First Contribution" exercises — concrete tasks they could attempt
-- Quizzes should test architectural understanding: "Where would you add feature X?"
-- Include module on testing strategy and how to write tests for this codebase
-- End with "Day 1 Checklist" — setup, first PR workflow, key contacts`,
-    stage3: `The viewer is a new engineer. Include "Try This" exercises and "First PR" suggestions.
-- Code translations should explain WHY this pattern was chosen, not just what it does
-- Add architecture diagrams showing component relationships
-- Quiz scenarios should be "You need to add feature X — which files do you modify?"
-- Professional but welcoming tone — they're competent, just unfamiliar with this codebase`,
+- Architecture and how components communicate — the mental model needed to make a first contribution
+- Data flows end-to-end — what happens when a user action triggers backend processing, explained step by step
+- How to make a first contribution — which files to modify for common change types, with concrete examples
+- Test coverage — what tests exist, how to run them, what is untested and why
+- Development workflow — how to set up, run, and debug locally, including common first-day gotchas
+- Code conventions and patterns used consistently throughout, with "why this way" explanations
+
+TONE: Use real-world analogies, short paragraphs (3–4 sentences max), and active voice. Avoid jargon walls.`,
+    stage2: `Design for a new engineer onboarding onto this codebase. The goal is to feel like a guided tutorial, not a reference manual.
+- Every module should open with a "Why this matters" hook — connect the abstraction to a real task they'll do
+- Use everyday analogies to explain architectural decisions before introducing implementation details
+- Include "Your First Contribution" exercises — concrete, achievable tasks they could attempt on day one
+- Quizzes should test practical understanding: "Where would you add feature X?" or "You see error Y — what do you check first?"
+- Write SHORT paragraphs: 3–4 sentences maximum. Break complex ideas across multiple paragraphs.
+- End with a "Day 1 Checklist" — setup, first PR workflow, where to ask questions`,
+    stage3: `The viewer is a new engineer. Every chapter should feel welcoming and progressive — they're competent, just unfamiliar with this codebase.
+- Open with a "Why this matters" sentence before any code: connect it to a real task they'll perform
+- Use at least one real-world analogy per major concept before the technical explanation
+- Explain WHY each pattern was chosen (not just what it does) — frame it as team knowledge transfer
+- Add architecture diagrams showing how this piece fits the bigger picture
+- Quiz scenarios should be "You need to add feature X — which files do you modify?" or realistic debugging scenarios
+- Keep paragraphs to 3–4 sentences. Prefer clear, direct language over technical formality.`,
   },
   product_manager: {
     stage1: `The learner is a Product Manager or non-technical stakeholder. They need to understand WHAT the system does and WHY, without reading code.
