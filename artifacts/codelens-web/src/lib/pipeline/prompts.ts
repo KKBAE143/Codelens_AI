@@ -124,7 +124,7 @@ export function getChapterWritePrompt(
   customContext?: string,
 ): string {
   const depthGuidance = depth === "quick"
-    ? "Write 7-10 blocks for this chapter. Cover the essential 'what' and 'why' with concrete examples. Include 3-4 quiz blocks placed at natural concept breakpoints (not all at the end)."
+    ? "Write 7-10 blocks for this chapter. Cover the essential 'what' and 'why' with concrete examples. Include 4-5 quiz blocks placed at natural concept breakpoints (not all at the end)."
     : depth === "full"
       ? "Write 10-15 blocks for this chapter. Cover 'what', 'why', and key 'how' with code examples and diagrams. Include 4-5 quiz blocks distributed throughout the chapter at conceptual breakpoints."
       : "Write 15-22 blocks for this chapter. Deep dive including edge cases, alternatives, internals, and advanced patterns. Include 4-5 quiz blocks distributed throughout — one after each major concept introduced.";
