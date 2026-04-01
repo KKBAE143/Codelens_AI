@@ -37,19 +37,21 @@ export function TextBlock({ block }: { block: V2TextBlock }) {
 
   const components: Components = {
     img(props) {
-      const { src, alt } = props;
+      const { src, alt, title } = props;
       if (!src || typeof src !== "string") return null;
       const altText = typeof alt === "string" ? alt : "";
+      const titleText = typeof title === "string" ? title : undefined;
+      const label = altText || titleText || "Click to enlarge image";
       return (
         <span className="v2-text-img-wrapper">
           <button
             className="v2-text-img-btn"
-            onClick={() => setLightbox({ src, alt: altText })}
-            aria-label={altText ? `Enlarge: ${altText}` : "Click to enlarge image"}
-            title="Click to enlarge"
+            onClick={() => setLightbox({ src, alt: altText || titleText || "" })}
+            aria-label={`Enlarge: ${label}`}
+            title={titleText ?? "Click to enlarge"}
             type="button"
           >
-            <img src={src} alt={altText} className="v2-text-img" />
+            <img src={src} alt={altText} title={titleText} className="v2-text-img" />
           </button>
         </span>
       );
