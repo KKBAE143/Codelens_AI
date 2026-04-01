@@ -361,7 +361,7 @@ function CompletionModal({
               <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.737-8.835L1.254 2.25H8.08l4.261 5.632 5.903-5.632zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
               </svg>
-              Share on X
+              Share your achievement
             </a>
             <button className="btn-secondary" onClick={onClose} style={{ justifyContent: "center" }}>
               Continue Learning
@@ -468,10 +468,14 @@ export default function CourseViewer() {
     if (!progressInitialized || celebrationShown) return;
     const total = v2Data?.totalModules ?? 0;
     if (total > 0 && completedModules.length >= total) {
-      setShowCelebration(true);
+      const storageKey = `celebration-shown-${courseId}`;
+      const alreadyAcknowledged = localStorage.getItem(storageKey) === "1";
+      if (!alreadyAcknowledged) {
+        setShowCelebration(true);
+      }
       setCelebrationShown(true);
     }
-  }, [completedModules.length, v2Data?.totalModules, progressInitialized, celebrationShown]);
+  }, [completedModules.length, v2Data?.totalModules, progressInitialized, celebrationShown, courseId]);
 
   useEffect(() => {
     if (course && lastSeenVersion !== null && course.version > lastSeenVersion && course.changesSince) {
@@ -654,7 +658,10 @@ export default function CourseViewer() {
           ownerName={course.ownerName}
           repoName={course.repoName}
           shareUrl={celebrationShareUrl}
-          onClose={() => setShowCelebration(false)}
+          onClose={() => {
+            setShowCelebration(false);
+            try { localStorage.setItem(`celebration-shown-${courseId}`, "1"); } catch {}
+          }}
         />
       )}
       <div className="course-topbar" style={{
