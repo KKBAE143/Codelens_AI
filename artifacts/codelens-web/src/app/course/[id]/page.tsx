@@ -594,29 +594,21 @@ export default function CourseViewer() {
       .catch(() => {});
   }, [courseId, isAuthenticated]);
 
-  useEffect(() => {
-    if (!courseId || !isAuthenticated) return;
-    fetch(`/api/courses/${courseId}/quiz-scores`, { credentials: "include" })
-      .then((r) => r.ok ? r.json() : null)
-      .then((data: { scores?: Array<{ moduleIndex: number; score: number }> } | null) => {
-        if (data?.scores) {
-          const m = new Map<number, number>();
-          data.scores.forEach((s) => m.set(s.moduleIndex, s.score));
-          setQuizScores(m);
-        }
-      })
-      .catch(() => {});
-  }, [courseId, isAuthenticated]);
 
   useEffect(() => {
     if (!courseId || !isAuthenticated) return;
     fetch(`/api/courses/${courseId}/progress`, { credentials: "include" })
       .then((r) => (r.ok ? r.json() : null))
-      .then((progressData) => {
+      .then((progressData: { completedModules?: number[]; lastSeenVersion?: number; moduleScores?: Record<string, number> } | null) => {
         if (progressData?.completedModules?.length) {
           setCompletedModules(progressData.completedModules);
         }
         setLastSeenVersion(typeof progressData?.lastSeenVersion === "number" ? progressData.lastSeenVersion : 0);
+        if (progressData?.moduleScores) {
+          const m = new Map<number, number>();
+          Object.entries(progressData.moduleScores).forEach(([k, v]) => m.set(Number(k), v));
+          setQuizScores(m);
+        }
         setProgressInitialized(true);
       })
       .catch(() => { setProgressInitialized(true); });

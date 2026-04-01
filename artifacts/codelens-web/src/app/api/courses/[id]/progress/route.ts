@@ -4,7 +4,7 @@ export const runtime = "nodejs";
 import { NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { db } from "@workspace/db";
-import { courseProgress, courses, courseAssignments, organizations, users } from "@workspace/db/schema";
+import { courseProgress, courses, courseAssignments, organizations, users, moduleQuizScores } from "@workspace/db/schema";
 import { eq, and, isNull } from "drizzle-orm";
 import { sendSlackNotification, courseCompletedMessage } from "@/lib/slack";
 import { sendCourseCompletionEmail, isEmailConfigured } from "@/lib/email";
@@ -71,8 +71,15 @@ export async function GET(
     )
     .limit(1);
 
+  const quizScoreRows = await db
+    .select({ moduleIndex: moduleQuizScores.moduleIndex, score: moduleQuizScores.score })
+    .from(moduleQuizScores)
+    .where(and(eq(moduleQuizScores.courseId, courseId), eq(moduleQuizScores.userId, user.id)));
+
+  const moduleScores = Object.fromEntries(quizScoreRows.map((r) => [r.moduleIndex, r.score]));
+
   if (!existing) {
-    return NextResponse.json({ completedModules: [], percentComplete: 0, lastSeenVersion: 0 });
+    return NextResponse.json({ completedModules: [], percentComplete: 0, lastSeenVersion: 0, moduleScores });
   }
 
   return NextResponse.json({
@@ -80,6 +87,7 @@ export async function GET(
     percentComplete: existing.percentComplete,
     completedAt: existing.completedAt,
     lastSeenVersion: existing.lastSeenVersion || 1,
+    moduleScores,
   });
 }
 

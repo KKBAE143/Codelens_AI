@@ -52,6 +52,7 @@ type Mode = "quiz" | "summary" | "wrong-answers";
 export function PracticeMode({ courseId, moduleIndex, moduleTitle, quizBlocks, onClose, onScoreSaved }: PracticeModeProps) {
   const [mode, setMode] = useState<Mode>("quiz");
   const [questionOrder, setQuestionOrder] = useState<number[]>(() => quizBlocks.map((_, i) => i));
+  const [isFullRun, setIsFullRun] = useState(true);
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
   const [revealed, setRevealed] = useState(false);
@@ -66,7 +67,7 @@ export function PracticeMode({ courseId, moduleIndex, moduleTitle, quizBlocks, o
   const score = totalQ > 0 ? Math.round((correct / totalQ) * 100) : 0;
 
   useEffect(() => {
-    if (mode === "summary" && !scoreSaved && totalQ > 0) {
+    if (mode === "summary" && !scoreSaved && totalQ > 0 && isFullRun) {
       setScoreSaved(true);
       fetch(`/api/courses/${courseId}/quiz-scores`, {
         method: "POST",
@@ -82,7 +83,7 @@ export function PracticeMode({ courseId, moduleIndex, moduleTitle, quizBlocks, o
         })
         .catch(() => {});
     }
-  }, [mode, scoreSaved, courseId, moduleIndex, totalQ, correct, onScoreSaved]);
+  }, [mode, scoreSaved, isFullRun, courseId, moduleIndex, totalQ, correct, onScoreSaved]);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (mode !== "quiz") return;
@@ -129,6 +130,7 @@ export function PracticeMode({ courseId, moduleIndex, moduleTitle, quizBlocks, o
       ? wrongAnswers.map((a) => a.questionIndex)
       : quizBlocks.map((_, i) => i);
     setQuestionOrder(shuffle(indices));
+    setIsFullRun(!wrongOnly);
     setCurrentQuestion(0);
     setSelected(null);
     setRevealed(false);
@@ -140,7 +142,9 @@ export function PracticeMode({ courseId, moduleIndex, moduleTitle, quizBlocks, o
   if (mode === "summary") {
     const pct = score;
     const emoji = pct >= 80 ? "🎉" : pct >= 60 ? "👍" : "💪";
-    const label = pct >= 80 ? "Excellent!" : pct >= 60 ? "Nice work!" : "Keep practicing!";
+    const label = isFullRun
+      ? (pct >= 80 ? "Excellent!" : pct >= 60 ? "Nice work!" : "Keep practicing!")
+      : "Retry complete!";
 
     return (
       <div className="practice-overlay" onClick={onClose}>
@@ -155,6 +159,11 @@ export function PracticeMode({ courseId, moduleIndex, moduleTitle, quizBlocks, o
             <h2 className="practice-summary-title">{label}</h2>
             <p className="practice-summary-subtitle">
               You got <strong style={{ color: pct >= 80 ? "var(--teal)" : pct >= 60 ? "#F59E0B" : "var(--error)" }}>{correct} of {totalQ}</strong> correct
+              {!isFullRun && (
+                <span style={{ display: "block", fontSize: "0.75rem", color: "var(--text-tertiary)", marginTop: "0.25rem" }}>
+                  (Wrong-answer retry — not saved to mastery score)
+                </span>
+              )}
             </p>
             <div className="practice-score-ring">
               <svg width="96" height="96" style={{ transform: "rotate(-90deg)" }}>
