@@ -17,6 +17,12 @@ interface ModelConfig {
   model: string;
 }
 
+interface CloudflareCredential {
+  accountId: string;
+  authToken: string;
+  label: string;
+}
+
 interface CloudflareRunSuccess {
   success?: boolean;
   result?: unknown;
@@ -64,41 +70,42 @@ function getTaskConfigs(task: LlmTask): ModelConfig[] {
 export async function generateText(
   options: GenerateTextOptions,
 ): Promise<GenerateTextResult> {
-  const accountId = process.env.CLOUDFLARE_ACCOUNT_ID?.trim();
-  const authToken = process.env.CLOUDFLARE_AUTH_TOKEN?.trim();
+  const credentials = getTaskCredentials(options.task);
 
-  if (!accountId || !authToken) {
+  if (credentials.length === 0) {
     throw new Error(
-      "Cloudflare Workers AI is not configured. Set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_AUTH_TOKEN.",
+      "Cloudflare Workers AI is not configured. Set CLOUDFLARE_ACCOUNT_ID/CLOUDFLARE_AUTH_TOKEN or per-stage CLOUDFLARE_STAGE{N}_ACCOUNT_ID/CLOUDFLARE_STAGE{N}_AUTH_TOKEN values.",
     );
   }
 
   const errors: string[] = [];
 
-  for (const config of getTaskConfigs(options.task)) {
-    for (let attempt = 1; attempt <= 3; attempt++) {
-      try {
-        const text = await generateWithCloudflare(
-          accountId,
-          authToken,
-          config.model,
-          options,
-        );
-
-        return { text, provider: "cloudflare", model: config.model };
-      } catch (error) {
-        const retryDelayMs = getRetryDelayMs(error);
-        const shouldRetry =
-          attempt < 3 && retryDelayMs !== null && isRetryableError(error);
-
-        if (!shouldRetry) {
-          errors.push(
-            `cloudflare:${config.model} -> ${getErrorMessage(error)}`,
+  for (const credential of credentials) {
+    for (const config of getTaskConfigs(options.task)) {
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          const text = await generateWithCloudflare(
+            credential.accountId,
+            credential.authToken,
+            config.model,
+            options,
           );
-          break;
-        }
 
-        await sleep(retryDelayMs);
+          return { text, provider: "cloudflare", model: config.model };
+        } catch (error) {
+          const retryDelayMs = getRetryDelayMs(error);
+          const shouldRetry =
+            attempt < 3 && retryDelayMs !== null && isRetryableError(error);
+
+          if (!shouldRetry) {
+            errors.push(
+              `cloudflare:${credential.label}:${config.model} -> ${getErrorMessage(error)}`,
+            );
+            break;
+          }
+
+          await sleep(retryDelayMs);
+        }
       }
     }
   }
@@ -106,6 +113,68 @@ export async function generateText(
   throw new Error(
     `All AI providers failed for ${options.task}. ${errors.join(" | ")}`,
   );
+}
+
+function getTaskCredentials(task: LlmTask): CloudflareCredential[] {
+  const stageCredentials = getCredentialVariants(taskToEnvPrefix(task));
+
+  if (stageCredentials.length > 0) {
+    return stageCredentials;
+  }
+
+  if (task === "summary") {
+    const stage1Credentials = getCredentialVariants("CLOUDFLARE_STAGE1");
+
+    if (stage1Credentials.length > 0) {
+      return stage1Credentials.map((credential, index) => ({
+        ...credential,
+        label: `summary-fallback-${index + 1}`,
+      }));
+    }
+  }
+
+  return getCredentialVariants("CLOUDFLARE");
+}
+
+function taskToEnvPrefix(task: LlmTask): string {
+  switch (task) {
+    case "stage1":
+      return "CLOUDFLARE_STAGE1";
+    case "stage2":
+      return "CLOUDFLARE_STAGE2";
+    case "stage3":
+      return "CLOUDFLARE_STAGE3";
+    case "summary":
+      return "CLOUDFLARE_SUMMARY";
+  }
+}
+
+function getCredentialVariants(prefix: string): CloudflareCredential[] {
+  const credentials: CloudflareCredential[] = [];
+
+  for (let index = 1; index <= 10; index++) {
+    const suffix = index === 1 ? "" : `_${index}`;
+    const accountId = process.env[`${prefix}_ACCOUNT_ID${suffix}`]?.trim();
+    const authToken = process.env[`${prefix}_AUTH_TOKEN${suffix}`]?.trim();
+
+    if (!accountId && !authToken) {
+      continue;
+    }
+
+    if (!accountId || !authToken) {
+      throw new Error(
+        `Incomplete Cloudflare credential set for ${prefix}${suffix}. Both ACCOUNT_ID and AUTH_TOKEN are required.`,
+      );
+    }
+
+    credentials.push({
+      accountId,
+      authToken,
+      label: `${prefix.toLowerCase()}${suffix.toLowerCase() || "_1"}`,
+    });
+  }
+
+  return credentials;
 }
 
 const AI_FETCH_TIMEOUT_MS = 120_000;
@@ -136,7 +205,9 @@ async function generateWithCloudflare(
   } catch (err) {
     clearTimeout(timeoutId);
     if (err instanceof DOMException && err.name === "AbortError") {
-      throw new Error(`AI request timed out after ${AI_FETCH_TIMEOUT_MS / 1000}s for model ${model}`);
+      throw new Error(
+        `AI request timed out after ${AI_FETCH_TIMEOUT_MS / 1000}s for model ${model}`,
+      );
     }
     throw err;
   }
@@ -183,8 +254,7 @@ function buildMessages(options: GenerateTextOptions) {
     return [
       {
         role: "system",
-        content:
-          `You are a world-class technical writer creating detailed, production-quality educational content about codebases. Return valid JSON only — no markdown fences, no commentary, no prose outside the JSON structure.
+        content: `You are a world-class technical writer creating detailed, production-quality educational content about codebases. Return valid JSON only — no markdown fences, no commentary, no prose outside the JSON structure.
 
 CRITICAL: Every response must contain SUBSTANTIAL, DETAILED content. Never produce placeholder text. Never write generic summaries like "This chapter covers..." or "In this section we will..." or "Let's explore...". Instead, write real technical explanations with specific details from the actual code provided.
 
