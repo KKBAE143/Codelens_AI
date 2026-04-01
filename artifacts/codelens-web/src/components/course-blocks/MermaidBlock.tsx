@@ -57,6 +57,7 @@ export function MermaidBlock({ block }: { block: V2MermaidBlock }) {
 
         const { svg: renderedSvg } = await mermaid.render(idRef.current, block.source);
         if (!cancelled) {
+          setError(false);
           setSvg(renderedSvg);
         }
       } catch {

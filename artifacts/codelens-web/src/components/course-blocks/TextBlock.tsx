@@ -47,7 +47,7 @@ export function TextBlock({ block }: { block: V2TextBlock }) {
             alt={altText}
             className="v2-text-img"
             onClick={() => setLightbox({ src, alt: altText })}
-            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setLightbox({ src, alt: altText }); }}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setLightbox({ src, alt: altText }); } }}
             role="button"
             tabIndex={0}
             aria-label={altText ? `Enlarge: ${altText}` : "Click to enlarge image"}
