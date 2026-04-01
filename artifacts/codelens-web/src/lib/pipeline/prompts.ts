@@ -258,6 +258,33 @@ ${ANTI_PLACEHOLDER_RULES}
 Return ONLY a valid JSON object: { "blocks": [ ... ] }`;
 }
 
+export function getFlashcardPrompt(audience: TargetAudience): string {
+  return `You are creating spaced-repetition flashcards for a codebase tutorial chapter.
+
+${PERSONA_CONTEXT[audience]}
+
+Given the chapter content below (a list of content blocks), generate 4 high-quality flashcards.
+
+Rules:
+- Each flashcard tests ONE specific concept, function, pattern, or architectural decision from this chapter
+- Front: a clear question or term. Use "What does X do?", "Why does this codebase use Y?", "When would you Z?". DO NOT use yes/no questions.
+- Back: a clear, complete answer (2-4 sentences). Explain the what AND the why. No placeholder text.
+- codeSnippet: optional short code example (≤10 lines) that illustrates the concept. Include ONLY if directly relevant and verbatim from the chapter. Omit if not applicable.
+- Cover: key concepts, important functions, architectural decisions, common gotchas — NOT trivia.
+- Avoid duplicating the same concept across cards.
+
+Return ONLY valid JSON (no markdown fences):
+{
+  "cards": [
+    {
+      "front": "...",
+      "back": "...",
+      "codeSnippet": "..." or null
+    }
+  ]
+}`;
+}
+
 export function getOverviewChapterPrompt(audience: TargetAudience): string {
   return `You are writing the "Overview & Architecture" chapter of a codebase tutorial.
 

@@ -1,5 +1,5 @@
 import { db } from "@workspace/db";
-import { courses } from "@workspace/db/schema";
+import { courses, flashcards } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
 import { generateText } from "../llm";
 import { extractRepo } from "../github";
@@ -13,6 +13,7 @@ import {
   removeEmitter,
 } from "../pipeline";
 import type { PipelineConfig, ChapterResult, Abstraction } from "../pipeline";
+import { generateFlashcardsForChapters } from "../pipeline/stages";
 import type { TargetAudience } from "../prompts";
 import crypto from "crypto";
 
@@ -227,6 +228,18 @@ export async function regenerateCourseDirect(
       }).where(eq(courses.id, courseId));
 
       emitter.emitCompleted("Course regenerated!");
+
+      const regen_audience = pipelineConfig.audience;
+      db.delete(flashcards).where(eq(flashcards.courseId, courseId))
+        .then(() => generateFlashcardsForChapters(chapters, courseId, regen_audience))
+        .then(async (cards) => {
+          if (cards.length > 0) {
+            await db.insert(flashcards).values(
+              cards.map((c) => ({ courseId, moduleIndex: c.moduleIndex, front: c.front, back: c.back, codeSnippet: c.codeSnippet || null }))
+            ).onConflictDoNothing();
+          }
+        })
+        .catch((err) => console.warn("[Regenerate] Flashcard regeneration failed (non-fatal):", err));
     } else {
       console.log(`[Regenerate] ${changedPaths.length} files changed, attempting selective chapter regeneration`);
 
@@ -269,6 +282,17 @@ export async function regenerateCourseDirect(
       }).where(eq(courses.id, courseId));
 
       emitter.emitCompleted(`Regenerated ${chaptersToRewrite.length} affected chapters!`);
+
+      const selective_audience = pipelineConfig.audience;
+      generateFlashcardsForChapters(rewrittenChapters, courseId, selective_audience)
+        .then(async (cards) => {
+          if (cards.length > 0) {
+            await db.insert(flashcards).values(
+              cards.map((c) => ({ courseId, moduleIndex: c.moduleIndex, front: c.front, back: c.back, codeSnippet: c.codeSnippet || null }))
+            ).onConflictDoNothing();
+          }
+        })
+        .catch((err) => console.warn("[Regenerate] Selective flashcard update failed (non-fatal):", err));
     }
   } catch (error) {
     const msg = error instanceof Error ? error.message : "Regeneration failed";

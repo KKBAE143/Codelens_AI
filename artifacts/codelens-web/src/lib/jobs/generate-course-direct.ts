@@ -1,5 +1,5 @@
 import { db } from "@workspace/db";
-import { courses, generationCache, users } from "@workspace/db/schema";
+import { courses, generationCache, users, flashcards } from "@workspace/db/schema";
 import { eq, and, gt, desc } from "drizzle-orm";
 import { extractRepo } from "../github";
 import { registerWebhook } from "../github-webhooks";
@@ -15,6 +15,7 @@ import {
   removeEmitter,
 } from "../pipeline";
 import type { PipelineConfig, ChapterResult } from "../pipeline";
+import { generateFlashcardsForChapters } from "../pipeline/stages";
 import crypto from "crypto";
 
 function generateSlug(repoName: string, owner: string): string {
@@ -342,6 +343,25 @@ export async function generateCourseDirect(courseId: string): Promise<void> {
     }
 
     emitter.emitCompleted("Course generation complete!");
+
+    generateFlashcardsForChapters(chapters, courseId, pipelineConfig.audience)
+      .then(async (cards) => {
+        if (cards.length > 0) {
+          await db.insert(flashcards).values(
+            cards.map((c) => ({
+              courseId,
+              moduleIndex: c.moduleIndex,
+              front: c.front,
+              back: c.back,
+              codeSnippet: c.codeSnippet || null,
+            }))
+          ).onConflictDoNothing();
+          console.log(`[Pipeline] Stored ${cards.length} flashcards for course ${courseId}`);
+        }
+      })
+      .catch((err) => {
+        console.warn("[Pipeline] Flashcard generation failed (non-fatal):", err);
+      });
 
     if (course.createdBy) {
       try {

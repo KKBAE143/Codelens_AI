@@ -3278,3 +3278,308 @@ a.v2-code-filepath:hover {
     display: none;
   }
 }
+
+/* ============================
+   FLASHCARD REVIEW SYSTEM
+   ============================ */
+
+.flashcard-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  backdrop-filter: blur(4px);
+}
+
+.flashcard-modal {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  width: 100%;
+  max-width: 560px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  position: relative;
+}
+
+.flashcard-modal-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.flashcard-close {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+  padding: 0.25rem;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  transition: color 0.15s;
+}
+
+.flashcard-close:hover {
+  color: var(--text-primary);
+}
+
+.flashcard-progress-bar {
+  flex: 1;
+  height: 4px;
+  background: var(--border-color);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.flashcard-progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.flashcard-counter {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  flex-shrink: 0;
+}
+
+/* 3D flip card */
+.flashcard-scene {
+  perspective: 1000px;
+  padding: 1.5rem;
+  cursor: pointer;
+  outline: none;
+}
+
+.flashcard-scene:focus-visible .flashcard-card {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.flashcard-card {
+  position: relative;
+  width: 100%;
+  min-height: 200px;
+  transform-style: preserve-3d;
+  transition: transform 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.flashcard-scene-flipped .flashcard-card {
+  transform: rotateY(180deg);
+}
+
+.flashcard-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-height: 200px;
+}
+
+.flashcard-back {
+  transform: rotateY(180deg);
+  background: var(--bg-secondary);
+}
+
+.flashcard-face-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-tertiary);
+}
+
+.flashcard-text {
+  font-size: 1rem;
+  line-height: 1.6;
+  color: var(--text-primary);
+  flex: 1;
+  margin: 0;
+}
+
+.flashcard-hint {
+  font-size: 0.72rem;
+  color: var(--text-tertiary);
+  text-align: center;
+  margin-top: auto;
+}
+
+.flashcard-code {
+  background: var(--code-bg);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem;
+  font-size: 0.8rem;
+  font-family: var(--font-mono);
+  overflow-x: auto;
+  margin: 0;
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  white-space: pre;
+}
+
+.flashcard-code code {
+  background: transparent;
+  padding: 0;
+  font-size: inherit;
+  color: inherit;
+}
+
+/* Rating buttons */
+.flashcard-ratings {
+  padding: 0 1.5rem 1.5rem;
+  border-top: 1px solid var(--border-color);
+  padding-top: 1rem;
+}
+
+.flashcard-ratings-hint {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  text-align: center;
+  margin: 0 0 0.75rem;
+}
+
+.flashcard-rating-buttons {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.5rem;
+}
+
+.flashcard-rating-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.6rem 0.5rem;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid currentColor;
+  cursor: pointer;
+  font-family: var(--font-body);
+  transition: opacity 0.15s, transform 0.1s;
+}
+
+.flashcard-rating-btn:hover:not(:disabled) {
+  opacity: 0.85;
+  transform: translateY(-1px);
+}
+
+.flashcard-rating-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.flashcard-rating-btn:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+.flashcard-rating-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.flashcard-rating-desc {
+  font-size: 0.7rem;
+  opacity: 0.8;
+}
+
+/* Due banner */
+.flashcard-due-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.625rem 1rem;
+  background: var(--accent-light);
+  border-bottom: 1px solid var(--accent);
+  color: var(--accent);
+  font-size: 0.82rem;
+  flex-shrink: 0;
+}
+
+.flashcard-due-banner strong {
+  font-weight: 600;
+}
+
+.flashcard-due-banner-btn {
+  margin-left: auto;
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 0.3rem 0.75rem;
+  font-size: 0.78rem;
+  font-family: var(--font-body);
+  cursor: pointer;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: opacity 0.15s;
+}
+
+.flashcard-due-banner-btn:hover {
+  opacity: 0.85;
+}
+
+.flashcard-due-banner-close {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--accent);
+  font-size: 1.2rem;
+  line-height: 1;
+  padding: 0 0.125rem;
+  opacity: 0.7;
+  transition: opacity 0.15s;
+}
+
+.flashcard-due-banner-close:hover {
+  opacity: 1;
+}
+
+/* Review tab badge */
+.flashcard-tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  background: var(--accent);
+  color: white;
+  border-radius: var(--radius-full);
+  font-size: 0.65rem;
+  font-weight: 700;
+  margin-left: 0.4rem;
+  animation: badge-pulse 2s ease-in-out infinite;
+}
+
+@keyframes badge-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+@media (max-width: 640px) {
+  .flashcard-modal {
+    max-width: 100%;
+    max-height: 95vh;
+    border-radius: var(--radius-md);
+  }
+
+  .flashcard-rating-buttons {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

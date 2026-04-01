@@ -8,6 +8,7 @@ import { useToast } from "@/components/Toast";
 import dynamic from "next/dynamic";
 import { BlockRenderer } from "@/components/course-blocks/BlockRenderer";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { FlashcardReview, FlashcardDueBanner } from "@/components/FlashcardReview";
 import {
   isV2Course,
   parseV2Course,
@@ -484,6 +485,8 @@ export default function CourseViewer() {
   const [showSidebar, setShowSidebar] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
+  const [showFlashcards, setShowFlashcards] = useState(false);
+  const [flashcardDueCount, setFlashcardDueCount] = useState(0);
   const [celebrationShown, setCelebrationShown] = useState(false);
   const [progressInitialized, setProgressInitialized] = useState(false);
   const [overviewTab, setOverviewTab] = useState<"graph" | "diagram">("graph");
@@ -531,6 +534,14 @@ export default function CourseViewer() {
       document.title = `${course.ownerName}/${course.repoName} — CodeLens AI`;
     }
   }, [course, v2Data]);
+
+  useEffect(() => {
+    if (!courseId || !isAuthenticated) return;
+    fetch(`/api/courses/${courseId}/flashcards`, { credentials: "include" })
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => { if (data?.dueCount) setFlashcardDueCount(data.dueCount); })
+      .catch(() => {});
+  }, [courseId, isAuthenticated]);
 
   useEffect(() => {
     if (!courseId || !isAuthenticated) return;
@@ -759,6 +770,18 @@ export default function CourseViewer() {
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }}
         />
       )}
+      {showFlashcards && (
+        <FlashcardReview
+          courseId={courseId}
+          onClose={() => {
+            setShowFlashcards(false);
+            fetch(`/api/courses/${courseId}/flashcards`, { credentials: "include" })
+              .then((r) => r.ok ? r.json() : null)
+              .then((data) => { setFlashcardDueCount(data?.dueCount || 0); })
+              .catch(() => {});
+          }}
+        />
+      )}
       {showCelebration && course && (
         <CompletionModal
           ownerName={course.ownerName}
@@ -862,15 +885,49 @@ export default function CourseViewer() {
 
       {isV2 && v2Data ? (
         <>
+          {isAuthenticated && courseId && flashcardDueCount >= 3 && !showFlashcards && (
+            <FlashcardDueBanner courseId={courseId} onClick={() => setShowFlashcards(true)} />
+          )}
           <ReadingProgressBar scrollRef={mainScrollRef} />
           <div style={{ flex: 1, display: "flex", overflow: "hidden", position: "relative" }}>
             {showSidebar && (
               <aside className="v2-sidebar course-sidebar">
                 <div className="v2-sidebar-header">
                   <h3 className="v2-sidebar-title">Modules</h3>
-                  <div className="v2-sidebar-progress">
-                    <ProgressRing percent={progress} size={32} stroke={3} />
-                    <span className="v2-sidebar-progress-text">{progress}%</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    <button
+                      onClick={() => setShowFlashcards(true)}
+                      title="Review flashcards"
+                      style={{
+                        background: flashcardDueCount > 0 ? "var(--accent-light)" : "transparent",
+                        border: flashcardDueCount > 0 ? "1px solid var(--accent)" : "1px solid var(--border-color)",
+                        borderRadius: "var(--radius-sm)",
+                        padding: "0.25rem 0.5rem",
+                        cursor: "pointer",
+                        color: flashcardDueCount > 0 ? "var(--accent)" : "var(--text-secondary)",
+                        fontSize: "0.75rem",
+                        fontFamily: "var(--font-body)",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.3rem",
+                        fontWeight: flashcardDueCount > 0 ? 600 : 400,
+                        transition: "all 0.15s",
+                      }}
+                    >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="2" y="3" width="20" height="14" rx="2" />
+                        <line x1="8" y1="21" x2="16" y2="21" />
+                        <line x1="12" y1="17" x2="12" y2="21" />
+                      </svg>
+                      Review
+                      {flashcardDueCount > 0 && (
+                        <span className="flashcard-tab-badge">{flashcardDueCount}</span>
+                      )}
+                    </button>
+                    <div className="v2-sidebar-progress">
+                      <ProgressRing percent={progress} size={32} stroke={3} />
+                      <span className="v2-sidebar-progress-text">{progress}%</span>
+                    </div>
                   </div>
                 </div>
 

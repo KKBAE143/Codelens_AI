@@ -32,6 +32,7 @@
     "remark-gfm": "^4.0.1",
     "shiki": "^4.0.2",
     "sigma": "^3.0.2",
+    "ts-fsrs": "^5.3.1",
     "yaml": "^2.8.3",
     "zod": "catalog:"
   },
