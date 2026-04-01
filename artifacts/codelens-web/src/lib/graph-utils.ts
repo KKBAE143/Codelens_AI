@@ -129,13 +129,16 @@ function runForceAtlas2Layout(graph: Graph): void {
 
   if (graph.order < 2 || graph.size < 1) return;
 
+  const n = graph.order;
+  const iterations = n > 80 ? 150 : n > 40 ? 200 : 300;
+
   try {
     forceAtlas2.assign(graph, {
-      iterations: 300,
+      iterations,
       settings: {
         gravity: 0.5,
         scalingRatio: 25,
-        barnesHutOptimize: graph.order > 50,
+        barnesHutOptimize: n > 50,
         strongGravityMode: false,
         slowDown: 3,
         adjustSizes: true,
