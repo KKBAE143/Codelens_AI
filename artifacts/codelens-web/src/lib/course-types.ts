@@ -85,6 +85,15 @@ export interface V2CommandCardBlock {
   commonErrors?: Array<{ error: string; fix: string }>;
 }
 
+export interface V2ExerciseBlock {
+  type: "exercise";
+  title: string;
+  task: string;
+  files?: Array<{ path: string; githubUrl?: string }>;
+  verificationHint?: string;
+  difficulty?: "easy" | "medium" | "hard";
+}
+
 export type V2Block =
   | V2TextBlock
   | V2CodeBlock
@@ -95,7 +104,8 @@ export type V2Block =
   | V2ArchitectureCardBlock
   | V2DependencyCardBlock
   | V2EnvVarCardBlock
-  | V2CommandCardBlock;
+  | V2CommandCardBlock
+  | V2ExerciseBlock;
 
 export interface V2Module {
   index: number;

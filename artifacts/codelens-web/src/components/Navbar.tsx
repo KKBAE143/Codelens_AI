@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/hooks/use-auth";
+import { XpStreakBadge } from "@/components/XpStreakBadge";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -166,6 +167,9 @@ export function Navbar() {
             <div className="skeleton hide-on-mobile" style={{ width: 80, height: 32 }} />
           ) : isAuthenticated ? (
             <div className="hide-on-mobile" style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+              <Link href="/profile/stats" style={{ textDecoration: "none" }}>
+                <XpStreakBadge />
+              </Link>
               <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
                 {user?.avatarUrl && (
                   <img src={user.avatarUrl} alt="" style={{

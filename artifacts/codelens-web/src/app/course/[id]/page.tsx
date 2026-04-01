@@ -10,6 +10,7 @@ import { BlockRenderer } from "@/components/course-blocks/BlockRenderer";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { FlashcardReview, FlashcardDueBanner } from "@/components/FlashcardReview";
 import { PracticeMode } from "@/components/PracticeMode";
+import { CourseWizard } from "@/components/CourseWizard";
 import {
   isV2Course,
   parseV2Course,
@@ -229,6 +230,7 @@ function V2ModuleContent({
   moduleIndex,
   totalModules,
   githubUrl,
+  courseId,
   isCompleted,
   quizScore,
   onComplete,
@@ -240,6 +242,7 @@ function V2ModuleContent({
   moduleIndex: number;
   totalModules: number;
   githubUrl: string;
+  courseId: string;
   isCompleted: boolean;
   quizScore?: number;
   onComplete: () => void;
@@ -308,7 +311,11 @@ function V2ModuleContent({
       <div className="v2-blocks">
         {mod.blocks.map((block, bi) => (
           <div key={bi} id={`toc-block-${bi}`} className="v2-block-wrapper">
-            <BlockRenderer block={block} githubUrl={githubUrl} />
+            <BlockRenderer
+              block={block}
+              githubUrl={githubUrl}
+              exerciseContext={block.type === "exercise" ? { courseId, moduleIndex, blockIndex: bi } : undefined}
+            />
           </div>
         ))}
       </div>
@@ -452,6 +459,7 @@ function getBlockHeading(block: V2Block, index: number): string {
     const cmd = block.command;
     return cmd.length > 28 ? cmd.substring(0, 28) + "…" : cmd;
   }
+  if (block.type === "exercise") return block.title || "Exercise";
   return `Block ${index + 1}`;
 }
 
@@ -545,6 +553,7 @@ export default function CourseViewer() {
   const [webhookToggling, setWebhookToggling] = useState(false);
   const [lastSeenVersion, setLastSeenVersion] = useState<number | null>(null);
   const [showWhatsNew, setShowWhatsNew] = useState(false);
+  const [showWizard, setShowWizard] = useState(false);
   const [activeModuleIndex, setActiveModuleIndex] = useState(() => {
     if (typeof window !== "undefined") {
       const hash = window.location.hash;
@@ -626,6 +635,14 @@ export default function CourseViewer() {
       setCelebrationShown(true);
     }
   }, [completedModules.length, v2Data?.totalModules, course?.moduleCount, progressInitialized, celebrationShown, courseId]);
+
+  useEffect(() => {
+    if (!progressInitialized || !isV2) return;
+    try {
+      const stored = localStorage.getItem(`wizard-${courseId}`);
+      if (!stored) setShowWizard(true);
+    } catch {}
+  }, [progressInitialized, isV2, courseId]);
 
   useEffect(() => {
     if (course && lastSeenVersion !== null && course.version > lastSeenVersion && course.changesSince) {
@@ -825,6 +842,15 @@ export default function CourseViewer() {
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }}
+        />
+      )}
+      {showWizard && course && (
+        <CourseWizard
+          courseId={courseId}
+          repoName={course.repoName}
+          ownerName={course.ownerName}
+          onComplete={() => setShowWizard(false)}
+          onSkip={() => setShowWizard(false)}
         />
       )}
       {showFlashcards && (
@@ -1183,6 +1209,7 @@ export default function CourseViewer() {
                   moduleIndex={activeModuleIndex}
                   totalModules={v2Data.totalModules}
                   githubUrl={v2Data.githubUrl}
+                  courseId={courseId}
                   isCompleted={completedModules.includes(activeModuleIndex)}
                   quizScore={quizScores.get(activeModuleIndex)}
                   onComplete={() => markModuleComplete(activeModuleIndex)}

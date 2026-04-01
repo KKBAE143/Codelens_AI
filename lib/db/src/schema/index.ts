@@ -11,3 +11,5 @@ export * from "./courseViews";
 export * from "./stripeEvents";
 export * from "./flashcards";
 export * from "./moduleQuizScores";
+export * from "./userXpEvents";
+export * from "./userStreaks";

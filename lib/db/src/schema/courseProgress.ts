@@ -10,6 +10,8 @@ export const courseProgress = pgTable("course_progress", {
   userId: text("user_id").notNull().references(() => users.id),
   completedModules: jsonb("completed_modules").$type<number[]>().default([]),
   quizAnswers: jsonb("quiz_answers"),
+  doneExercises: jsonb("done_exercises").$type<Record<string, number[]>>().default({}),
+  wizardConfig: jsonb("wizard_config").$type<{ goal: string; focusAreas: string[]; depth: string } | null>(),
   lastViewedAt: timestamp("last_viewed_at").defaultNow(),
   completedAt: timestamp("completed_at"),
   percentComplete: integer("percent_complete").notNull().default(0),
@@ -23,6 +25,8 @@ export const courseProgress = pgTable("course_progress", {
 export const insertCourseProgressSchema = createInsertSchema(courseProgress).omit({
   id: true,
   createdAt: true,
+  doneExercises: true,
+  wizardConfig: true,
   updatedAt: true,
 });
 export type InsertCourseProgress = z.infer<typeof insertCourseProgressSchema>;

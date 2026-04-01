@@ -8,6 +8,7 @@ import { MermaidBlock } from "./MermaidBlock";
 import { QuizBlock } from "./QuizBlock";
 import { CalloutBlock } from "./CalloutBlock";
 import { FileListBlock } from "./FileListBlock";
+import { ExerciseBlock } from "./ExerciseBlock";
 import {
   ArchitectureCardBlock,
   DependencyCardBlock,
@@ -15,12 +16,19 @@ import {
   CommandCardBlock,
 } from "./CardBlocks";
 
+export interface ExerciseContext {
+  courseId: string;
+  moduleIndex: number;
+  blockIndex: number;
+}
+
 interface BlockRendererProps {
   block: V2Block;
   githubUrl?: string;
+  exerciseContext?: ExerciseContext;
 }
 
-function BlockContent({ block, githubUrl }: BlockRendererProps) {
+function BlockContent({ block, githubUrl, exerciseContext }: BlockRendererProps) {
   switch (block.type) {
     case "text":
       return <TextBlock block={block} />;
@@ -42,15 +50,21 @@ function BlockContent({ block, githubUrl }: BlockRendererProps) {
       return <EnvVarCardBlock block={block} />;
     case "command-card":
       return <CommandCardBlock block={block} />;
+    case "exercise": {
+      const doneKey = exerciseContext
+        ? `ex-${exerciseContext.courseId}-m${exerciseContext.moduleIndex}-b${exerciseContext.blockIndex}`
+        : undefined;
+      return <ExerciseBlock block={block} doneKey={doneKey} />;
+    }
     default:
       return null;
   }
 }
 
-export function BlockRenderer({ block, githubUrl }: BlockRendererProps) {
+export function BlockRenderer({ block, githubUrl, exerciseContext }: BlockRendererProps) {
   return (
     <ErrorBoundary fallback={<BlockErrorFallback />}>
-      <BlockContent block={block} githubUrl={githubUrl} />
+      <BlockContent block={block} githubUrl={githubUrl} exerciseContext={exerciseContext} />
     </ErrorBoundary>
   );
 }

@@ -124,10 +124,10 @@ export function getChapterWritePrompt(
   customContext?: string,
 ): string {
   const depthGuidance = depth === "quick"
-    ? "Write 7-10 blocks for this chapter. Cover the essential 'what' and 'why' with concrete examples. Include 4-5 quiz blocks placed at natural concept breakpoints (not all at the end)."
+    ? "Write 7-10 blocks for this chapter. Cover the essential 'what' and 'why' with concrete examples. Include 4-5 quiz blocks placed at natural concept breakpoints (not all at the end). Include 1 exercise block (placed near the end)."
     : depth === "full"
-      ? "Write 10-15 blocks for this chapter. Cover 'what', 'why', and key 'how' with code examples and diagrams. Include 4-5 quiz blocks distributed throughout the chapter at conceptual breakpoints."
-      : "Write 15-22 blocks for this chapter. Deep dive including edge cases, alternatives, internals, and advanced patterns. Include 4-5 quiz blocks distributed throughout — one after each major concept introduced.";
+      ? "Write 10-15 blocks for this chapter. Cover 'what', 'why', and key 'how' with code examples and diagrams. Include 4-5 quiz blocks distributed throughout the chapter at conceptual breakpoints. Include 1-2 exercise blocks placed after major concepts."
+      : "Write 15-22 blocks for this chapter. Deep dive including edge cases, alternatives, internals, and advanced patterns. Include 4-5 quiz blocks distributed throughout — one after each major concept introduced. Include 2 exercise blocks at strategic points.";
 
   const newEngineerExtra = audience === "new_engineer" ? `
 
@@ -166,6 +166,7 @@ Available block types:
 8. "dependency-card": { "type": "dependency-card", "packageName": "pkg", "version": "1.0", "purpose": "specific purpose in this project", "whatBreaksWithout": "concrete consequence", "alternatives": "other options" }
 9. "env-var-card": { "type": "env-var-card", "varName": "KEY", "required": true, "purpose": "what this configures", "exampleValue": "value", "whatBreaksWithout": "specific failure mode" }
 10. "command-card": { "type": "command-card", "command": "npm run dev", "when": "when and why to use this", "expectedOutput": "what you see", "commonErrors": [{"error": "msg", "fix": "solution"}] }
+11. "exercise": { "type": "exercise", "title": "Short imperative title (e.g. 'Trace an API Request End-to-End')", "task": "Clear, specific, actionable task — must be achievable by reading the code. NOT 'study the file' but 'find where X calls Y and explain what happens when Z changes'.", "files": [{"path": "src/relevant/file.ts", "githubUrl": null}], "verificationHint": "One sentence: how to know you got it right", "difficulty": "easy"|"medium"|"hard" }
 
 REQUIRED CHAPTER STRUCTURE:
 1. Start with a text block that explains WHAT this abstraction is and WHY it exists — use a real-world analogy, reference specific files, explain the problem it solves. Minimum 3 paragraphs.
@@ -174,7 +175,8 @@ REQUIRED CHAPTER STRUCTURE:
 4. Include EXACTLY ONE mermaid diagram showing how this abstraction connects to other parts of the system — use the relationship data provided. The diagram must have labeled nodes and edges.
 5. Include 4-5 quiz blocks distributed THROUGHOUT the chapter at concept breakpoints — place each quiz immediately AFTER the concept it tests, NOT all bunched at the end. Each quiz must have a realistic scenario (e.g., "You're debugging X and see error Y in the logs. What's the most likely cause?") with 3-4 options, each with detailed explanations.
 6. Include 1-2 callout blocks with actionable tips, warnings, or first-PR suggestions specific to this abstraction.
-7. End with a text block summarizing key takeaways and how this connects to the next chapter.
+7. Include 1-2 exercise blocks at natural breakpoints after key concepts are introduced. Each exercise should require the reader to actually read the code and find something specific — NOT generic "explore the file" tasks.
+8. End with a text block summarizing key takeaways and how this connects to the next chapter.
 
 ${ANTI_PLACEHOLDER_RULES}
 
