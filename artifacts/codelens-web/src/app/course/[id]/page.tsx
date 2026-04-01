@@ -466,7 +466,7 @@ export default function CourseViewer() {
 
   useEffect(() => {
     if (!progressInitialized || celebrationShown) return;
-    const total = v2Data?.totalModules ?? 0;
+    const total = v2Data?.totalModules ?? course?.moduleCount ?? 0;
     if (total > 0 && completedModules.length >= total) {
       const storageKey = `celebration-shown-${courseId}`;
       const alreadyAcknowledged = localStorage.getItem(storageKey) === "1";
@@ -475,7 +475,7 @@ export default function CourseViewer() {
       }
       setCelebrationShown(true);
     }
-  }, [completedModules.length, v2Data?.totalModules, progressInitialized, celebrationShown, courseId]);
+  }, [completedModules.length, v2Data?.totalModules, course?.moduleCount, progressInitialized, celebrationShown, courseId]);
 
   useEffect(() => {
     if (course && lastSeenVersion !== null && course.version > lastSeenVersion && course.changesSince) {
