@@ -73,6 +73,7 @@ export function TextBlock({ block }: { block: V2TextBlock }) {
           aria-label="Image lightbox"
         >
           <button
+            type="button"
             className="v2-image-lightbox-close"
             onClick={closeLightbox}
             aria-label="Close lightbox"
