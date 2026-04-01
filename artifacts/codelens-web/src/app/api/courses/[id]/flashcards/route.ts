@@ -78,6 +78,7 @@ export async function GET(
     .where(eq(flashcards.courseId, courseId));
 
   const now = new Date();
+  const f = fsrs();
 
   const dueCards = cards.filter((c) => {
     if (!c.reviewId) return true;
@@ -87,11 +88,48 @@ export async function GET(
   const totalCards = cards.length;
   const dueCount = dueCards.length;
 
+  const dueCardsWithPreview = dueCards.map((c) => {
+    let currentCard: Card;
+    if (c.reviewId && c.stability !== null && c.difficulty !== null) {
+      const emptyRef = createEmptyCard(now);
+      currentCard = {
+        ...emptyRef,
+        due: c.due ?? now,
+        stability: c.stability,
+        difficulty: c.difficulty,
+        elapsed_days: c.elapsedDays ?? 0,
+        scheduled_days: c.scheduledDays ?? 0,
+        reps: c.reps ?? 0,
+        lapses: c.lapses ?? 0,
+        state: (c.state ?? 0) as 0 | 1 | 2 | 3,
+        last_review: c.lastReview ?? undefined,
+      };
+    } else {
+      currentCard = createEmptyCard(now);
+    }
+    const sched = f.repeat(currentCard, now) as unknown as Record<number, { card: Card; log: { scheduled_days: number } }>;
+    return {
+      id: c.id,
+      moduleIndex: c.moduleIndex,
+      front: c.front,
+      back: c.back,
+      codeSnippet: c.codeSnippet,
+      reviewId: c.reviewId,
+      due: c.due,
+      reps: c.reps,
+      schedulingPreview: {
+        again: sched[1]?.log.scheduled_days ?? 0,
+        hard: sched[2]?.log.scheduled_days ?? 1,
+        good: sched[3]?.log.scheduled_days ?? 3,
+        easy: sched[4]?.log.scheduled_days ?? 7,
+      },
+    };
+  });
+
   return NextResponse.json({
-    cards: dueCards,
+    cards: dueCardsWithPreview,
     totalCards,
     dueCount,
-    allCards: cards,
   });
 }
 
@@ -210,8 +248,15 @@ export async function PUT(
     return NextResponse.json({ error: "Invalid course ID" }, { status: 400 });
   }
 
-  const course = await checkCourseAccess(courseId, user.id);
-  if (!course) return NextResponse.json({ error: "Not found or not authorized" }, { status: 403 });
+  const [ownerCheck] = await db
+    .select({ createdBy: courses.createdBy })
+    .from(courses)
+    .where(and(eq(courses.id, courseId), isNull(courses.deletedAt)))
+    .limit(1);
+
+  if (!ownerCheck || ownerCheck.createdBy !== user.id) {
+    return NextResponse.json({ error: "Not found or not authorized" }, { status: 403 });
+  }
 
   let body: { cards: Array<{ front: string; back: string; codeSnippet?: string; moduleIndex: number }> };
   try { body = await request.json(); }

@@ -1,6 +1,6 @@
 import { db } from "@workspace/db";
 import { courses, flashcards } from "@workspace/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { generateText } from "../llm";
 import { extractRepo } from "../github";
 import {
@@ -284,7 +284,10 @@ export async function regenerateCourseDirect(
       emitter.emitCompleted(`Regenerated ${chaptersToRewrite.length} affected chapters!`);
 
       const selective_audience = pipelineConfig.audience;
-      generateFlashcardsForChapters(rewrittenChapters, courseId, selective_audience)
+      const affectedModuleIndices = rewrittenChapters.map((c) => c.index);
+      db.delete(flashcards)
+        .where(and(eq(flashcards.courseId, courseId), inArray(flashcards.moduleIndex, affectedModuleIndices)))
+        .then(() => generateFlashcardsForChapters(rewrittenChapters, courseId, selective_audience))
         .then(async (cards) => {
           if (cards.length > 0) {
             await db.insert(flashcards).values(

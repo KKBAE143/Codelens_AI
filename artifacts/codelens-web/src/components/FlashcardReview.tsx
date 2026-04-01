@@ -11,6 +11,7 @@ interface FlashcardData {
   reviewId: string | null;
   due: string | null;
   reps: number | null;
+  schedulingPreview: { again: number; hard: number; good: number; easy: number } | null;
 }
 
 interface FlashcardReviewProps {
@@ -19,10 +20,10 @@ interface FlashcardReviewProps {
 }
 
 const RATINGS = [
-  { value: 1, label: "Again", description: "No recall", color: "var(--error)", bg: "rgba(239,68,68,0.1)", key: "1" },
-  { value: 2, label: "Hard", description: "Struggled", color: "#F59E0B", bg: "rgba(245,158,11,0.1)", key: "2" },
-  { value: 3, label: "Good", description: "Recalled", color: "var(--accent)", bg: "var(--accent-light)", key: "3" },
-  { value: 4, label: "Easy", description: "Perfect", color: "var(--teal)", bg: "var(--teal-light)", key: "4" },
+  { value: 1, label: "Again", previewKey: "again" as const, color: "var(--error)", bg: "rgba(239,68,68,0.1)", key: "1" },
+  { value: 2, label: "Hard", previewKey: "hard" as const, color: "#F59E0B", bg: "rgba(245,158,11,0.1)", key: "2" },
+  { value: 3, label: "Good", previewKey: "good" as const, color: "var(--accent)", bg: "var(--accent-light)", key: "3" },
+  { value: 4, label: "Easy", previewKey: "easy" as const, color: "var(--teal)", bg: "var(--teal-light)", key: "4" },
 ];
 
 function formatInterval(days: number): string {
@@ -245,19 +246,25 @@ export function FlashcardReview({ courseId, onClose }: FlashcardReviewProps) {
           <div className="flashcard-ratings">
             <p className="flashcard-ratings-hint">How well did you recall this?</p>
             <div className="flashcard-rating-buttons">
-              {RATINGS.map((r) => (
-                <button
-                  key={r.value}
-                  className="flashcard-rating-btn"
-                  onClick={() => handleRate(r.value)}
-                  disabled={isRating}
-                  style={{ borderColor: r.color, color: r.color, background: isRating ? "transparent" : r.bg }}
-                  title={`${r.label} (${r.key})`}
-                >
-                  <span className="flashcard-rating-label">{r.label}</span>
-                  <span className="flashcard-rating-desc">{r.description}</span>
-                </button>
-              ))}
+              {RATINGS.map((r) => {
+                const days = currentCard.schedulingPreview?.[r.previewKey];
+                const intervalLabel = days !== undefined ? formatInterval(days) : null;
+                return (
+                  <button
+                    key={r.value}
+                    className="flashcard-rating-btn"
+                    onClick={() => handleRate(r.value)}
+                    disabled={isRating}
+                    style={{ borderColor: r.color, color: r.color, background: isRating ? "transparent" : r.bg }}
+                    title={`${r.label} (${r.key})`}
+                  >
+                    <span className="flashcard-rating-label">{r.label}</span>
+                    {intervalLabel !== null && (
+                      <span className="flashcard-rating-desc">{intervalLabel}</span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}

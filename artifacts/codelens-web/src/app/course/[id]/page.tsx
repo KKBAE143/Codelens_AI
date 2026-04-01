@@ -539,7 +539,7 @@ export default function CourseViewer() {
     if (!courseId || !isAuthenticated) return;
     fetch(`/api/courses/${courseId}/flashcards`, { credentials: "include" })
       .then((r) => r.ok ? r.json() : null)
-      .then((data) => { if (data?.dueCount) setFlashcardDueCount(data.dueCount); })
+      .then((data) => { if (data) setFlashcardDueCount(data.dueCount ?? 0); })
       .catch(() => {});
   }, [courseId, isAuthenticated]);
 
@@ -777,7 +777,7 @@ export default function CourseViewer() {
             setShowFlashcards(false);
             fetch(`/api/courses/${courseId}/flashcards`, { credentials: "include" })
               .then((r) => r.ok ? r.json() : null)
-              .then((data) => { setFlashcardDueCount(data?.dueCount || 0); })
+              .then((data) => { if (data) setFlashcardDueCount(data.dueCount ?? 0); })
               .catch(() => {});
           }}
         />
