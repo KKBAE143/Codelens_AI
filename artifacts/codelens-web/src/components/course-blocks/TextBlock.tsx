@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import ReactMarkdown from "react-markdown";
+import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { V2TextBlock } from "@/lib/course-types";
 
@@ -35,10 +35,11 @@ export function TextBlock({ block }: { block: V2TextBlock }) {
     };
   }, [lightbox, closeLightbox]);
 
-  const components = {
-    img({ src, alt }: { src?: string; alt?: string }) {
-      if (!src) return null;
-      const altText = alt || "";
+  const components: Components = {
+    img(props) {
+      const { src, alt } = props;
+      if (!src || typeof src !== "string") return null;
+      const altText = typeof alt === "string" ? alt : "";
       return (
         <span className="v2-text-img-wrapper">
           <img
@@ -60,14 +61,24 @@ export function TextBlock({ block }: { block: V2TextBlock }) {
   return (
     <>
       <div className="v2-text-block">
-        <ReactMarkdown remarkPlugins={[remarkGfm]} components={components as any}>
+        <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
           {block.content}
         </ReactMarkdown>
       </div>
 
       {lightbox && (
-        <div className="v2-image-lightbox-overlay" onClick={closeLightbox} role="dialog" aria-modal="true" aria-label="Image lightbox">
-          <button className="v2-image-lightbox-close" onClick={closeLightbox} aria-label="Close lightbox">
+        <div
+          className="v2-image-lightbox-overlay"
+          onClick={closeLightbox}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Image lightbox"
+        >
+          <button
+            className="v2-image-lightbox-close"
+            onClick={closeLightbox}
+            aria-label="Close lightbox"
+          >
             <CloseIcon />
           </button>
           <div className="v2-image-lightbox-content" onClick={(e) => e.stopPropagation()}>

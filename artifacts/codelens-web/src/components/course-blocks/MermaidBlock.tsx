@@ -6,10 +6,9 @@ import type { V2MermaidBlock } from "@/lib/course-types";
 let mermaidInitialized = false;
 
 function removeMermaidOrphan(id: string) {
-  try {
-    document.getElementById(id)?.remove();
-    document.getElementById(`d${id}`)?.remove();
-  } catch {}
+  if (typeof document === "undefined") return;
+  document.getElementById(id)?.remove();
+  document.getElementById(`d${id}`)?.remove();
 }
 
 function ZoomIcon() {
