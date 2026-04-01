@@ -105,6 +105,9 @@ export function KnowledgeGraph({ overviewGraph, onModuleClick }: KnowledgeGraphP
       defaultEdgeColor: "#d1d5db",
       minCameraRatio: 0.2,
       maxCameraRatio: 5,
+      labelDensity: 0.07,
+      labelGridCellSize: 150,
+      labelRenderedSizeThreshold: 9,
     });
 
     sigma.on("enterNode", ({ node, event }) => {

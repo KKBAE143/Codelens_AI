@@ -131,13 +131,13 @@ function runForceAtlas2Layout(graph: Graph): void {
 
   try {
     forceAtlas2.assign(graph, {
-      iterations: 100,
+      iterations: 300,
       settings: {
-        gravity: 1,
-        scalingRatio: 10,
+        gravity: 0.5,
+        scalingRatio: 25,
         barnesHutOptimize: graph.order > 50,
         strongGravityMode: false,
-        slowDown: 5,
+        slowDown: 3,
         adjustSizes: true,
       },
     });
@@ -314,9 +314,9 @@ export function buildVisualizationData(overviewGraph: V2OverviewGraph): {
 
     const points = clusterNodes.map((n) => ({ x: n.x, y: n.y }));
     const hull = clusterNodes.length >= 3
-      ? expandHull(convexHull(points), 30)
+      ? expandHull(convexHull(points), 50)
       : points.length === 2
-        ? expandHull(points, 40)
+        ? expandHull(points, 60)
         : points.map((p) => ({ x: p.x, y: p.y }));
 
     return {
