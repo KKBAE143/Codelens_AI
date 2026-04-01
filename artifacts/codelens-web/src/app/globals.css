@@ -1079,6 +1079,7 @@ a.v2-code-filepath:hover {
   overflow-x: auto;
   flex: 1;
   min-width: 0;
+  background: var(--code-bg);
 }
 
 .v2-code-shiki pre {
@@ -1087,6 +1088,8 @@ a.v2-code-filepath:hover {
   font-family: var(--font-mono);
   font-size: 0.8rem;
   line-height: 1.6;
+  background: transparent !important;
+  min-width: max-content;
 }
 
 .v2-code-shiki pre code {
