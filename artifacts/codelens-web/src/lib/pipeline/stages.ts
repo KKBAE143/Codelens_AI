@@ -1301,6 +1301,7 @@ export async function generateFlashcardsForChapters(
         const parsed = safeParseJson(response.text) as Record<string, unknown>;
         const rawCards = Array.isArray(parsed.cards) ? parsed.cards : [];
 
+        const validCardsForModule: GeneratedFlashcard[] = [];
         for (const rawCard of rawCards) {
           if (!rawCard || typeof rawCard !== "object") continue;
           const c = rawCard as Record<string, unknown>;
@@ -1310,7 +1311,14 @@ export async function generateFlashcardsForChapters(
           const codeSnippet = typeof c.codeSnippet === "string" && c.codeSnippet.trim()
             ? c.codeSnippet.trim().slice(0, 600)
             : null;
-          allCards.push({ moduleIndex: chapter.index, front, back, codeSnippet });
+          validCardsForModule.push({ moduleIndex: chapter.index, front, back, codeSnippet });
+          if (validCardsForModule.length >= 5) break;
+        }
+
+        if (validCardsForModule.length < 3) {
+          console.warn(`[Flashcards] Module ${chapter.index} (${chapter.title}) produced only ${validCardsForModule.length}/3 required cards — skipping module`);
+        } else {
+          allCards.push(...validCardsForModule);
         }
       } catch (err) {
         console.warn(`[Flashcards] Generation failed for module ${chapter.index} (${chapter.title}):`, err);

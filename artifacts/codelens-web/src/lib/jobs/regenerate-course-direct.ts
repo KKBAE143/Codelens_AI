@@ -231,11 +231,13 @@ export async function regenerateCourseDirect(
 
       try {
         const newCards = await generateFlashcardsForChapters(chapters, courseId, pipelineConfig.audience);
-        await db.delete(flashcards).where(eq(flashcards.courseId, courseId));
         if (newCards.length > 0) {
-          await db.insert(flashcards).values(
-            newCards.map((c) => ({ courseId, moduleIndex: c.moduleIndex, front: c.front, back: c.back, codeSnippet: c.codeSnippet || null }))
-          ).onConflictDoNothing();
+          await db.transaction(async (tx) => {
+            await tx.delete(flashcards).where(eq(flashcards.courseId, courseId));
+            await tx.insert(flashcards).values(
+              newCards.map((c) => ({ courseId, moduleIndex: c.moduleIndex, front: c.front, back: c.back, codeSnippet: c.codeSnippet || null }))
+            ).onConflictDoNothing();
+          });
           console.log(`[Regenerate] Stored ${newCards.length} flashcards for course ${courseId}`);
         }
       } catch (err) {
@@ -287,13 +289,15 @@ export async function regenerateCourseDirect(
       try {
         const affectedModuleIndices = rewrittenChapters.map((c) => c.index);
         const newSelectiveCards = await generateFlashcardsForChapters(rewrittenChapters, courseId, pipelineConfig.audience);
-        await db.delete(flashcards).where(
-          and(eq(flashcards.courseId, courseId), inArray(flashcards.moduleIndex, affectedModuleIndices))
-        );
         if (newSelectiveCards.length > 0) {
-          await db.insert(flashcards).values(
-            newSelectiveCards.map((c) => ({ courseId, moduleIndex: c.moduleIndex, front: c.front, back: c.back, codeSnippet: c.codeSnippet || null }))
-          ).onConflictDoNothing();
+          await db.transaction(async (tx) => {
+            await tx.delete(flashcards).where(
+              and(eq(flashcards.courseId, courseId), inArray(flashcards.moduleIndex, affectedModuleIndices))
+            );
+            await tx.insert(flashcards).values(
+              newSelectiveCards.map((c) => ({ courseId, moduleIndex: c.moduleIndex, front: c.front, back: c.back, codeSnippet: c.codeSnippet || null }))
+            ).onConflictDoNothing();
+          });
           console.log(`[Regenerate] Replaced flashcards for ${affectedModuleIndices.length} module(s) with ${newSelectiveCards.length} new cards`);
         }
       } catch (err) {
