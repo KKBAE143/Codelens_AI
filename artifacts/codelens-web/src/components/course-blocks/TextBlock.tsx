@@ -1,15 +1,81 @@
 "use client";
 
+import { useState, useEffect, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { V2TextBlock } from "@/lib/course-types";
 
-export function TextBlock({ block }: { block: V2TextBlock }) {
+interface LightboxState {
+  src: string;
+  alt: string;
+}
+
+function CloseIcon() {
   return (
-    <div className="v2-text-block">
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>
-        {block.content}
-      </ReactMarkdown>
-    </div>
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="18" y1="6" x2="6" y2="18" />
+      <line x1="6" y1="6" x2="18" y2="18" />
+    </svg>
+  );
+}
+
+export function TextBlock({ block }: { block: V2TextBlock }) {
+  const [lightbox, setLightbox] = useState<LightboxState | null>(null);
+
+  const closeLightbox = useCallback(() => setLightbox(null), []);
+
+  useEffect(() => {
+    if (!lightbox) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") closeLightbox(); };
+    document.addEventListener("keydown", onKey);
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = "";
+    };
+  }, [lightbox, closeLightbox]);
+
+  const components = {
+    img({ src, alt }: { src?: string; alt?: string }) {
+      if (!src) return null;
+      const altText = alt || "";
+      return (
+        <span className="v2-text-img-wrapper">
+          <img
+            src={src}
+            alt={altText}
+            className="v2-text-img"
+            onClick={() => setLightbox({ src, alt: altText })}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setLightbox({ src, alt: altText }); }}
+            role="button"
+            tabIndex={0}
+            aria-label={altText ? `Enlarge: ${altText}` : "Click to enlarge image"}
+            title="Click to enlarge"
+          />
+        </span>
+      );
+    },
+  };
+
+  return (
+    <>
+      <div className="v2-text-block">
+        <ReactMarkdown remarkPlugins={[remarkGfm]} components={components as any}>
+          {block.content}
+        </ReactMarkdown>
+      </div>
+
+      {lightbox && (
+        <div className="v2-image-lightbox-overlay" onClick={closeLightbox} role="dialog" aria-modal="true" aria-label="Image lightbox">
+          <button className="v2-image-lightbox-close" onClick={closeLightbox} aria-label="Close lightbox">
+            <CloseIcon />
+          </button>
+          <div className="v2-image-lightbox-content" onClick={(e) => e.stopPropagation()}>
+            <img src={lightbox.src} alt={lightbox.alt} className="v2-image-lightbox-img" />
+            {lightbox.alt && <p className="v2-image-lightbox-caption">{lightbox.alt}</p>}
+          </div>
+        </div>
+      )}
+    </>
   );
 }

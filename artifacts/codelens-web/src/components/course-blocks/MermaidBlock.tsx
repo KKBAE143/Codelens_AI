@@ -5,6 +5,13 @@ import type { V2MermaidBlock } from "@/lib/course-types";
 
 let mermaidInitialized = false;
 
+function removeMermaidOrphan(id: string) {
+  try {
+    document.getElementById(id)?.remove();
+    document.getElementById(`d${id}`)?.remove();
+  } catch {}
+}
+
 function ZoomIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -44,6 +51,7 @@ export function MermaidBlock({ block }: { block: V2MermaidBlock }) {
             theme: "neutral",
             securityLevel: "strict",
             fontFamily: "var(--font-body)",
+            suppressErrorRendering: true,
           });
           mermaidInitialized = true;
         }
@@ -53,6 +61,7 @@ export function MermaidBlock({ block }: { block: V2MermaidBlock }) {
           setSvg(renderedSvg);
         }
       } catch {
+        removeMermaidOrphan(idRef.current);
         if (!cancelled) setError(true);
       }
     }

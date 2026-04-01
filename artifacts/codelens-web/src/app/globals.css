@@ -795,8 +795,12 @@ code, pre, .font-mono {
 }
 
 .v2-module-meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
   font-size: 0.8rem;
   color: var(--text-tertiary);
+  white-space: nowrap;
 }
 
 .v2-module-focus-tags {
@@ -1182,9 +1186,9 @@ a.v2-code-filepath:hover {
 .v2-mermaid-modal {
   background: var(--bg-card);
   border-radius: var(--radius-lg);
-  max-width: 90vw;
+  max-width: 92vw;
   max-height: 90vh;
-  width: auto;
+  width: 92vw;
   box-shadow: var(--shadow-lg);
   display: flex;
   flex-direction: column;
@@ -1226,8 +1230,9 @@ a.v2-code-filepath:hover {
 }
 
 .v2-mermaid-modal-body svg {
-  max-width: 100%;
+  width: 100%;
   height: auto;
+  max-width: 100%;
 }
 
 @keyframes fadeIn {
@@ -1264,6 +1269,86 @@ a.v2-code-filepath:hover {
   overflow-x: auto;
   font-size: 0.75rem;
   margin-top: 0.5rem;
+}
+
+.v2-text-img-wrapper {
+  display: block;
+  text-align: center;
+  margin: 1.25rem 0;
+}
+
+.v2-text-img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  cursor: zoom-in;
+  transition: box-shadow 0.2s, transform 0.15s;
+}
+
+.v2-text-img:hover {
+  box-shadow: var(--shadow-md);
+  transform: scale(1.01);
+}
+
+.v2-image-lightbox-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.88);
+  backdrop-filter: blur(6px);
+  z-index: 9100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.15s ease;
+  cursor: zoom-out;
+}
+
+.v2-image-lightbox-close {
+  position: fixed;
+  top: 1.25rem;
+  right: 1.25rem;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: var(--radius-sm);
+  color: white;
+  cursor: pointer;
+  padding: 0.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9101;
+  transition: background 0.15s;
+}
+
+.v2-image-lightbox-close:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.v2-image-lightbox-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  max-width: 92vw;
+  max-height: 90vh;
+  cursor: default;
+}
+
+.v2-image-lightbox-img {
+  max-width: 92vw;
+  max-height: 82vh;
+  object-fit: contain;
+  border-radius: var(--radius-md);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.v2-image-lightbox-caption {
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 0.85rem;
+  text-align: center;
+  margin: 0;
+  max-width: 60ch;
 }
 
 .v2-quiz-block {
