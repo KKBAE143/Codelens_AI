@@ -8,6 +8,7 @@ export const courseViews = pgTable("course_views", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (table) => [
   index("course_views_course_id_idx").on(table.courseId),
+  index("course_views_dedup_idx").on(table.courseId, table.visitorId, table.createdAt),
 ]);
 
 export type CourseView = typeof courseViews.$inferSelect;

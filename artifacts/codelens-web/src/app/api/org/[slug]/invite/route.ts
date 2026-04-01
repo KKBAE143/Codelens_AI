@@ -8,6 +8,16 @@ import { db } from "@workspace/db";
 import { users, organizationMembers } from "@workspace/db/schema";
 import { eq, or, and, gt, sql } from "drizzle-orm";
 
+class InviteError extends Error {
+  constructor(
+    public readonly code: string,
+    message: string,
+    public readonly status: number,
+  ) {
+    super(message);
+  }
+}
+
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ slug: string }> }
@@ -26,24 +36,6 @@ export async function POST(
   }
 
   const { org } = result;
-
-  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-  const [recentInviteCount] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(organizationMembers)
-    .where(
-      and(
-        eq(organizationMembers.organizationId, org.id),
-        gt(organizationMembers.joinedAt, oneHourAgo),
-      ),
-    );
-
-  if ((recentInviteCount?.count ?? 0) >= 10) {
-    return NextResponse.json(
-      { error: "Rate limit exceeded: max 10 invites per hour per organization" },
-      { status: 429 },
-    );
-  }
 
   let body;
   try {
@@ -75,51 +67,88 @@ export async function POST(
     );
   }
 
-  const [existingMembership] = await db
-    .select()
-    .from(organizationMembers)
-    .where(
-      and(
-        eq(organizationMembers.organizationId, org.id),
-        eq(organizationMembers.userId, targetUser.id)
-      )
-    )
-    .limit(1);
+  let membership;
+  try {
+    membership = await db.transaction(async (tx) => {
+      await tx.execute(
+        sql`SELECT pg_advisory_xact_lock(hashtext(${"invite:" + org.id}))`,
+      );
 
-  if (existingMembership) {
-    return NextResponse.json(
-      { error: "User is already a member or has a pending invitation" },
-      { status: 409 }
-    );
+      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+      const [recentInviteCount] = await tx
+        .select({ count: sql<number>`count(*)::int` })
+        .from(organizationMembers)
+        .where(
+          and(
+            eq(organizationMembers.organizationId, org.id),
+            gt(organizationMembers.joinedAt, oneHourAgo),
+          ),
+        );
+
+      if ((recentInviteCount?.count ?? 0) >= 10) {
+        throw new InviteError(
+          "RATE_LIMIT",
+          "Rate limit exceeded: max 10 invites per hour per organization",
+          429,
+        );
+      }
+
+      const [existingMembership] = await tx
+        .select()
+        .from(organizationMembers)
+        .where(
+          and(
+            eq(organizationMembers.organizationId, org.id),
+            eq(organizationMembers.userId, targetUser.id),
+          ),
+        )
+        .limit(1);
+
+      if (existingMembership) {
+        throw new InviteError(
+          "ALREADY_MEMBER",
+          "User is already a member or has a pending invitation",
+          409,
+        );
+      }
+
+      const activeMembers = await tx
+        .select({ id: organizationMembers.id })
+        .from(organizationMembers)
+        .where(
+          and(
+            eq(organizationMembers.organizationId, org.id),
+            eq(organizationMembers.status, "active"),
+          ),
+        );
+
+      if (activeMembers.length >= org.maxMembers) {
+        throw new InviteError(
+          "MEMBER_LIMIT",
+          `Organization has reached its member limit of ${org.maxMembers}`,
+          403,
+        );
+      }
+
+      const [m] = await tx
+        .insert(organizationMembers)
+        .values({
+          organizationId: org.id,
+          userId: targetUser.id,
+          role: "member",
+          status: "pending",
+          invitedBy: user.id,
+        })
+        .returning();
+
+      return m;
+    });
+  } catch (err) {
+    if (err instanceof InviteError) {
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    }
+    throw err;
   }
-
-  const activeMembers = await db
-    .select()
-    .from(organizationMembers)
-    .where(
-      and(
-        eq(organizationMembers.organizationId, org.id),
-        eq(organizationMembers.status, "active")
-      )
-    );
-
-  if (activeMembers.length >= org.maxMembers) {
-    return NextResponse.json(
-      { error: `Organization has reached its member limit of ${org.maxMembers}` },
-      { status: 403 }
-    );
-  }
-
-  const [membership] = await db
-    .insert(organizationMembers)
-    .values({
-      organizationId: org.id,
-      userId: targetUser.id,
-      role: "member",
-      status: "pending",
-      invitedBy: user.id,
-    })
-    .returning();
 
   return NextResponse.json({ membership }, { status: 201 });
 }

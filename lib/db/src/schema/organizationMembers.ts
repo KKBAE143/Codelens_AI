@@ -1,4 +1,4 @@
-import { pgTable, text, uuid, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, uuid, timestamp, uniqueIndex, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { users } from "./users";
@@ -14,6 +14,7 @@ export const organizationMembers = pgTable("organization_members", {
   joinedAt: timestamp("joined_at").notNull().defaultNow(),
 }, (table) => [
   uniqueIndex("org_member_unique").on(table.organizationId, table.userId),
+  index("org_member_org_joined_idx").on(table.organizationId, table.joinedAt),
 ]);
 
 export const insertOrganizationMemberSchema = createInsertSchema(organizationMembers).omit({

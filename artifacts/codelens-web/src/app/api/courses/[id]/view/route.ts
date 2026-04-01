@@ -28,6 +28,10 @@ export async function POST(
 
   try {
     await db.transaction(async (tx) => {
+      await tx.execute(
+        sql`SELECT pg_advisory_xact_lock(hashtext(${courseId} || ':' || ${visitorId}))`,
+      );
+
       const windowStart = new Date(Date.now() - 24 * 60 * 60 * 1000);
       const [existing] = await tx
         .select({ id: courseViews.id })
