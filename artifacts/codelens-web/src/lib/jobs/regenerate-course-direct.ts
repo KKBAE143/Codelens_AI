@@ -229,17 +229,18 @@ export async function regenerateCourseDirect(
 
       emitter.emitCompleted("Course regenerated!");
 
-      const regen_audience = pipelineConfig.audience;
-      db.delete(flashcards).where(eq(flashcards.courseId, courseId))
-        .then(() => generateFlashcardsForChapters(chapters, courseId, regen_audience))
-        .then(async (cards) => {
-          if (cards.length > 0) {
-            await db.insert(flashcards).values(
-              cards.map((c) => ({ courseId, moduleIndex: c.moduleIndex, front: c.front, back: c.back, codeSnippet: c.codeSnippet || null }))
-            ).onConflictDoNothing();
-          }
-        })
-        .catch((err) => console.warn("[Regenerate] Flashcard regeneration failed (non-fatal):", err));
+      try {
+        const newCards = await generateFlashcardsForChapters(chapters, courseId, pipelineConfig.audience);
+        await db.delete(flashcards).where(eq(flashcards.courseId, courseId));
+        if (newCards.length > 0) {
+          await db.insert(flashcards).values(
+            newCards.map((c) => ({ courseId, moduleIndex: c.moduleIndex, front: c.front, back: c.back, codeSnippet: c.codeSnippet || null }))
+          ).onConflictDoNothing();
+          console.log(`[Regenerate] Stored ${newCards.length} flashcards for course ${courseId}`);
+        }
+      } catch (err) {
+        console.error("[Regenerate] Flashcard regeneration failed (old deck preserved):", err);
+      }
     } else {
       console.log(`[Regenerate] ${changedPaths.length} files changed, attempting selective chapter regeneration`);
 
@@ -283,19 +284,21 @@ export async function regenerateCourseDirect(
 
       emitter.emitCompleted(`Regenerated ${chaptersToRewrite.length} affected chapters!`);
 
-      const selective_audience = pipelineConfig.audience;
-      const affectedModuleIndices = rewrittenChapters.map((c) => c.index);
-      db.delete(flashcards)
-        .where(and(eq(flashcards.courseId, courseId), inArray(flashcards.moduleIndex, affectedModuleIndices)))
-        .then(() => generateFlashcardsForChapters(rewrittenChapters, courseId, selective_audience))
-        .then(async (cards) => {
-          if (cards.length > 0) {
-            await db.insert(flashcards).values(
-              cards.map((c) => ({ courseId, moduleIndex: c.moduleIndex, front: c.front, back: c.back, codeSnippet: c.codeSnippet || null }))
-            ).onConflictDoNothing();
-          }
-        })
-        .catch((err) => console.warn("[Regenerate] Selective flashcard update failed (non-fatal):", err));
+      try {
+        const affectedModuleIndices = rewrittenChapters.map((c) => c.index);
+        const newSelectiveCards = await generateFlashcardsForChapters(rewrittenChapters, courseId, pipelineConfig.audience);
+        await db.delete(flashcards).where(
+          and(eq(flashcards.courseId, courseId), inArray(flashcards.moduleIndex, affectedModuleIndices))
+        );
+        if (newSelectiveCards.length > 0) {
+          await db.insert(flashcards).values(
+            newSelectiveCards.map((c) => ({ courseId, moduleIndex: c.moduleIndex, front: c.front, back: c.back, codeSnippet: c.codeSnippet || null }))
+          ).onConflictDoNothing();
+          console.log(`[Regenerate] Replaced flashcards for ${affectedModuleIndices.length} module(s) with ${newSelectiveCards.length} new cards`);
+        }
+      } catch (err) {
+        console.error("[Regenerate] Selective flashcard update failed (old cards preserved):", err);
+      }
     }
   } catch (error) {
     const msg = error instanceof Error ? error.message : "Regeneration failed";

@@ -344,24 +344,23 @@ export async function generateCourseDirect(courseId: string): Promise<void> {
 
     emitter.emitCompleted("Course generation complete!");
 
-    generateFlashcardsForChapters(chapters, courseId, pipelineConfig.audience)
-      .then(async (cards) => {
-        if (cards.length > 0) {
-          await db.insert(flashcards).values(
-            cards.map((c) => ({
-              courseId,
-              moduleIndex: c.moduleIndex,
-              front: c.front,
-              back: c.back,
-              codeSnippet: c.codeSnippet || null,
-            }))
-          ).onConflictDoNothing();
-          console.log(`[Pipeline] Stored ${cards.length} flashcards for course ${courseId}`);
-        }
-      })
-      .catch((err) => {
-        console.warn("[Pipeline] Flashcard generation failed (non-fatal):", err);
-      });
+    try {
+      const flashcardCards = await generateFlashcardsForChapters(chapters, courseId, pipelineConfig.audience);
+      if (flashcardCards.length > 0) {
+        await db.insert(flashcards).values(
+          flashcardCards.map((c) => ({
+            courseId,
+            moduleIndex: c.moduleIndex,
+            front: c.front,
+            back: c.back,
+            codeSnippet: c.codeSnippet || null,
+          }))
+        ).onConflictDoNothing();
+        console.log(`[Pipeline] Stored ${flashcardCards.length} flashcards for course ${courseId}`);
+      }
+    } catch (err) {
+      console.error("[Pipeline] Flashcard generation failed:", err);
+    }
 
     if (course.createdBy) {
       try {
