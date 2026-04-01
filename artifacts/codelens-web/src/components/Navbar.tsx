@@ -37,7 +37,14 @@ export function Navbar() {
 
   useEffect(() => {
     setMounted(true);
-    setIsDark(document.documentElement.classList.contains("dark"));
+    const html = document.documentElement;
+    if (html.classList.contains("dark")) {
+      setIsDark(true);
+    } else if (html.classList.contains("light")) {
+      setIsDark(false);
+    } else {
+      setIsDark(window.matchMedia("(prefers-color-scheme: dark)").matches);
+    }
   }, []);
 
   const toggleTheme = () => {

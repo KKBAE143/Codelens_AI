@@ -58,7 +58,7 @@ function CopySmall() {
 
 export function ArchitectureCardBlock({ block }: { block: V2ArchitectureCardBlock }) {
   return (
-    <div className="v2-arch-card">
+    <div className="v2-card-base v2-arch-card">
       <div className="v2-card-header-row">
         <ArchIcon />
         <div className="v2-card-badge">Architecture Decision</div>
@@ -84,7 +84,7 @@ export function ArchitectureCardBlock({ block }: { block: V2ArchitectureCardBloc
 
 export function DependencyCardBlock({ block }: { block: V2DependencyCardBlock }) {
   return (
-    <div className="v2-dep-card">
+    <div className="v2-card-base v2-dep-card">
       <div className="v2-card-header-row">
         <PackageIcon />
         <div className="v2-card-badge" style={{ background: "var(--teal-light)", color: "var(--teal)" }}>Dependency</div>
@@ -116,7 +116,7 @@ export function DependencyCardBlock({ block }: { block: V2DependencyCardBlock })
 
 export function EnvVarCardBlock({ block }: { block: V2EnvVarCardBlock }) {
   return (
-    <div className="v2-env-card">
+    <div className="v2-card-base v2-env-card">
       <div className="v2-card-header-row">
         <KeyIcon />
         <div className="v2-card-badge" style={{ background: "#FFF8E1", color: "#7A6200" }}>Environment Variable</div>
@@ -157,7 +157,7 @@ export function CommandCardBlock({ block }: { block: V2CommandCardBlock }) {
   };
 
   return (
-    <div className="v2-cmd-card">
+    <div className="v2-card-base v2-cmd-card">
       <div className="v2-card-header-row">
         <TerminalIcon />
         <div className="v2-card-badge" style={{ background: "var(--bg-secondary)", color: "var(--text-primary)" }}>Command</div>
