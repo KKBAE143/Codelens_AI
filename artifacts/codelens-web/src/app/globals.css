@@ -1277,16 +1277,24 @@ a.v2-code-filepath:hover {
   margin: 1.25rem 0;
 }
 
+.v2-text-img-btn {
+  display: inline-block;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: zoom-in;
+  line-height: 0;
+}
+
 .v2-text-img {
   max-width: 100%;
   height: auto;
   border-radius: var(--radius-md);
   border: 1px solid var(--border-color);
-  cursor: zoom-in;
   transition: box-shadow 0.2s, transform 0.15s;
 }
 
-.v2-text-img:hover {
+.v2-text-img-btn:hover .v2-text-img {
   box-shadow: var(--shadow-md);
   transform: scale(1.01);
 }

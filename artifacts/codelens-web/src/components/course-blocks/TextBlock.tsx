@@ -42,17 +42,15 @@ export function TextBlock({ block }: { block: V2TextBlock }) {
       const altText = typeof alt === "string" ? alt : "";
       return (
         <span className="v2-text-img-wrapper">
-          <img
-            src={src}
-            alt={altText}
-            className="v2-text-img"
+          <button
+            className="v2-text-img-btn"
             onClick={() => setLightbox({ src, alt: altText })}
-            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setLightbox({ src, alt: altText }); } }}
-            role="button"
-            tabIndex={0}
             aria-label={altText ? `Enlarge: ${altText}` : "Click to enlarge image"}
             title="Click to enlarge"
-          />
+            type="button"
+          >
+            <img src={src} alt={altText} className="v2-text-img" />
+          </button>
         </span>
       );
     },
