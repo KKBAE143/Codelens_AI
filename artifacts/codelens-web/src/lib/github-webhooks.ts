@@ -124,9 +124,8 @@ export async function registerWebhook(
         "You need admin access to this repository to enable auto-updates",
       );
     }
-    throw new Error(
-      `Failed to register webhook: ${(errorData as Record<string, string>).message || res.statusText}`,
-    );
+    const detail = (errorData as Record<string, string>).message || res.statusText;
+    throw new Error(detail);
   }
 
   const hookData = await res.json();

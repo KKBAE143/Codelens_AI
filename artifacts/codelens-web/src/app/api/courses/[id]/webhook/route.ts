@@ -104,14 +104,16 @@ export async function PATCH(
       );
       return NextResponse.json({ success: true, webhookId: result.webhookId });
     } catch (err) {
-      const raw = err instanceof Error ? err.message : "Failed to register webhook";
-      console.error("Webhook registration error:", raw);
-      const message =
-        raw === "LOCALHOST_URL"
-          ? "Auto-updates are not available in development (localhost URL detected)"
-          : raw.startsWith("You need admin access")
-            ? raw
-            : `Failed to register webhook: ${raw}`;
+      const raw = err instanceof Error ? err.message : "";
+      console.error("Webhook registration error:", raw || "(unknown)");
+      let message: string;
+      if (raw === "LOCALHOST_URL") {
+        message = "Auto-updates are not available in development (localhost URL detected)";
+      } else if (raw.startsWith("You need admin access")) {
+        message = raw;
+      } else {
+        message = "Failed to register webhook. Check your repository permissions or try again.";
+      }
       return NextResponse.json({ error: message }, { status: 400 });
     }
   }
