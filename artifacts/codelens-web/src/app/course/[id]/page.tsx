@@ -11,6 +11,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import {
   isV2Course,
   parseV2Course,
+  type V2Block,
   type V2CourseData,
   type V2Module,
   type V2OverviewGraph,
@@ -250,9 +251,13 @@ function V2ModuleContent({
         </div>
       </header>
 
+      {mod.blocks.length >= 8 && (
+        <FloatingTOC blocks={mod.blocks} />
+      )}
+
       <div className="v2-blocks">
         {mod.blocks.map((block, bi) => (
-          <div key={bi} className="v2-block-wrapper">
+          <div key={bi} id={`toc-block-${bi}`} className="v2-block-wrapper">
             <BlockRenderer block={block} githubUrl={githubUrl} />
           </div>
         ))}
@@ -370,6 +375,83 @@ function CompletionModal({
         </div>
       </div>
     </div>
+  );
+}
+
+function getBlockHeading(block: V2Block, index: number): string {
+  if (block.type === "text") {
+    const match = block.content.match(/<h[23][^>]*>([^<]+)<\/h[23]>/);
+    if (match) return match[1];
+    return `Section ${index + 1}`;
+  }
+  if (block.type === "code") {
+    if (block.filePath) return block.filePath.split("/").pop() || "Code";
+    return "Code Block";
+  }
+  if (block.type === "mermaid") return block.caption || "Diagram";
+  if (block.type === "quiz") return "Knowledge Check";
+  if (block.type === "callout") {
+    const map: Record<string, string> = { warning: "Warning", tip: "Tip", "ai-hint": "AI Insight", "first-pr": "First PR", security: "Security", command: "Command" };
+    return map[block.variant] || "Note";
+  }
+  if (block.type === "file-list") return "Files Overview";
+  if (block.type === "architecture-card") return "Architecture Decision";
+  if (block.type === "dependency-card") return block.packageName;
+  if (block.type === "env-var-card") return block.varName;
+  if (block.type === "command-card") {
+    const cmd = block.command;
+    return cmd.length > 28 ? cmd.substring(0, 28) + "…" : cmd;
+  }
+  return `Block ${index + 1}`;
+}
+
+function FloatingTOC({ blocks }: { blocks: V2Block[] }) {
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  useEffect(() => {
+    const elements = blocks.map((_, i) => document.getElementById(`toc-block-${i}`));
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries.filter((e) => e.isIntersecting);
+        if (visible.length > 0) {
+          const id = visible[0].target.id;
+          const idx = parseInt(id.replace("toc-block-", ""), 10);
+          if (!isNaN(idx)) setActiveIndex(idx);
+        }
+      },
+      { rootMargin: "-10% 0px -60% 0px", threshold: 0 },
+    );
+
+    elements.forEach((el) => { if (el) observer.observe(el); });
+    return () => observer.disconnect();
+  }, [blocks]);
+
+  const headings = blocks.map((block, i) => ({ label: getBlockHeading(block, i), index: i }));
+
+  return (
+    <nav className="floating-toc" aria-label="On this page">
+      <div className="floating-toc-title">On this page</div>
+      <ul className="floating-toc-list" role="list">
+        {headings.map(({ label, index }) => (
+          <li key={index}>
+            <button
+              className={`floating-toc-item ${activeIndex === index ? "floating-toc-item-active" : ""}`}
+              onClick={() => {
+                const el = document.getElementById(`toc-block-${index}`);
+                if (el) {
+                  el.scrollIntoView({ behavior: "smooth", block: "start" });
+                  setActiveIndex(index);
+                }
+              }}
+              title={label}
+            >
+              {label}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </nav>
   );
 }
 
@@ -651,8 +733,32 @@ export default function CourseViewer() {
     ? `${typeof window !== "undefined" ? window.location.origin : ""}/share/${course.shareToken}`
     : null;
 
+  const jsonLd = course ? {
+    "@context": "https://schema.org",
+    "@type": ["Course", "LearningResource"],
+    name: `${course.ownerName}/${course.repoName}`,
+    description: course.oneLiner || `AI-generated interactive course for ${course.ownerName}/${course.repoName}`,
+    provider: { "@type": "Organization", name: "CodeLens AI" },
+    learningResourceType: "interactive course",
+    inLanguage: "en",
+    ...(course.estimatedMinutes && { timeRequired: `PT${course.estimatedMinutes}M` }),
+    ...(course.difficulty && { educationalLevel: course.difficulty }),
+    ...(course.moduleCount && { numberOfCredits: course.moduleCount }),
+    sourceOrganization: {
+      "@type": "Organization",
+      name: course.ownerName,
+      url: `https://github.com/${course.ownerName}`,
+    },
+  } : null;
+
   return (
     <div style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
+      {jsonLd && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+      )}
       {showCelebration && course && (
         <CompletionModal
           ownerName={course.ownerName}
