@@ -124,10 +124,10 @@ export function getChapterWritePrompt(
   customContext?: string,
 ): string {
   const depthGuidance = depth === "quick"
-    ? "Write 5-8 blocks for this chapter. Cover the essential 'what' and 'why' with concrete examples."
+    ? "Write 7-10 blocks for this chapter. Cover the essential 'what' and 'why' with concrete examples. Include 3-4 quiz blocks placed at natural concept breakpoints (not all at the end)."
     : depth === "full"
-      ? "Write 8-12 blocks for this chapter. Cover 'what', 'why', and key 'how' with code examples and diagrams."
-      : "Write 12-18 blocks for this chapter. Deep dive including edge cases, alternatives, internals, and advanced patterns.";
+      ? "Write 10-15 blocks for this chapter. Cover 'what', 'why', and key 'how' with code examples and diagrams. Include 4-5 quiz blocks distributed throughout the chapter at conceptual breakpoints."
+      : "Write 15-22 blocks for this chapter. Deep dive including edge cases, alternatives, internals, and advanced patterns. Include 4-5 quiz blocks distributed throughout — one after each major concept introduced.";
 
   const newEngineerExtra = audience === "new_engineer" ? `
 
@@ -172,7 +172,7 @@ REQUIRED CHAPTER STRUCTURE:
 2. Include a file-list block listing all files in this abstraction with specific role descriptions
 3. Include 2-4 code blocks quoting EXACT code from the provided files — show the key functions, data structures, or patterns. Each code block needs a caption explaining the significance.
 4. Include EXACTLY ONE mermaid diagram showing how this abstraction connects to other parts of the system — use the relationship data provided. The diagram must have labeled nodes and edges.
-5. Include at least ONE quiz with a realistic scenario (e.g., "You're debugging X and see error Y in the logs. What's the most likely cause?") with 3-4 options, each with detailed explanations.
+5. Include 4-5 quiz blocks distributed THROUGHOUT the chapter at concept breakpoints — place each quiz immediately AFTER the concept it tests, NOT all bunched at the end. Each quiz must have a realistic scenario (e.g., "You're debugging X and see error Y in the logs. What's the most likely cause?") with 3-4 options, each with detailed explanations.
 6. Include 1-2 callout blocks with actionable tips, warnings, or first-PR suggestions specific to this abstraction.
 7. End with a text block summarizing key takeaways and how this connects to the next chapter.
 

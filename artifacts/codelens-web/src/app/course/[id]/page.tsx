@@ -9,6 +9,7 @@ import dynamic from "next/dynamic";
 import { BlockRenderer } from "@/components/course-blocks/BlockRenderer";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { FlashcardReview, FlashcardDueBanner } from "@/components/FlashcardReview";
+import { PracticeMode } from "@/components/PracticeMode";
 import {
   isV2Course,
   parseV2Course,
@@ -16,6 +17,7 @@ import {
   type V2CourseData,
   type V2Module,
   type V2OverviewGraph,
+  type V2QuizBlock,
 } from "@/lib/course-types";
 
 const KnowledgeGraph = dynamic(
@@ -165,11 +167,13 @@ function V2ModuleSidebar({
   modules,
   activeIndex,
   completedModules,
+  quizScores,
   onSelect,
 }: {
   modules: V2Module[];
   activeIndex: number;
   completedModules: number[];
+  quizScores: Map<number, number>;
   onSelect: (i: number) => void;
 }) {
   return (
@@ -177,13 +181,17 @@ function V2ModuleSidebar({
       {modules.map((mod, i) => {
         const isActive = i === activeIndex;
         const isCompleted = completedModules.includes(i);
+        const quizScore = quizScores.get(i);
+        const masteryColor = quizScore !== undefined
+          ? quizScore >= 80 ? "var(--teal)" : quizScore >= 60 ? "#F59E0B" : "var(--error)"
+          : undefined;
         return (
           <button
             key={i}
             className={`v2-module-nav-item ${isActive ? "v2-module-nav-active" : ""} ${isCompleted ? "v2-module-nav-completed" : ""}`}
             onClick={() => onSelect(i)}
             aria-current={isActive ? "step" : undefined}
-            aria-label={`Module ${i + 1}: ${mod.title}${isCompleted ? " (completed)" : ""}`}
+            aria-label={`Module ${i + 1}: ${mod.title}${isCompleted ? " (completed)" : ""}${quizScore !== undefined ? `, quiz score ${quizScore}%` : ""}`}
           >
             <ProgressRing percent={isCompleted ? 100 : isActive ? 50 : 0} size={24} stroke={2.5} />
             <div className="v2-module-nav-text">
@@ -193,11 +201,22 @@ function V2ModuleSidebar({
                 <span className="v2-module-nav-time">~{mod.estimatedMinutes} min</span>
               )}
             </div>
-            {isCompleted && (
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginLeft: "auto" }}>
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
-            )}
+            <div style={{ display: "flex", alignItems: "center", gap: "0.25rem", marginLeft: "auto", flexShrink: 0 }}>
+              {quizScore !== undefined && (
+                <span
+                  className="v2-mastery-badge"
+                  style={{ color: masteryColor, borderColor: masteryColor }}
+                  title={`Quiz mastery: ${quizScore}%`}
+                >
+                  {quizScore}%
+                </span>
+              )}
+              {isCompleted && (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              )}
+            </div>
           </button>
         );
       })}
@@ -211,19 +230,30 @@ function V2ModuleContent({
   totalModules,
   githubUrl,
   isCompleted,
+  quizScore,
   onComplete,
   onPrev,
   onNext,
+  onPractice,
 }: {
   module: V2Module;
   moduleIndex: number;
   totalModules: number;
   githubUrl: string;
   isCompleted: boolean;
+  quizScore?: number;
   onComplete: () => void;
   onPrev: () => void;
   onNext: () => void;
+  onPractice: () => void;
 }) {
+  const quizBlocks = mod.blocks.filter((b): b is V2QuizBlock => b.type === "quiz");
+  const quizCount = quizBlocks.length;
+  const estimatedQuizMinutes = Math.ceil(quizCount * 0.75);
+  const masteryColor = quizScore !== undefined
+    ? quizScore >= 80 ? "var(--teal)" : quizScore >= 60 ? "#F59E0B" : "var(--error)"
+    : undefined;
+
   return (
     <article className="v2-module-content">
       <header className="v2-module-header">
@@ -241,6 +271,25 @@ function V2ModuleContent({
               </svg>
               ~{mod.estimatedMinutes} min
             </span>
+          )}
+          {quizCount > 0 && (
+            <button
+              className="v2-practice-btn"
+              onClick={onPractice}
+              title={`Practice quiz with ${quizCount} question${quizCount !== 1 ? "s" : ""}`}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 11l3 3L22 4" />
+                <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+              </svg>
+              Practice Quiz
+              <span className="v2-practice-btn-meta">{quizCount}Q · ~{estimatedQuizMinutes}m</span>
+              {quizScore !== undefined && (
+                <span className="v2-practice-btn-score" style={{ color: masteryColor }}>
+                  Best: {quizScore}%
+                </span>
+              )}
+            </button>
           )}
           {mod.focusAreas && mod.focusAreas.length > 0 && (
             <div className="v2-module-focus-tags">
@@ -487,6 +536,8 @@ export default function CourseViewer() {
   const [showCelebration, setShowCelebration] = useState(false);
   const [showFlashcards, setShowFlashcards] = useState(false);
   const [flashcardDueCount, setFlashcardDueCount] = useState(0);
+  const [quizScores, setQuizScores] = useState<Map<number, number>>(new Map());
+  const [practiceModuleIndex, setPracticeModuleIndex] = useState<number | null>(null);
   const [celebrationShown, setCelebrationShown] = useState(false);
   const [progressInitialized, setProgressInitialized] = useState(false);
   const [overviewTab, setOverviewTab] = useState<"graph" | "diagram">("graph");
@@ -540,6 +591,20 @@ export default function CourseViewer() {
     fetch(`/api/courses/${courseId}/flashcards`, { credentials: "include" })
       .then((r) => r.ok ? r.json() : null)
       .then((data) => { if (data) setFlashcardDueCount(data.dueCount ?? 0); })
+      .catch(() => {});
+  }, [courseId, isAuthenticated]);
+
+  useEffect(() => {
+    if (!courseId || !isAuthenticated) return;
+    fetch(`/api/courses/${courseId}/quiz-scores`, { credentials: "include" })
+      .then((r) => r.ok ? r.json() : null)
+      .then((data: { scores?: Array<{ moduleIndex: number; score: number }> } | null) => {
+        if (data?.scores) {
+          const m = new Map<number, number>();
+          data.scores.forEach((s) => m.set(s.moduleIndex, s.score));
+          setQuizScores(m);
+        }
+      })
       .catch(() => {});
   }, [courseId, isAuthenticated]);
 
@@ -782,6 +847,26 @@ export default function CourseViewer() {
           }}
         />
       )}
+      {practiceModuleIndex !== null && v2Data?.modules[practiceModuleIndex] && (() => {
+        const mod = v2Data.modules[practiceModuleIndex];
+        const quizBlocks = mod.blocks.filter((b): b is V2QuizBlock => b.type === "quiz");
+        return (
+          <PracticeMode
+            courseId={courseId}
+            moduleIndex={practiceModuleIndex}
+            moduleTitle={mod.title}
+            quizBlocks={quizBlocks}
+            onClose={() => setPracticeModuleIndex(null)}
+            onScoreSaved={(modIdx, score) => {
+              setQuizScores((prev) => {
+                const next = new Map(prev);
+                next.set(modIdx, Math.max(prev.get(modIdx) ?? 0, score));
+                return next;
+              });
+            }}
+          />
+        );
+      })()}
       {showCelebration && course && (
         <CompletionModal
           ownerName={course.ownerName}
@@ -935,6 +1020,7 @@ export default function CourseViewer() {
                   modules={v2Data.modules}
                   activeIndex={activeModuleIndex}
                   completedModules={completedModules}
+                  quizScores={quizScores}
                   onSelect={handleModuleSelect}
                 />
 
@@ -1021,6 +1107,7 @@ export default function CourseViewer() {
                     modules={v2Data.modules}
                     activeIndex={activeModuleIndex}
                     completedModules={completedModules}
+                    quizScores={quizScores}
                     onSelect={handleModuleSelect}
                   />
                 </aside>
@@ -1105,9 +1192,11 @@ export default function CourseViewer() {
                   totalModules={v2Data.totalModules}
                   githubUrl={v2Data.githubUrl}
                   isCompleted={completedModules.includes(activeModuleIndex)}
+                  quizScore={quizScores.get(activeModuleIndex)}
                   onComplete={() => markModuleComplete(activeModuleIndex)}
                   onPrev={() => handleModuleSelect(Math.max(0, activeModuleIndex - 1))}
                   onNext={() => handleModuleSelect(Math.min(v2Data.totalModules - 1, activeModuleIndex + 1))}
+                  onPractice={() => setPracticeModuleIndex(activeModuleIndex)}
                 />
               )}
               </ErrorBoundary>

@@ -10,3 +10,4 @@ export * from "./generationCache";
 export * from "./courseViews";
 export * from "./stripeEvents";
 export * from "./flashcards";
+export * from "./moduleQuizScores";
