@@ -304,6 +304,75 @@ function V2ModuleContent({
   );
 }
 
+const CONFETTI_COLORS = ["#FF6B3D", "#2EBF8C", "#F0B429", "#6C63FF", "#FF4D8B", "#00B4D8"];
+const CONFETTI_POSITIONS = [5, 12, 19, 26, 33, 40, 47, 54, 61, 68, 75, 82, 89, 96, 8, 22, 36, 50, 64, 78];
+const CONFETTI_DELAYS = [0, 0.15, 0.3, 0.1, 0.25, 0.4, 0.05, 0.35, 0.2, 0.45, 0.12, 0.28, 0.08, 0.38, 0.18, 0.32, 0.22, 0.42, 0.06, 0.48];
+
+function CompletionModal({
+  repoName,
+  ownerName,
+  shareUrl,
+  onClose,
+}: {
+  repoName: string;
+  ownerName: string;
+  shareUrl: string | null;
+  onClose: () => void;
+}) {
+  const tweetText = `Just finished the AI-generated course for ${ownerName}/${repoName} on CodeLens AI! 🎓`;
+  const twitterHref = shareUrl
+    ? `https://twitter.com/intent/tweet?text=${encodeURIComponent(tweetText)}&url=${encodeURIComponent(shareUrl)}`
+    : `https://twitter.com/intent/tweet?text=${encodeURIComponent(tweetText)}`;
+
+  return (
+    <div className="modal-overlay" onClick={onClose} role="dialog" aria-modal="true" aria-label="Course completed">
+      <div className="modal-content celebration-modal" onClick={(e) => e.stopPropagation()} style={{ position: "relative" }}>
+        <button className="celebration-close" onClick={onClose} aria-label="Close">×</button>
+        <div className="celebration-confetti" aria-hidden="true">
+          {CONFETTI_POSITIONS.map((left, i) => (
+            <div
+              key={i}
+              className="confetti-piece"
+              style={{
+                left: `${left}%`,
+                backgroundColor: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+                animationDelay: `${CONFETTI_DELAYS[i]}s`,
+                borderRadius: i % 3 === 0 ? "50%" : i % 3 === 1 ? "2px" : "1px",
+                width: 8 + (i % 4) * 2,
+                height: 8 + (i % 3) * 2,
+              }}
+            />
+          ))}
+        </div>
+        <div className="celebration-body">
+          <div className="celebration-icon">🎓</div>
+          <h2 className="celebration-title">Course Complete!</h2>
+          <p className="celebration-subtitle">
+            You&apos;ve finished all modules of <strong>{ownerName}/{repoName}</strong>. Great work!
+          </p>
+          <div className="celebration-actions">
+            <a
+              href={twitterHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-primary"
+              style={{ textDecoration: "none", justifyContent: "center" }}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.737-8.835L1.254 2.25H8.08l4.261 5.632 5.903-5.632zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+              </svg>
+              Share on X
+            </a>
+            <button className="btn-secondary" onClick={onClose} style={{ justifyContent: "center" }}>
+              Continue Learning
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function MobileMenuIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -332,6 +401,9 @@ export default function CourseViewer() {
   const [completedModules, setCompletedModules] = useState<number[]>([]);
   const [showSidebar, setShowSidebar] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [showCelebration, setShowCelebration] = useState(false);
+  const [celebrationShown, setCelebrationShown] = useState(false);
+  const [progressInitialized, setProgressInitialized] = useState(false);
   const [overviewTab, setOverviewTab] = useState<"graph" | "diagram">("graph");
   const [iframeSrc, setIframeSrc] = useState<string | null>(null);
   const [webhookToggling, setWebhookToggling] = useState(false);
@@ -387,9 +459,19 @@ export default function CourseViewer() {
           setCompletedModules(progressData.completedModules);
         }
         setLastSeenVersion(typeof progressData?.lastSeenVersion === "number" ? progressData.lastSeenVersion : 0);
+        setProgressInitialized(true);
       })
-      .catch(() => {});
+      .catch(() => { setProgressInitialized(true); });
   }, [courseId, isAuthenticated]);
+
+  useEffect(() => {
+    if (!progressInitialized || celebrationShown) return;
+    const total = v2Data?.totalModules ?? 0;
+    if (total > 0 && completedModules.length >= total) {
+      setShowCelebration(true);
+      setCelebrationShown(true);
+    }
+  }, [completedModules.length, v2Data?.totalModules, progressInitialized, celebrationShown]);
 
   useEffect(() => {
     if (course && lastSeenVersion !== null && course.version > lastSeenVersion && course.changesSince) {
@@ -559,8 +641,22 @@ export default function CourseViewer() {
   const totalModules = v2Data?.totalModules || course.moduleCount || 0;
   const progress = totalModules ? Math.round((completedModules.length / totalModules) * 100) : 0;
 
+  const celebrationShareUrl = course?.isPublic
+    ? `${typeof window !== "undefined" ? window.location.origin : ""}/explore/${course.ownerName}/${course.repoName}`
+    : course?.shareToken
+    ? `${typeof window !== "undefined" ? window.location.origin : ""}/share/${course.shareToken}`
+    : null;
+
   return (
     <div style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
+      {showCelebration && course && (
+        <CompletionModal
+          ownerName={course.ownerName}
+          repoName={course.repoName}
+          shareUrl={celebrationShareUrl}
+          onClose={() => setShowCelebration(false)}
+        />
+      )}
       <div className="course-topbar" style={{
         height: 48, background: "var(--code-bg)", color: "white",
         display: "flex", alignItems: "center", justifyContent: "space-between",
