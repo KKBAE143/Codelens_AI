@@ -75,6 +75,8 @@ export function Navbar() {
     };
     document.addEventListener("keydown", handleKeyDown);
     document.body.style.overflow = "hidden";
+    const firstFocusable = drawerRef.current?.querySelector<HTMLElement>("a, button");
+    firstFocusable?.focus();
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
       document.body.style.overflow = "";

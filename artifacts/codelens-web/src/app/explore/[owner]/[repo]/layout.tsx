@@ -118,7 +118,7 @@ export default async function CourseLayout({ params, children }: Props) {
       {course && (
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(buildJsonLd(course, baseUrl)) }}
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(buildJsonLd(course, baseUrl)).replace(/</g, "\\u003c") }}
         />
       )}
       {children}
