@@ -6,7 +6,7 @@ import { requireAuth } from "@/lib/auth";
 import { requireOrgMembership } from "@/lib/org-helpers";
 import { db } from "@workspace/db";
 import { users, organizationMembers } from "@workspace/db/schema";
-import { eq, or, and } from "drizzle-orm";
+import { eq, or, and, gt, sql } from "drizzle-orm";
 
 export async function POST(
   request: Request,
@@ -26,6 +26,24 @@ export async function POST(
   }
 
   const { org } = result;
+
+  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+  const [recentInviteCount] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(organizationMembers)
+    .where(
+      and(
+        eq(organizationMembers.organizationId, org.id),
+        gt(organizationMembers.joinedAt, oneHourAgo),
+      ),
+    );
+
+  if ((recentInviteCount?.count ?? 0) >= 10) {
+    return NextResponse.json(
+      { error: "Rate limit exceeded: max 10 invites per hour per organization" },
+      { status: 429 },
+    );
+  }
 
   let body;
   try {

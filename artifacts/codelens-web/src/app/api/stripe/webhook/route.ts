@@ -12,6 +12,8 @@ async function updateUserAndSession(
   userFields: Record<string, unknown>,
 ) {
   await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT id FROM users WHERE id = ${userId} FOR UPDATE`);
+
     await tx
       .update(users)
       .set(userFields)

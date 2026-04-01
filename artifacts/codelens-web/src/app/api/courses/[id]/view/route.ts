@@ -4,7 +4,7 @@ export const runtime = "nodejs";
 import { NextResponse, type NextRequest } from "next/server";
 import { db } from "@workspace/db";
 import { courses, courseViews } from "@workspace/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, and, gt } from "drizzle-orm";
 
 export async function POST(
   request: NextRequest,
@@ -28,10 +28,24 @@ export async function POST(
 
   try {
     await db.transaction(async (tx) => {
-      await tx.insert(courseViews).values({
-        courseId,
-        visitorId,
-      });
+      const windowStart = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const [existing] = await tx
+        .select({ id: courseViews.id })
+        .from(courseViews)
+        .where(
+          and(
+            eq(courseViews.courseId, courseId),
+            eq(courseViews.visitorId, visitorId),
+            gt(courseViews.createdAt, windowStart),
+          ),
+        )
+        .limit(1);
+
+      if (existing) {
+        return;
+      }
+
+      await tx.insert(courseViews).values({ courseId, visitorId });
 
       await tx
         .update(courses)
