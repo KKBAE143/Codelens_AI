@@ -3,6 +3,38 @@ import { buildRepoMap, computePageRank } from "./repo-map";
 import { countTokens } from "./token-counter";
 import crypto from "crypto";
 
+interface CacheEntry<T> {
+  data: T;
+  expires: number;
+}
+
+const apiCache = new Map<string, CacheEntry<unknown>>();
+const TREE_CACHE_TTL = 5 * 60 * 1000;
+const REPO_CACHE_TTL = 15 * 60 * 1000;
+
+function getCacheKey(url: string, token?: string): string {
+  const tokenSuffix = token ? token.slice(-8) : "none";
+  return `${url}|${tokenSuffix}`;
+}
+
+function getCached<T>(key: string): T | null {
+  const entry = apiCache.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expires) {
+    apiCache.delete(key);
+    return null;
+  }
+  return entry.data as T;
+}
+
+function setCached<T>(key: string, data: T, ttl: number): void {
+  apiCache.set(key, { data, expires: Date.now() + ttl });
+}
+
+export function clearCache(): void {
+  apiCache.clear();
+}
+
 export interface GitHubFile {
   path: string;
   content: string;
@@ -420,19 +452,35 @@ export async function extractRepo(
     }
   }
 
-  const repoRes = await githubFetch(
+  const repoCacheKey = getCacheKey(
     `https://api.github.com/repos/${owner}/${repo}`,
     userToken,
   );
-  const repoData = await repoRes.json();
-  const defaultBranch = branch || repoData.default_branch || "main";
+  let repoData: Record<string, unknown> | null = getCached<Record<string, unknown>>(repoCacheKey);
+  if (!repoData) {
+    const repoRes = await githubFetch(
+      `https://api.github.com/repos/${owner}/${repo}`,
+      userToken,
+    );
+    repoData = (await repoRes.json()) as Record<string, unknown>;
+    setCached(repoCacheKey, repoData, REPO_CACHE_TTL);
+  }
+  const defaultBranch = branch || (repoData.default_branch as string) || "main";
 
-  const treeRes = await githubFetch(
+  const treeCacheKey = getCacheKey(
     `https://api.github.com/repos/${owner}/${repo}/git/trees/${defaultBranch}?recursive=1`,
     userToken,
   );
-  const treeData = await treeRes.json();
-  const repoTree = Array.isArray(treeData.tree) ? (treeData.tree as GitHubTreeEntry[]) : null;
+  let treeData: { tree: GitHubTreeEntry[] } | null = getCached<{ tree: GitHubTreeEntry[] }>(treeCacheKey);
+  if (!treeData) {
+    const treeRes = await githubFetch(
+      `https://api.github.com/repos/${owner}/${repo}/git/trees/${defaultBranch}?recursive=1`,
+      userToken,
+    );
+    treeData = (await treeRes.json()) as { tree: GitHubTreeEntry[] };
+    setCached(treeCacheKey, treeData, TREE_CACHE_TTL);
+  }
+  const repoTree = Array.isArray(treeData.tree) ? treeData.tree : null;
 
   const healthCheck = await checkRepoHealth(owner, repo, defaultBranch, userToken, repoTree ?? undefined);
   if (!healthCheck.accessible) {

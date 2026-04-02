@@ -2,22 +2,38 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 import { NextResponse, type NextRequest } from "next/server";
+import { z } from "zod";
 import { db } from "@workspace/db";
 import { courses } from "@workspace/db/schema";
 import { eq, and, isNull, desc, ilike, or, sql } from "drizzle-orm";
 
+const exploreQuerySchema = z.object({
+  q: z.string().max(200).optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+  sort: z.enum(["recent", "views", "modules", "stars"]).default("recent"),
+  language: z.string().max(50).optional(),
+  focusArea: z.string().max(100).optional(),
+  audience: z.enum(["vibe_coder", "new_engineer", "product_manager", "security_auditor"]).optional(),
+  depth: z.enum(["quick", "full", "deep"]).optional(),
+});
+
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
-  const rawPage = parseInt(searchParams.get("page") || "1");
-  const rawLimit = parseInt(searchParams.get("limit") || "20");
-  const page = Number.isFinite(rawPage) ? Math.max(rawPage, 1) : 1;
-  const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(rawLimit, 1), 50) : 20;
-  const search = (searchParams.get("search") || "").slice(0, 200);
-  const language = (searchParams.get("language") || "").slice(0, 50);
-  const focusArea = (searchParams.get("focusArea") || "").slice(0, 100);
-  const audience = (searchParams.get("audience") || "").slice(0, 50);
-  const depth = (searchParams.get("depth") || "").slice(0, 20);
-  const sort = ["recent", "views", "modules", "stars"].includes(searchParams.get("sort") || "") ? searchParams.get("sort")! : "recent";
+  const rawQuery: Record<string, string> = {};
+  for (const [key, value] of searchParams.entries()) {
+    rawQuery[key] = value;
+  }
+
+  const parsed = exploreQuerySchema.safeParse(rawQuery);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: parsed.error.errors.map(e => `${e.path.join(".")}: ${e.message}`).join(", ") },
+      { status: 400 }
+    );
+  }
+
+  const { q: search, page = 1, limit = 20, sort = "recent", language, focusArea, audience, depth } = parsed.data;
   const offset = (page - 1) * limit;
 
   const conditions = [
@@ -50,12 +66,12 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  if (audience && ["vibe_coder", "new_engineer", "product_manager", "security_auditor"].includes(audience)) {
-    conditions.push(eq(courses.targetAudience, audience as "vibe_coder" | "new_engineer" | "product_manager" | "security_auditor"));
+  if (audience) {
+    conditions.push(eq(courses.targetAudience, audience));
   }
 
-  if (depth && ["quick", "full", "deep"].includes(depth)) {
-    conditions.push(eq(courses.depthPreset, depth as "quick" | "full" | "deep"));
+  if (depth) {
+    conditions.push(eq(courses.depthPreset, depth));
   }
 
   let orderBy;

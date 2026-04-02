@@ -1,30 +1,57 @@
+/**
+ * MIGRATION NOTE:
+ * This file was migrated from CryptoJS to Node.js native crypto (AES-256-GCM).
+ * Tokens previously encrypted with CryptoJS will fail to decrypt after this change.
+ * Users may need to re-authenticate with GitHub to regenerate their tokens.
+ */
+import { randomBytes, createCipheriv, createDecipheriv } from "crypto";
 import { db } from "@workspace/db";
 import { users } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
-import CryptoJS from "crypto-js";
 
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY;
-if (!ENCRYPTION_KEY) {
-  console.warn("ENCRYPTION_KEY is not set. GitHub token encryption/decryption will fail.");
+function getEncryptionKey(): string {
+  const key = process.env.ENCRYPTION_KEY;
+  if (!key) {
+    throw new Error("ENCRYPTION_KEY environment variable is required.");
+  }
+  return key;
+}
+
+function deriveKey(): Buffer {
+  const rawKey = getEncryptionKey();
+  const isHex = /^[0-9a-fA-F]+$/.test(rawKey);
+  const input = isHex
+    ? Buffer.from(rawKey, "hex")
+    : Buffer.from(rawKey, "utf8");
+  const key = Buffer.alloc(32, 0);
+  input.copy(key);
+  return key;
 }
 
 export function encryptToken(token: string): string {
-  if (!ENCRYPTION_KEY) {
-    throw new Error("ENCRYPTION_KEY environment variable is required for token encryption.");
-  }
-  return CryptoJS.AES.encrypt(token, ENCRYPTION_KEY).toString();
+  const key = deriveKey();
+  const iv = randomBytes(16);
+  const cipher = createCipheriv("aes-256-gcm", key, iv);
+  let encrypted = cipher.update(token, "utf-8", "hex");
+  encrypted += cipher.final("hex");
+  const authTag = cipher.getAuthTag().toString("hex");
+  return `${iv.toString("hex")}:${authTag}:${encrypted}`;
 }
 
 export function decryptToken(encrypted: string): string {
-  if (!ENCRYPTION_KEY) {
-    throw new Error("ENCRYPTION_KEY environment variable is required for token decryption.");
-  }
-  const bytes = CryptoJS.AES.decrypt(encrypted, ENCRYPTION_KEY);
-  const result = bytes.toString(CryptoJS.enc.Utf8);
-  if (!result) {
+  const parts = encrypted.split(":");
+  if (parts.length !== 3) {
     throw new Error("Failed to decrypt token. ENCRYPTION_KEY may have changed.");
   }
-  return result;
+  const [ivHex, authTagHex, ciphertextHex] = parts;
+  const key = deriveKey();
+  const iv = Buffer.from(ivHex, "hex");
+  const authTag = Buffer.from(authTagHex, "hex");
+  const decipher = createDecipheriv("aes-256-gcm", key, iv);
+  decipher.setAuthTag(authTag);
+  let decrypted = decipher.update(ciphertextHex, "hex", "utf-8");
+  decrypted += decipher.final("utf-8");
+  return decrypted;
 }
 
 export async function getUserGithubToken(userId: string): Promise<string> {

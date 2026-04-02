@@ -2,12 +2,14 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 import { after, NextResponse } from "next/server";
+import { z } from "zod";
 import { requireAuth } from "@/lib/auth";
 import { getUserGithubToken } from "@/lib/github-auth";
 import { checkAndIncrementUsage } from "@/lib/rate-limit";
 import { parseGithubUrl } from "@/lib/github";
 import { inngest, isInngestConfigured } from "@/lib/inngest";
 import { generateCourseDirect } from "@/lib/jobs/generate-course-direct";
+import { unauthorized, badRequest, forbidden, notFound, apiJsonError } from "@/lib/api-errors";
 import { db } from "@workspace/db";
 import {
   courses,
@@ -17,22 +19,33 @@ import {
 import { eq, and } from "drizzle-orm";
 import { sendSlackNotification, courseGeneratedMessage } from "@/lib/slack";
 
+const generateCourseSchema = z.object({
+  githubUrl: z.string().url("githubUrl must be a valid URL"),
+  targetAudience: z.enum(["vibe_coder", "new_engineer", "product_manager", "security_auditor"]).optional(),
+  organizationSlug: z.string().optional(),
+  depth: z.enum(["quick", "full", "deep"]).optional(),
+  focusAreas: z.array(z.string()).optional(),
+  customContext: z.string().max(2000).optional(),
+});
+
 export async function POST(request: Request) {
   let user;
   try {
     user = await requireAuth();
   } catch {
-    return NextResponse.json(
-      { error: "Authentication required" },
-      { status: 401 },
-    );
+    return unauthorized("Authentication required");
   }
 
   let body;
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    return badRequest("Invalid JSON body");
+  }
+
+  const parsed = generateCourseSchema.safeParse(body);
+  if (!parsed.success) {
+    return badRequest(parsed.error.errors.map(e => `${e.path.join(".")}: ${e.message}`).join(", "));
   }
 
   const {
@@ -42,59 +55,34 @@ export async function POST(request: Request) {
     depth,
     focusAreas,
     customContext,
-  } = body;
+  } = parsed.data;
 
-  if (!githubUrl || typeof githubUrl !== "string") {
-    return NextResponse.json(
-      { error: "githubUrl is required" },
-      { status: 400 },
-    );
-  }
+  const audience = targetAudience || "new_engineer";
 
-  const validAudiences = [
-    "vibe_coder",
-    "new_engineer",
-    "product_manager",
-    "security_auditor",
-  ];
-  const audience = validAudiences.includes(targetAudience)
-    ? targetAudience
-    : "new_engineer";
-
-  let parsed;
+  let parsedUrl;
   try {
-    parsed = parseGithubUrl(githubUrl);
+    parsedUrl = parseGithubUrl(githubUrl);
   } catch (error) {
     console.error(
       "GitHub URL parse error:",
       error instanceof Error ? error.message : error,
     );
-    return NextResponse.json(
-      { error: "Invalid GitHub URL. Please provide a valid repository URL." },
-      { status: 400 },
-    );
+    return badRequest("Invalid GitHub URL. Please provide a valid repository URL.");
   }
 
   const rateLimit = await checkAndIncrementUsage(user.id);
   if (!rateLimit.allowed) {
-    return NextResponse.json(
-      {
-        error:
-          "Monthly generation limit reached. Upgrade to Pro for unlimited generations.",
-        remaining: rateLimit.remaining,
-        resetAt: rateLimit.resetAt.toISOString(),
-      },
-      { status: 429 },
+    return apiJsonError(
+      "Monthly generation limit reached. Upgrade to Pro for unlimited generations.",
+      429,
+      { remaining: rateLimit.remaining, resetAt: rateLimit.resetAt.toISOString() },
     );
   }
 
   let organizationId: string | null = null;
   if (organizationSlug && typeof organizationSlug === "string") {
     if (user.plan !== "team") {
-      return NextResponse.json(
-        { error: "Team plan required to generate courses for an organization" },
-        { status: 403 },
-      );
+      return forbidden("Team plan required to generate courses for an organization");
     }
 
     const [org] = await db
@@ -107,10 +95,7 @@ export async function POST(request: Request) {
       .limit(1);
 
     if (!org) {
-      return NextResponse.json(
-        { error: "Organization not found" },
-        { status: 404 },
-      );
+      return notFound("Organization not found");
     }
 
     const [membership] = await db
@@ -126,10 +111,7 @@ export async function POST(request: Request) {
       .limit(1);
 
     if (!membership) {
-      return NextResponse.json(
-        { error: "Not a member of this organization" },
-        { status: 403 },
-      );
+      return forbidden("Not a member of this organization");
     }
 
     organizationId = org.id;
@@ -150,7 +132,7 @@ export async function POST(request: Request) {
 
   try {
     const ghRes = await fetch(
-      `https://api.github.com/repos/${parsed.owner}/${parsed.repo}`,
+      `https://api.github.com/repos/${parsedUrl.owner}/${parsedUrl.repo}`,
       githubHeaders ? { headers: githubHeaders } : undefined,
     );
     if (ghRes.ok) {
@@ -167,14 +149,13 @@ export async function POST(request: Request) {
     .insert(courses)
     .values({
       githubUrl: githubUrl.trim(),
-      repoName: parsed.repo,
-      ownerName: parsed.owner,
-      defaultBranch: parsed.branch || "main",
+      repoName: parsedUrl.repo,
+      ownerName: parsedUrl.owner,
+      defaultBranch: parsedUrl.branch || "main",
       targetAudience: audience,
-      depthPreset: ["quick", "full", "deep"].includes(depth) ? depth : "full",
-      focusAreas: Array.isArray(focusAreas) ? focusAreas : [],
-      customContext:
-        typeof customContext === "string" ? customContext.slice(0, 2000) : null,
+      depthPreset: depth || "full",
+      focusAreas: focusAreas || [],
+      customContext: customContext || null,
       status: "pending",
       createdBy: user.id,
       organizationId,
@@ -210,7 +191,7 @@ export async function POST(request: Request) {
       sendSlackNotification(
         org.slackWebhookUrl,
         courseGeneratedMessage(
-          `${parsed.owner}/${parsed.repo}`,
+          `${parsedUrl.owner}/${parsedUrl.repo}`,
           audience,
           user.displayName,
         ),

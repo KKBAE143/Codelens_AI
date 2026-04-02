@@ -1,6 +1,7 @@
 import { db } from "@workspace/db";
 import { users } from "@workspace/db/schema";
 import { eq, sql, and, lt } from "drizzle-orm";
+import { sendMonthlyUsageWarningEmail, isEmailConfigured } from "./email";
 
 const PLAN_LIMITS: Record<string, number> = {
   free: 5,
@@ -115,17 +116,28 @@ export async function checkAndIncrementUsage(userId: string): Promise<RateLimitR
         lt(users.monthlyGenerationsUsed, effectiveLimit)
       )
     )
-    .returning({ used: users.monthlyGenerationsUsed, resetAt: users.monthlyGenerationsResetAt });
+    .returning({ used: users.monthlyGenerationsUsed, resetAt: users.monthlyGenerationsResetAt, email: users.email, displayName: users.displayName, plan: users.plan, emailNotifications: users.emailNotifications });
 
   if (!updated.length) {
     return { allowed: false, remaining: 0, resetAt: currentResetAt };
   }
 
-  return {
+  const result: RateLimitResult = {
     allowed: true,
     remaining: Math.max(0, limit - updated[0].used),
     resetAt: updated[0].resetAt ?? currentResetAt,
   };
+
+  const record = updated[0];
+  if (isEmailConfigured() && record.plan === "free" && record.email && record.emailNotifications && record.used === 4 && limit === 5) {
+    try {
+      await sendMonthlyUsageWarningEmail(record.email, record.displayName, record.used, limit);
+    } catch (emailErr) {
+      console.warn("[RateLimit] Usage warning email failed (non-fatal):", emailErr);
+    }
+  }
+
+  return result;
 }
 
 function getNextMonthReset(): Date {

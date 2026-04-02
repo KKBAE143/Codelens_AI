@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { requireAuth } from "@/lib/auth";
 import { getUserGithubToken } from "@/lib/github-auth";
+
+const githubReposQuerySchema = z.object({
+  org: z.string().max(128).optional(),
+  page: z.coerce.number().int().min(1).max(100).default(1),
+  search: z.string().max(128).optional(),
+});
 
 export async function GET(req: NextRequest) {
   let user;
@@ -11,10 +18,20 @@ export async function GET(req: NextRequest) {
   }
 
   const { searchParams } = new URL(req.url);
-  const org = searchParams.get("org") || "";
-  const rawPage = parseInt(searchParams.get("page") || "1", 10);
-  const page = Number.isFinite(rawPage) && rawPage >= 1 ? Math.min(rawPage, 100) : 1;
-  const search = (searchParams.get("search") || "").trim().slice(0, 128);
+  const rawQuery: Record<string, string> = {};
+  for (const [key, value] of searchParams.entries()) {
+    rawQuery[key] = value;
+  }
+
+  const parsed = githubReposQuerySchema.safeParse(rawQuery);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: parsed.error.errors.map(e => `${e.path.join(".")}: ${e.message}`).join(", ") },
+      { status: 400 }
+    );
+  }
+
+  const { org = "", page = 1, search = "" } = parsed.data;
   const perPage = 30;
 
   let token: string;

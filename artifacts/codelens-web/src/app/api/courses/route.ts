@@ -3,6 +3,7 @@ export const runtime = "nodejs";
 
 import { NextResponse, type NextRequest } from "next/server";
 import { requireAuth } from "@/lib/auth";
+import { unauthorized, badRequest } from "@/lib/api-errors";
 import { db } from "@workspace/db";
 import { courses, organizationMembers, webhookRegistrations, courseProgress } from "@workspace/db/schema";
 import { eq, and, isNull, desc, lt, or, inArray, sql } from "drizzle-orm";
@@ -37,7 +38,7 @@ export async function GET(request: NextRequest) {
   try {
     user = await requireAuth();
   } catch {
-    return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+    return unauthorized("Authentication required");
   }
 
   const searchParams = request.nextUrl.searchParams;
@@ -73,7 +74,7 @@ export async function GET(request: NextRequest) {
   if (cursor) {
     const cursorDate = new Date(cursor);
     if (isNaN(cursorDate.getTime())) {
-      return NextResponse.json({ error: "Invalid cursor" }, { status: 400 });
+      return badRequest("Invalid cursor");
     }
     conditions.push(lt(courses.createdAt, cursorDate));
   }

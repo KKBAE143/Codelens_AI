@@ -2,12 +2,16 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { requireAuth } from "@/lib/auth";
 import { db } from "@workspace/db";
 import { organizations, organizationMembers, users } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
 
-const SLUG_RE = /^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/;
+const createOrgSchema = z.object({
+  name: z.string().min(2).max(60),
+  slug: z.string().regex(/^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/, "Slug must be 3-40 lowercase alphanumeric characters with hyphens"),
+});
 
 export async function POST(request: Request) {
   let user;
@@ -37,16 +41,15 @@ export async function POST(request: Request) {
     );
   }
 
-  const { name, slug } = body;
-  if (!name || typeof name !== "string" || name.length < 2 || name.length > 60) {
-    return NextResponse.json({ error: "Name must be 2-60 characters" }, { status: 400 });
-  }
-  if (!slug || !SLUG_RE.test(slug)) {
+  const parsed = createOrgSchema.safeParse(body);
+  if (!parsed.success) {
     return NextResponse.json(
-      { error: "Slug must be 3-40 lowercase alphanumeric characters with hyphens" },
+      { error: parsed.error.errors.map(e => `${e.path.join(".")}: ${e.message}`).join(", ") },
       { status: 400 }
     );
   }
+
+  const { name, slug } = parsed.data;
 
   const [existing] = await db
     .select({ id: organizations.id })

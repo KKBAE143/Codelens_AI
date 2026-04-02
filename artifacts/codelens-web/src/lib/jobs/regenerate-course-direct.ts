@@ -1,19 +1,20 @@
 import { db } from "@workspace/db";
-import { courses, flashcards } from "@workspace/db/schema";
+import { courses, flashcards, users } from "@workspace/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
 import { generateText } from "../llm";
 import { extractRepo } from "../github";
+import { sendCourseRegeneratedEmail, isEmailConfigured } from "../email";
 import {
   runStage1Abstractions,
   runStage2Relationships,
   runStage3Order,
   runStage4WriteChapters,
   assembleV2Course,
+  generateFlashcardsForChapters,
   getOrCreateEmitter,
   removeEmitter,
 } from "../pipeline";
 import type { PipelineConfig, ChapterResult, Abstraction } from "../pipeline";
-import { generateFlashcardsForChapters } from "../pipeline/stages";
 import type { TargetAudience } from "../prompts";
 import crypto from "crypto";
 
@@ -302,6 +303,29 @@ export async function regenerateCourseDirect(
         }
       } catch (err) {
         console.error("[Regenerate] Selective flashcard update failed (old cards preserved):", err);
+      }
+    }
+
+    if (course.createdBy && isEmailConfigured()) {
+      try {
+        const [userRecord] = await db
+          .select({ email: users.email, displayName: users.displayName, emailNotifications: users.emailNotifications })
+          .from(users)
+          .where(eq(users.id, course.createdBy))
+          .limit(1);
+
+        if (userRecord?.email && userRecord.emailNotifications) {
+          const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://codelens.ai";
+          const courseName = course.repoName || "your course";
+          await sendCourseRegeneratedEmail(
+            userRecord.email,
+            userRecord.displayName,
+            courseName,
+            `${appUrl}/course/${courseId}`,
+          );
+        }
+      } catch (emailErr) {
+        console.warn("[Regenerate] Email notification failed (non-fatal):", emailErr);
       }
     }
   } catch (error) {

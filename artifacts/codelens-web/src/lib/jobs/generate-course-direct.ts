@@ -3,7 +3,7 @@ import { courses, generationCache, users, flashcards } from "@workspace/db/schem
 import { eq, and, gt, desc } from "drizzle-orm";
 import { extractRepo } from "../github";
 import { registerWebhook } from "../github-webhooks";
-import { sendCourseGeneratedEmail, isEmailConfigured } from "../email";
+import { sendCourseGeneratedEmail, sendCourseGenerationErrorEmail, isEmailConfigured } from "../email";
 import type { TargetAudience } from "../prompts";
 import {
   runStage1Abstractions,
@@ -11,11 +11,11 @@ import {
   runStage3Order,
   runStage4WriteChapters,
   assembleV2Course,
+  generateFlashcardsForChapters,
   getOrCreateEmitter,
   removeEmitter,
 } from "../pipeline";
 import type { PipelineConfig, ChapterResult } from "../pipeline";
-import { generateFlashcardsForChapters } from "../pipeline/stages";
 import crypto from "crypto";
 
 function generateSlug(repoName: string, owner: string): string {
@@ -393,6 +393,35 @@ export async function generateCourseDirect(courseId: string): Promise<void> {
       }
     }
   } catch (error) {
+    if (isEmailConfigured()) {
+      try {
+        const [failedCourse] = await db
+          .select({ createdBy: courses.createdBy, repoName: courses.repoName })
+          .from(courses)
+          .where(eq(courses.id, courseId))
+          .limit(1);
+
+        if (failedCourse?.createdBy) {
+          const [userRecord] = await db
+            .select({ email: users.email, displayName: users.displayName, emailNotifications: users.emailNotifications })
+            .from(users)
+            .where(eq(users.id, failedCourse.createdBy))
+            .limit(1);
+
+          if (userRecord?.email && userRecord.emailNotifications) {
+            const courseName = failedCourse.repoName || "your course";
+            await sendCourseGenerationErrorEmail(
+              userRecord.email,
+              userRecord.displayName,
+              courseName,
+            );
+          }
+        }
+      } catch (emailErr) {
+        console.warn("[Generate] Error email failed (non-fatal):", emailErr);
+      }
+    }
+
     removeEmitter(courseId);
     throw error;
   } finally {

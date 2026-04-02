@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { requireAuth } from "@/lib/auth";
 import { checkAndIncrementUsage } from "@/lib/rate-limit";
 import { inngest, isInngestConfigured } from "@/lib/inngest";
@@ -10,8 +11,12 @@ import { db } from "@workspace/db";
 import { courses } from "@workspace/db/schema";
 import { eq, and, isNull } from "drizzle-orm";
 
+const regenerateCourseSchema = z.object({
+  customContext: z.string().max(2000).optional(),
+}).optional();
+
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   let user;
@@ -19,6 +24,21 @@ export async function POST(
     user = await requireAuth();
   } catch {
     return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+
+  const validated = regenerateCourseSchema.safeParse(body);
+  if (!validated.success) {
+    return NextResponse.json(
+      { error: validated.error.errors.map(e => `${e.path.join(".")}: ${e.message}`).join(", ") },
+      { status: 400 }
+    );
   }
 
   const { id } = await params;

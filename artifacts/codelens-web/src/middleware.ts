@@ -1,24 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { ensureCsrf } from "./lib/csrf";
+import { checkRateLimit } from "./lib/rate-limit-redis";
 
 const WINDOW_MS = 60 * 1000;
-
-interface BucketEntry {
-  count: number;
-  resetAt: number;
-}
-
-const buckets = new Map<string, BucketEntry>();
-
-let lastCleanup = Date.now();
-
-function cleanup() {
-  const now = Date.now();
-  if (now - lastCleanup < 60_000) return;
-  lastCleanup = now;
-  for (const [key, entry] of buckets) {
-    if (entry.resetAt <= now) buckets.delete(key);
-  }
-}
 
 function getRouteGroup(pathname: string): { key: string; limit: number } | null {
   if (pathname === "/api/health" || pathname === "/api/inngest") return null;
@@ -42,7 +26,7 @@ function getIp(request: NextRequest): string {
   return "unknown";
 }
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (!pathname.startsWith("/api/")) return NextResponse.next();
@@ -50,22 +34,14 @@ export function middleware(request: NextRequest) {
   const routeGroup = getRouteGroup(pathname);
   if (!routeGroup) return NextResponse.next();
 
-  cleanup();
-
   const ip = getIp(request);
   const bucketKey = `${ip}:${routeGroup.key}`;
   const now = Date.now();
-  const entry = buckets.get(bucketKey);
 
-  if (!entry || entry.resetAt <= now) {
-    buckets.set(bucketKey, { count: 1, resetAt: now + WINDOW_MS });
-    return NextResponse.next();
-  }
+  const result = await checkRateLimit(bucketKey, routeGroup.limit, WINDOW_MS);
 
-  entry.count++;
-
-  if (entry.count > routeGroup.limit) {
-    const retryAfter = Math.ceil((entry.resetAt - now) / 1000);
+  if (!result.allowed) {
+    const retryAfter = Math.ceil((result.resetAt - now) / 1000);
     return NextResponse.json(
       { error: "Too many requests. Please try again later." },
       {
@@ -74,11 +50,14 @@ export function middleware(request: NextRequest) {
           "Retry-After": String(retryAfter),
           "X-RateLimit-Limit": String(routeGroup.limit),
           "X-RateLimit-Remaining": "0",
-          "X-RateLimit-Reset": String(Math.ceil(entry.resetAt / 1000)),
+          "X-RateLimit-Reset": String(Math.ceil(result.resetAt / 1000)),
         },
       }
     );
   }
+
+  const csrfError = ensureCsrf(request);
+  if (csrfError) return csrfError;
 
   return NextResponse.next();
 }

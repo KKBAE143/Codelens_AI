@@ -10,6 +10,7 @@ import {
   type SessionData,
 } from "@/lib/auth";
 import { storeGithubToken } from "@/lib/github-auth";
+import { sendWelcomeEmail } from "@/lib/email";
 
 function getOrigin(request: Request): string {
   const url = new URL(request.url);
@@ -98,7 +99,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(new URL("/api/auth/login", origin));
     }
 
-    const dbUser = await upsertUser({
+    const { user: dbUser, isNew: isNewUser } = await upsertUser({
       id: githubUser.id,
       login: githubUser.login,
       name: githubUser.name,
@@ -127,6 +128,14 @@ export async function GET(request: NextRequest) {
 
     response.cookies.delete("github_oauth_state");
     response.cookies.delete("return_to");
+
+    if (isNewUser && dbUser.email) {
+      try {
+        await sendWelcomeEmail(dbUser.email, dbUser.displayName);
+      } catch (err) {
+        console.warn("[Email] Welcome email failed:", err);
+      }
+    }
 
     return response;
   } catch {

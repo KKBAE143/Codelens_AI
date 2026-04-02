@@ -57,7 +57,7 @@ export async function upsertUser(githubProfile: {
   name: string | null;
   email: string | null;
   avatar_url: string | null;
-}): Promise<AuthUser> {
+}): Promise<{ user: AuthUser; isNew: boolean }> {
   const userData = {
     id: String(githubProfile.id),
     username: githubProfile.login,
@@ -86,15 +86,18 @@ export async function upsertUser(githubProfile: {
       .where(eq(users.id, userData.id));
 
     return {
-      id: existing.id,
-      username: userData.username,
-      displayName: userData.displayName,
-      email: userData.email,
-      avatarUrl: userData.avatarUrl,
-      plan: existing.plan as "free" | "pro" | "team",
-      githubUsername: githubProfile.login,
-      githubConnectedAt: existing.githubConnectedAt ?? new Date(),
-      monthlyGenerationsUsed: existing.monthlyGenerationsUsed,
+      user: {
+        id: existing.id,
+        username: userData.username,
+        displayName: userData.displayName,
+        email: userData.email,
+        avatarUrl: userData.avatarUrl,
+        plan: existing.plan as "free" | "pro" | "team",
+        githubUsername: githubProfile.login,
+        githubConnectedAt: existing.githubConnectedAt ?? new Date(),
+        monthlyGenerationsUsed: existing.monthlyGenerationsUsed,
+      },
+      isNew: false,
     };
   }
 
@@ -108,15 +111,18 @@ export async function upsertUser(githubProfile: {
     .returning();
 
   return {
-    id: newUser.id,
-    username: newUser.username,
-    displayName: newUser.displayName,
-    email: newUser.email,
-    avatarUrl: newUser.avatarUrl,
-    plan: newUser.plan as "free" | "pro" | "team",
-    githubUsername: newUser.githubUsername,
-    githubConnectedAt: newUser.githubConnectedAt,
-    monthlyGenerationsUsed: newUser.monthlyGenerationsUsed,
+    user: {
+      id: newUser.id,
+      username: newUser.username,
+      displayName: newUser.displayName,
+      email: newUser.email,
+      avatarUrl: newUser.avatarUrl,
+      plan: newUser.plan as "free" | "pro" | "team",
+      githubUsername: newUser.githubUsername,
+      githubConnectedAt: newUser.githubConnectedAt,
+      monthlyGenerationsUsed: newUser.monthlyGenerationsUsed,
+    },
+    isNew: true,
   };
 }
 
