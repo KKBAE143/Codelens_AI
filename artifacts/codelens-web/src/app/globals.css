@@ -2081,104 +2081,196 @@ a.v2-code-filepath:hover {
   line-height: 1.4;
 }
 
-.v2-cmd-header {
-  margin-bottom: 0.5rem;
+/* === Command Card (Terminal Style) === */
+.v2-cmd-card {
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--bg-card);
+  margin: 1rem 0;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  transition: box-shadow 0.2s ease;
 }
 
-.v2-cmd-command-row {
+.v2-cmd-card:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+/* Terminal title bar */
+.v2-cmd-titlebar {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  justify-content: space-between;
+  padding: 0.625rem 1rem;
+  background: #1E1E2E;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
 }
 
-.v2-cmd-copy {
-  background: none;
-  border: 1px solid rgba(255,255,255,0.15);
-  padding: 0.2rem 0.4rem;
-  border-radius: 4px;
-  color: rgba(205,214,244,0.5);
-  cursor: pointer;
-  font-size: 0.7rem;
-  font-family: var(--font-body);
-  transition: all 0.15s;
-  display: inline-flex;
-  align-items: center;
+.v2-cmd-dots {
+  display: flex;
+  gap: 6px;
 }
 
-.v2-cmd-copy:hover {
-  color: rgba(205,214,244,0.9);
-  border-color: rgba(255,255,255,0.3);
-}
-
-.v2-cmd-command {
-  font-family: var(--font-mono);
-  font-size: 0.85rem;
-  background: var(--code-bg);
-  color: #CDD6F4;
-  padding: 0.375rem 0.75rem;
-  border-radius: var(--radius-sm);
+.v2-cmd-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
   display: inline-block;
 }
 
-.v2-cmd-when {
+.v2-cmd-dot-red { background: #FF5F57; }
+.v2-cmd-dot-yellow { background: #FFBD2E; }
+.v2-cmd-dot-green { background: #28CA41; }
+
+.v2-cmd-titlebar-label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: rgba(255,255,255,0.4);
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Copy button */
+.v2-cmd-copy-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.65rem;
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.6);
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: var(--font-body);
+}
+
+.v2-cmd-copy-btn:hover {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.9);
+  border-color: rgba(255,255,255,0.2);
+}
+
+.v2-cmd-copy-btn-copied {
+  background: rgba(16,185,129,0.15) !important;
+  color: #34D399 !important;
+  border-color: rgba(16,185,129,0.3) !important;
+}
+
+/* Command block */
+.v2-cmd-block {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 1rem 1.25rem;
+  background: #1E1E2E;
+  overflow-x: auto;
+}
+
+.v2-cmd-prompt {
+  color: #34D399;
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  font-weight: 600;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.v2-cmd-text {
+  color: #CDD6F4;
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* Description */
+.v2-cmd-description {
+  padding: 0.875rem 1.25rem;
   font-size: 0.85rem;
   color: var(--text-secondary);
-  line-height: 1.5;
+  line-height: 1.6;
+  border-top: 1px solid var(--border-color);
+}
+
+/* Expected output */
+.v2-cmd-output-section {
+  padding: 0 1.25rem 0.875rem;
+}
+
+.v2-cmd-output-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-tertiary);
   margin-bottom: 0.375rem;
 }
 
-.v2-cmd-output {
-  margin-top: 0.5rem;
-}
-
-.v2-cmd-output strong {
-  font-size: 0.75rem;
-  color: var(--text-tertiary);
-  display: block;
-  margin-bottom: 0.25rem;
-}
-
-.v2-cmd-output pre {
+.v2-cmd-output-text {
   background: var(--bg-secondary);
-  padding: 0.5rem 0.75rem;
-  border-radius: var(--radius-sm);
-  font-size: 0.75rem;
+  padding: 0.625rem 0.875rem;
+  border-radius: 8px;
+  font-size: 0.8rem;
   font-family: var(--font-mono);
   overflow-x: auto;
   color: var(--text-secondary);
+  line-height: 1.5;
+  margin: 0;
+  white-space: pre-wrap;
 }
 
-.v2-cmd-errors {
+/* Common errors */
+.v2-cmd-errors-section {
+  padding: 0 1.25rem 1rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.v2-cmd-errors-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-tertiary);
+  margin-bottom: 0.5rem;
   margin-top: 0.5rem;
 }
 
-.v2-cmd-errors strong {
-  font-size: 0.75rem;
-  color: var(--text-tertiary);
-  display: block;
-  margin-bottom: 0.375rem;
-}
-
-.v2-cmd-error-item {
+.v2-cmd-error-row {
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
-  padding: 0.375rem 0;
+  gap: 0.25rem;
+  padding: 0.5rem 0;
   border-bottom: 1px solid var(--border-color);
-  font-size: 0.8rem;
 }
 
-.v2-cmd-error-item:last-child {
+.v2-cmd-error-row:last-child {
   border-bottom: none;
 }
 
-.v2-cmd-error-item code {
+.v2-cmd-error-msg {
   color: var(--error);
-  font-size: 0.75rem;
+  font-size: 0.78rem;
+  font-family: var(--font-mono);
+  background: rgba(239,68,68,0.06);
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  display: inline-block;
+  width: fit-content;
 }
 
-.v2-cmd-error-item span {
+.v2-cmd-error-fix {
   color: var(--text-secondary);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  padding-left: 0.5rem;
+  border-left: 2px solid var(--teal);
 }
 
 .v2-module-nav-time {

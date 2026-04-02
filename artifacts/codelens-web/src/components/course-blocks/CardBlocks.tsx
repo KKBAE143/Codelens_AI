@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import type {
   V2ArchitectureCardBlock,
   V2DependencyCardBlock,
@@ -40,18 +40,26 @@ function KeyIcon() {
 
 function TerminalIcon() {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text-primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <polyline points="4 17 10 11 4 5" />
       <line x1="12" y1="19" x2="20" y2="19" />
     </svg>
   );
 }
 
-function CopySmall() {
+function CopyIcon() {
   return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
       <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="20 6 9 17 4 12" />
     </svg>
   );
 }
@@ -150,40 +158,84 @@ export function EnvVarCardBlock({ block }: { block: V2EnvVarCardBlock }) {
 export function CommandCardBlock({ block }: { block: V2CommandCardBlock }) {
   const [copied, setCopied] = useState(false);
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(block.command);
+  const handleCopy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(block.command);
+    } catch {
+      const textarea = document.createElement("textarea");
+      textarea.value = block.command;
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textarea);
+    }
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-  };
+  }, [block.command]);
 
   return (
-    <div className="v2-card-base v2-cmd-card">
-      <div className="v2-card-header-row">
-        <TerminalIcon />
-        <div className="v2-card-badge" style={{ background: "var(--bg-secondary)", color: "var(--text-primary)" }}>Command</div>
-      </div>
-      <div className="v2-cmd-header">
-        <div className="v2-cmd-command-row">
-          <code className="v2-cmd-command">$ {block.command}</code>
-          <button className="v2-cmd-copy" onClick={handleCopy} title="Copy command">
-            {copied ? "Copied" : <CopySmall />}
-          </button>
+    <div className="v2-cmd-card">
+      {/* Terminal title bar */}
+      <div className="v2-cmd-titlebar">
+        <div className="v2-cmd-dots">
+          <span className="v2-cmd-dot v2-cmd-dot-red" />
+          <span className="v2-cmd-dot v2-cmd-dot-yellow" />
+          <span className="v2-cmd-dot v2-cmd-dot-green" />
         </div>
+        <div className="v2-cmd-titlebar-label">
+          <TerminalIcon />
+          <span>Terminal</span>
+        </div>
+        <button
+          className={`v2-cmd-copy-btn ${copied ? "v2-cmd-copy-btn-copied" : ""}`}
+          onClick={handleCopy}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") handleCopy(); }}
+          aria-label={copied ? "Copied to clipboard" : "Copy command to clipboard"}
+          title="Copy command"
+        >
+          {copied ? (
+            <>
+              <CheckIcon />
+              <span>Copied</span>
+            </>
+          ) : (
+            <>
+              <CopyIcon />
+              <span>Copy</span>
+            </>
+          )}
+        </button>
       </div>
-      <p className="v2-cmd-when"><strong>When:</strong> {block.when}</p>
-      {block.expectedOutput && (
-        <div className="v2-cmd-output">
-          <strong>Expected output:</strong>
-          <pre>{block.expectedOutput}</pre>
+
+      {/* Command block */}
+      <div className="v2-cmd-block">
+        <span className="v2-cmd-prompt">$</span>
+        <code className="v2-cmd-text">{block.command}</code>
+      </div>
+
+      {/* Description */}
+      <div className="v2-cmd-description">
+        {block.when}
+      </div>
+
+      {/* Expected output */}
+{block.expectedOu{block.expectedOutput && (
+        <div className="v2-cmd-output-section">
+          <div className="v2-cmd-output-label">Expected output</div>
+          <pre className="v2-cmd-output-text">{block.expectedOutput}</pre>
         </div>
       )}
+
+      {/* Common errors */}
       {block.commonErrors && block.commonErrors.length > 0 && (
-        <div className="v2-cmd-errors">
-          <strong>Common errors:</strong>
+        <div className="v2-cmd-errors-section">
+          <div className="v2-cmd-errors-label">Common errors</div>
           {block.commonErrors.map((e, i) => (
-            <div key={i} className="v2-cmd-error-item">
-              <code>{e.error}</code>
-              <span>Fix: {e.fix}</span>
+            <div key={i} className="v2-cmd-error-row">
+              <code className="v2-cmd-error-msg">{e.error}</code>
+              <span className="v2-cmd-error-fix">{e.fix}</span>
             </div>
           ))}
         </div>
