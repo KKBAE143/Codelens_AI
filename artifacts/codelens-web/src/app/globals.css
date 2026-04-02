@@ -1686,17 +1686,26 @@ a.v2-code-filepath:hover {
   color: var(--error);
 }
 
+
+/* === Callout Blocks === */
 .v2-callout {
-  border-radius: var(--radius-md);
+  border-radius: 0 12px 12px 0;
   padding: 1rem 1.25rem;
   border-left: 4px solid;
+  margin: 1rem 0;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  transition: box-shadow 0.2s ease;
+}
+
+.v2-callout:hover {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
 }
 
 .v2-callout-header {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.625rem;
 }
 
 .v2-callout-icon-svg {
@@ -1713,49 +1722,97 @@ a.v2-code-filepath:hover {
 }
 
 .v2-callout-label {
-  font-size: 0.75rem;
-  font-weight: 600;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
 .v2-callout-content {
-  font-size: 0.85rem;
-  line-height: 1.6;
+  font-size: 0.875rem;
+  line-height: 1.65;
+  color: #1F2937;
 }
 
+.v2-callout-content p {
+  margin: 0 0 0.375rem 0;
+}
+
+.v2-callout-content p:last-child {
+  margin-bottom: 0;
+}
+
+.v2-callout-content ul,
+.v2-callout-content ol {
+  margin: 0.25rem 0 0.25rem 1.25rem;
+  padding: 0;
+}
+
+.v2-callout-content li {
+  margin-bottom: 0.125rem;
+}
+
+.v2-callout-content code {
+  background: rgba(0,0,0,0.06);
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+  font-size: 0.85em;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+}
+
+.v2-callout-content pre {
+  background: rgba(0,0,0,0.06);
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  overflow-x: auto;
+  margin: 0.5rem 0;
+  font-size: 0.82em;
+}
+
+.v2-callout-content pre code {
+  background: none;
+  padding: 0;
+}
+
+.v2-callout-content a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.v2-callout-content strong {
+  font-weight: 600;
+}
+
+/* Variant-specific accent colors */
 .v2-callout-warning {
-  background: #FFF8E1;
-  border-left-color: var(--warning);
-  color: #7A6200;
+  background: linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%);
+  border-left-color: #D97706;
 }
 
 .v2-callout-tip {
-  background: var(--teal-light);
-  border-left-color: var(--teal);
-  color: #0D5C47;
+  background: linear-gradient(135deg, #F0FDFA 0%, #CCFBF1 100%);
+  border-left-color: #0D9488;
 }
 
 .v2-callout-ai {
-  background: #F3E8FF;
+  background: linear-gradient(135deg, #F5F3FF 0%, #EDE9FE 100%);
   border-left-color: #7C3AED;
-  color: #5B21B6;
 }
 
 .v2-callout-pr {
-  background: #EFF6FF;
-  border-left-color: #3B82F6;
-  color: #1E40AF;
+  background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%);
+  border-left-color: #2563EB;
 }
 
 .v2-callout-security {
-  background: #FFF0EE;
-  border-left-color: var(--error);
-  color: #991B1B;
+  background: linear-gradient(135deg, #FEF2F2 0%, #FEE2E2 100%);
+  border-left-color: #DC2626;
 }
 
 .v2-callout-command {
-  background: var(--bg-secondary);
-  border-left-color: var(--text-primary);
-  color: var(--text-primary);
+  background: linear-gradient(135deg, #F9FAFB 0%, #F3F4F6 100%);
+  border-left-color: #6B7280;
 }
 
 .v2-filelist {
