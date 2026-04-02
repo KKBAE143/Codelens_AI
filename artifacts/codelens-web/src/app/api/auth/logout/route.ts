@@ -19,7 +19,14 @@ export async function POST(request: NextRequest) {
 
   const origin = getOrigin(request);
   const response = NextResponse.json({ success: true, redirectTo: origin });
-  response.cookies.delete(SESSION_COOKIE);
+  response.cookies.set(SESSION_COOKIE, "", {
+    httpOnly: true,
+    secure: true,
+    sameSite: "lax",
+    path: "/",
+    maxAge: 0,
+    expires: new Date(0),
+  });
 
   return response;
 }
