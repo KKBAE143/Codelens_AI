@@ -221,7 +221,7 @@ export function CommandCardBlock({ block }: { block: V2CommandCardBlock }) {
       </div>
 
       {/* Expected output */}
-{block.expectedOu{block.expectedOutput && (
+      {block.expectedOutput && (
         <div className="v2-cmd-output-section">
           <div className="v2-cmd-output-label">Expected output</div>
           <pre className="v2-cmd-output-text">{block.expectedOutput}</pre>

@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
   try {
     token = await getUserGithubToken(user.id);
   } catch {
-    return NextResponse.json({ error: "GitHub token not found. Please sign in again." }, { status: 401 });
+    return NextResponse.json({ error: "GitHub token not found. Please sign out and sign in again to refresh your token." }, { status: 401 });
   }
 
   const headers: Record<string, string> = {
