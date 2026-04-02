@@ -88,6 +88,18 @@ export const v2CommandCardBlockSchema = z.object({
   })).optional(),
 });
 
+export const v2ExerciseBlockSchema = z.object({
+  type: z.literal("exercise"),
+  title: z.string().min(1),
+  task: z.string().min(1),
+  difficulty: z.enum(["easy", "medium", "hard"]).optional(),
+  files: z.array(z.object({
+    path: z.string(),
+    githubUrl: z.string().optional(),
+  })).optional(),
+  verificationHint: z.string().optional(),
+});
+
 export const v2BlockSchema = z.discriminatedUnion("type", [
   v2TextBlockSchema,
   v2CodeBlockSchema,
@@ -99,6 +111,7 @@ export const v2BlockSchema = z.discriminatedUnion("type", [
   v2DependencyCardBlockSchema,
   v2EnvVarCardBlockSchema,
   v2CommandCardBlockSchema,
+  v2ExerciseBlockSchema,
 ]);
 
 export const v2ChapterSchema = z.object({

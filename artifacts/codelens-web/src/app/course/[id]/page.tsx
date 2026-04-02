@@ -237,6 +237,8 @@ function V2ModuleContent({
   onPrev,
   onNext,
   onPractice,
+  doneExercises,
+  onExerciseDone,
 }: {
   module: V2Module;
   moduleIndex: number;
@@ -249,6 +251,8 @@ function V2ModuleContent({
   onPrev: () => void;
   onNext: () => void;
   onPractice: () => void;
+  doneExercises?: Record<string, boolean>;
+  onExerciseDone?: (key: string, done: boolean) => void;
 }) {
   const quizBlocks = mod.blocks.filter((b): b is V2QuizBlock => b.type === "quiz");
   const quizCount = quizBlocks.length;
@@ -314,7 +318,13 @@ function V2ModuleContent({
             <BlockRenderer
               block={block}
               githubUrl={githubUrl}
-              exerciseContext={block.type === "exercise" ? { courseId, moduleIndex, blockIndex: bi } : undefined}
+              exerciseContext={block.type === "exercise" ? {
+                courseId,
+                moduleIndex,
+                blockIndex: bi,
+                doneExercises,
+                onExerciseDone,
+              } : undefined}
             />
           </div>
         ))}
@@ -554,6 +564,7 @@ export default function CourseViewer() {
   const [lastSeenVersion, setLastSeenVersion] = useState<number | null>(null);
   const [showWhatsNew, setShowWhatsNew] = useState(false);
   const [showWizard, setShowWizard] = useState(false);
+  const [doneExercises, setDoneExercises] = useState<Record<string, boolean>>({});
   const [activeModuleIndex, setActiveModuleIndex] = useState(() => {
     if (typeof window !== "undefined") {
       const hash = window.location.hash;
@@ -608,7 +619,13 @@ export default function CourseViewer() {
     if (!courseId || !isAuthenticated) return;
     fetch(`/api/courses/${courseId}/progress`, { credentials: "include" })
       .then((r) => (r.ok ? r.json() : null))
-      .then((progressData: { completedModules?: number[]; lastSeenVersion?: number; moduleScores?: Record<string, number> } | null) => {
+      .then((progressData: {
+        completedModules?: number[];
+        lastSeenVersion?: number;
+        moduleScores?: Record<string, number>;
+        wizardConfig?: unknown;
+        doneExercises?: Record<string, boolean> | null;
+      } | null) => {
         if (progressData?.completedModules?.length) {
           setCompletedModules(progressData.completedModules);
         }
@@ -617,6 +634,14 @@ export default function CourseViewer() {
           const m = new Map<number, number>();
           Object.entries(progressData.moduleScores).forEach(([k, v]) => m.set(Number(k), v));
           setQuizScores(m);
+        }
+        if (progressData?.doneExercises && typeof progressData.doneExercises === "object") {
+          setDoneExercises(progressData.doneExercises as Record<string, boolean>);
+        }
+        const wizardDoneOnServer = !!progressData?.wizardConfig;
+        const wizardDoneLocally = (() => { try { return !!localStorage.getItem(`wizard-${courseId}`); } catch { return false; } })();
+        if (wizardDoneOnServer && !wizardDoneLocally) {
+          try { localStorage.setItem(`wizard-${courseId}`, "done"); } catch {}
         }
         setProgressInitialized(true);
       })

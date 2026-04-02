@@ -20,6 +20,8 @@ export interface ExerciseContext {
   courseId: string;
   moduleIndex: number;
   blockIndex: number;
+  doneExercises?: Record<string, boolean>;
+  onExerciseDone?: (key: string, done: boolean) => void;
 }
 
 interface BlockRendererProps {
@@ -54,7 +56,19 @@ function BlockContent({ block, githubUrl, exerciseContext }: BlockRendererProps)
       const doneKey = exerciseContext
         ? `ex-${exerciseContext.courseId}-m${exerciseContext.moduleIndex}-b${exerciseContext.blockIndex}`
         : undefined;
-      return <ExerciseBlock block={block} doneKey={doneKey} />;
+      const initialDone = doneKey ? !!(exerciseContext?.doneExercises?.[doneKey]) : false;
+      return (
+        <ExerciseBlock
+          block={block}
+          doneKey={doneKey}
+          initialDone={initialDone}
+          onDone={
+            doneKey && exerciseContext?.onExerciseDone
+              ? (done) => exerciseContext.onExerciseDone!(doneKey, done)
+              : undefined
+          }
+        />
+      );
     }
     default:
       return null;

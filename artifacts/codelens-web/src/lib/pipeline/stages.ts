@@ -288,6 +288,39 @@ function normalizeBlock(block: unknown): unknown {
           ? record.commonErrors
           : undefined,
       };
+    case "exercise": {
+      const exFiles = Array.isArray(record.files)
+        ? record.files
+            .map((f) => {
+              if (typeof f === "string") return { path: f };
+              if (!f || typeof f !== "object") return null;
+              const fi = f as Record<string, unknown>;
+              const path = String(fi.path || fi.filePath || "").trim();
+              if (!path) return null;
+              return {
+                path,
+                githubUrl: typeof fi.githubUrl === "string" ? fi.githubUrl : undefined,
+              };
+            })
+            .filter(Boolean)
+        : undefined;
+      return {
+        type: "exercise",
+        title: String(record.title || record.name || "Exercise").trim(),
+        task: String(record.task || record.description || record.objective || "").trim(),
+        difficulty:
+          ["easy", "medium", "hard"].includes(String(record.difficulty))
+            ? record.difficulty
+            : undefined,
+        files: exFiles && exFiles.length > 0 ? exFiles : undefined,
+        verificationHint:
+          typeof record.verificationHint === "string"
+            ? record.verificationHint
+            : typeof record.hint === "string"
+              ? record.hint
+              : undefined,
+      };
+    }
     default:
       return null;
   }

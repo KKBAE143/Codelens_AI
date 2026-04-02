@@ -89,6 +89,8 @@ export async function GET(
     completedAt: existing.completedAt,
     lastSeenVersion: existing.lastSeenVersion || 1,
     moduleScores,
+    wizardConfig: existing.wizardConfig ?? null,
+    doneExercises: existing.doneExercises ?? null,
   });
 }
 
