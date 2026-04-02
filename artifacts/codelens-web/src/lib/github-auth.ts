@@ -63,7 +63,7 @@ export async function getUserGithubToken(userId: string): Promise<string> {
 
   if (!user?.githubAccessToken) {
     throw new Error(
-      "GitHub access token not found. Please sign in again to reconnect your GitHub account.",
+      "GitHub access token not found. Please sign out and sign in again to refresh your token.",
     );
   }
 
