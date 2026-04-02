@@ -39,14 +39,9 @@ export function useAuth(): AuthState {
     window.location.href = "/api/auth/login?returnTo=/";
   }, []);
 
-  const logout = useCallback(async () => {
-    try {
-      const res = await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
-      const data = await res.json();
-      window.location.href = data.redirectTo || "/";
-    } catch {
-      window.location.href = "/";
-    }
+  const logout = useCallback(() => {
+    document.cookie = "sid=; Max-Age=0; path=/;";
+    window.location.href = "/api/auth/logout";
   }, []);
 
   return {

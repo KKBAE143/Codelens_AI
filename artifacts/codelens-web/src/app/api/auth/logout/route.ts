@@ -11,14 +11,14 @@ function getOrigin(request: Request): string {
   return `${forwardedProto}://${forwardedHost}`;
 }
 
-export async function POST(request: NextRequest) {
+export async function GET(request: NextRequest) {
   const sid = request.cookies.get(SESSION_COOKIE)?.value;
   if (sid) {
     await deleteSession(sid);
   }
 
   const origin = getOrigin(request);
-  const response = NextResponse.json({ success: true, redirectTo: origin });
+  const response = NextResponse.redirect(origin);
   response.cookies.set(SESSION_COOKIE, "", {
     httpOnly: true,
     secure: true,
