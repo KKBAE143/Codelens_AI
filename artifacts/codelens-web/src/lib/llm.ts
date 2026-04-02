@@ -17,9 +17,10 @@ interface ModelConfig {
   model: string;
 }
 
-interface CloudflareCredentials {
+interface CloudflareCredential {
   accountId: string;
   authToken: string;
+  label: string;
 }
 
 interface CloudflareRunSuccess {
@@ -63,44 +64,111 @@ const TASK_POOL_INDEX: Record<LlmTask, number> = {
   summary: 0,
 };
 
-function getCredentialPool(): CloudflareCredentials[] {
-  const pool: CloudflareCredentials[] = [];
+function getCredentialsForTask(task: LlmTask): CloudflareCredential[] {
+  const stageCredentials = getCredentialVariants(taskToEnvPrefix(task));
 
-  for (let i = 1; i <= 10; i++) {
-    const accountId = process.env[`CLOUDFLARE_ACCOUNT_ID_${i}`]?.trim();
-    const authToken = process.env[`CLOUDFLARE_AUTH_TOKEN_${i}`]?.trim();
-    if (accountId && authToken) {
-      pool.push({ accountId, authToken });
+  if (stageCredentials.length > 0) {
+    return reorderCredentials(stageCredentials, task);
+  }
+
+  if (task === "summary") {
+    const stage1Credentials = getCredentialVariants("CLOUDFLARE_STAGE1");
+
+    if (stage1Credentials.length > 0) {
+      return reorderCredentials(
+        stage1Credentials.map((credential, index) => ({
+          ...credential,
+          label: `summary-fallback-${index + 1}`,
+        })),
+        task,
+      );
     }
   }
 
-  if (pool.length > 0) return pool;
+  const sharedCredentials = getCredentialVariants("CLOUDFLARE");
 
-  const accountId = process.env.CLOUDFLARE_ACCOUNT_ID?.trim();
-  const authToken = process.env.CLOUDFLARE_AUTH_TOKEN?.trim();
-  if (accountId && authToken) {
-    pool.push({ accountId, authToken });
-  }
-
-  return pool;
-}
-
-function getCredentialsForTask(task: LlmTask): CloudflareCredentials[] {
-  const pool = getCredentialPool();
-  if (pool.length === 0) {
+  if (sharedCredentials.length === 0) {
     throw new Error(
-      "Cloudflare Workers AI is not configured. Set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_AUTH_TOKEN (or _1/_2/_3 variants for pool rotation).",
+      "Cloudflare Workers AI is not configured. Set CLOUDFLARE_ACCOUNT_ID/CLOUDFLARE_AUTH_TOKEN, numbered CLOUDFLARE_ACCOUNT_ID_1/CLOUDFLARE_AUTH_TOKEN_1 pool entries, or per-stage CLOUDFLARE_STAGE{N}_ACCOUNT_ID/CLOUDFLARE_STAGE{N}_AUTH_TOKEN values.",
     );
   }
 
-  if (pool.length === 1) return pool;
+  return reorderCredentials(sharedCredentials, task);
+}
 
-  const primaryIdx = TASK_POOL_INDEX[task] % pool.length;
-  const ordered: CloudflareCredentials[] = [];
-  for (let i = 0; i < pool.length; i++) {
-    ordered.push(pool[(primaryIdx + i) % pool.length]);
+function reorderCredentials(
+  credentials: CloudflareCredential[],
+  task: LlmTask,
+): CloudflareCredential[] {
+  if (credentials.length <= 1) {
+    return credentials;
   }
+
+  const primaryIdx = TASK_POOL_INDEX[task] % credentials.length;
+  const ordered: CloudflareCredential[] = [];
+
+  for (let i = 0; i < credentials.length; i++) {
+    ordered.push(credentials[(primaryIdx + i) % credentials.length]);
+  }
+
   return ordered;
+}
+
+function taskToEnvPrefix(task: LlmTask): string {
+  switch (task) {
+    case "stage1":
+      return "CLOUDFLARE_STAGE1";
+    case "stage2":
+      return "CLOUDFLARE_STAGE2";
+    case "stage3":
+      return "CLOUDFLARE_STAGE3";
+    case "summary":
+      return "CLOUDFLARE_SUMMARY";
+  }
+}
+
+function getCredentialVariants(prefix: string): CloudflareCredential[] {
+  const credentials: CloudflareCredential[] = [];
+
+  const sharedAccountId = process.env[`${prefix}_ACCOUNT_ID`]?.trim();
+  const sharedAuthToken = process.env[`${prefix}_AUTH_TOKEN`]?.trim();
+
+  if (sharedAccountId || sharedAuthToken) {
+    if (!sharedAccountId || !sharedAuthToken) {
+      throw new Error(
+        `Incomplete Cloudflare credential set for ${prefix}. Both ACCOUNT_ID and AUTH_TOKEN are required.`,
+      );
+    }
+
+    credentials.push({
+      accountId: sharedAccountId,
+      authToken: sharedAuthToken,
+      label: `${prefix.toLowerCase()}_shared`,
+    });
+  }
+
+  for (let index = 1; index <= 10; index++) {
+    const accountId = process.env[`${prefix}_ACCOUNT_ID_${index}`]?.trim();
+    const authToken = process.env[`${prefix}_AUTH_TOKEN_${index}`]?.trim();
+
+    if (!accountId && !authToken) {
+      continue;
+    }
+
+    if (!accountId || !authToken) {
+      throw new Error(
+        `Incomplete Cloudflare credential set for ${prefix}_${index}. Both ACCOUNT_ID and AUTH_TOKEN are required.`,
+      );
+    }
+
+    credentials.push({
+      accountId,
+      authToken,
+      label: `${prefix.toLowerCase()}_${index}`,
+    });
+  }
+
+  return credentials;
 }
 
 function getTaskConfigs(task: LlmTask): ModelConfig[] {
@@ -119,13 +187,13 @@ export async function generateText(
   const credentials = getCredentialsForTask(options.task);
   const errors: string[] = [];
 
-  for (const cred of credentials) {
+  for (const credential of credentials) {
     for (const config of getTaskConfigs(options.task)) {
       for (let attempt = 1; attempt <= 3; attempt++) {
         try {
           const text = await generateWithCloudflare(
-            cred.accountId,
-            cred.authToken,
+            credential.accountId,
+            credential.authToken,
             config.model,
             options,
           );
@@ -136,7 +204,7 @@ export async function generateText(
 
           if (isQuotaError(message)) {
             errors.push(
-              `cloudflare:${config.model}[pool] -> ${message}`,
+              `cloudflare:${credential.label}:${config.model}[quota] -> ${message}`,
             );
             break;
           }
@@ -147,7 +215,7 @@ export async function generateText(
 
           if (!shouldRetry) {
             errors.push(
-              `cloudflare:${config.model} -> ${message}`,
+              `cloudflare:${credential.label}:${config.model} -> ${message}`,
             );
             break;
           }
