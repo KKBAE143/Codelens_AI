@@ -1,27 +1,10 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { ReactorKnob } from "./ui/control-knob";
-import {
-  PERSONAS,
-  DEPTH_PRESETS,
-  FOCUS_AREAS,
-  type WizardConfig,
-} from "@/lib/course-types";
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { PERSONAS, DEPTH_PRESETS, FOCUS_AREAS, type WizardConfig } from "@/lib/course-types";
+import { ReactorKnob } from "@/components/ui/control-knob";
 
-interface RepoMeta {
-  name: string;
-  fullName: string;
-  description: string | null;
-  stars: number;
-  language: string | null;
-  languages?: Record<string, number>;
-  updatedAt: string;
-  owner: { avatar: string; login: string };
-}
-
-interface RepoPreviewData {
+interface RepoPreview {
   name: string;
   fullName: string;
   description: string | null;
@@ -33,841 +16,552 @@ interface RepoPreviewData {
 interface CourseWizardModalProps {
   githubUrl: string;
   organizationSlug?: string;
-  repoPreview?: RepoPreviewData | null;
+  repoPreview: RepoPreview | null;
   onClose: () => void;
 }
 
-const STORAGE_KEY = "codelens_wizard_prefs";
+/* ── Inline SVG Icons ─────────────────────────────────────────────── */
 
-function loadPrefs(): Partial<WizardConfig> {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
+function CloseIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="18" y1="6" x2="6" y2="18" />
+      <line x1="6" y1="6" x2="18" y2="18" />
+    </svg>
+  );
 }
 
-function savePrefs(config: WizardConfig) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
-  } catch {}
+function ChevronRightIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="9 18 15 12 9 6" />
+    </svg>
+  );
 }
 
-const GENERATION_STAGES = [
-  {
-    key: "extracting",
-    label: "Cloning Repository",
-    icon: "clone",
-    avgSeconds: 15,
-  },
-  {
-    key: "analyzing",
-    label: "Analyzing Codebase",
-    icon: "analyze",
-    avgSeconds: 30,
-  },
-  {
-    key: "designing",
-    label: "Designing Curriculum",
-    icon: "design",
-    avgSeconds: 45,
-  },
-  {
-    key: "generating",
-    label: "Building Course",
-    icon: "build",
-    avgSeconds: 90,
-  },
-  {
-    key: "polishing",
-    label: "Polishing Output",
-    icon: "polish",
-    avgSeconds: 30,
-  },
-  { key: "completed", label: "Course Ready!", icon: "done", avgSeconds: 0 },
-];
+function ChevronLeftIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="15 18 9 12 15 6" />
+    </svg>
+  );
+}
+
+function CheckCircleIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+      <polyline points="22 4 12 14.01 9 11.01" />
+    </svg>
+  );
+}
+
+function LightningIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+    </svg>
+  );
+}
+
+function AlertIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10" />
+      <line x1="12" y1="8" x2="12" y2="12" />
+      <line x1="12" y1="16" x2="12.01" y2="16" />
+    </svg>
+  );
+}
+
+/* ── Step Labels ──────────────────────────────────────────────────── */
+
+const STEPS = [
+  { key: "repo", label: "Repository" },
+  { key: "persona", label: "Role" },
+  { key: "customize", label: "Customize" },
+  { key: "review", label: "Review" },
+] as const;
+
+/* ── Component ────────────────────────────────────────────────────── */
 
 export function CourseWizardModal({
   githubUrl,
   organizationSlug,
-  repoPreview: initialPreview,
+  repoPreview,
   onClose,
 }: CourseWizardModalProps) {
-  const router = useRouter();
-  const savedPrefs = loadPrefs();
+  const [step, setStep] = useState(0);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [persona, setPersona] = useState("vibe_coder");
+  const [depth, setDepth] = useState<"quick" | "full" | "deep">("full");
+  const [focusAreas, setFocusAreas] = useState<string[]>([]);
+  const [customContext, setCustomContext] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generationProgress, setGenerationProgress] = useState(0);
+  const [generationStage, setGenerationStage] = useState("");
+  const [error, setError] = useState<string | null>(null);
 
-  const [step, setStep] = useState(1);
-  const [repoMeta, setRepoMeta] = useState<RepoMeta | null>(null);
-  const [repoLoading, setRepoLoading] = useState(true);
-  const [repoError, setRepoError] = useState<string | null>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
+  const firstFocusableRef = useRef<HTMLElement | null>(null);
 
-  const [persona, setPersona] = useState<string>(savedPrefs.persona || "");
-  const [depth, setDepth] = useState<"quick" | "full" | "deep">(
-    savedPrefs.depth || "full",
-  );
-  const [focusAreas, setFocusAreas] = useState<string[]>(
-    savedPrefs.focusAreas || [],
-  );
-  const [customContext, setCustomContext] = useState(
-    savedPrefs.customContext || "",
-  );
-
-  const [generating, setGenerating] = useState(false);
-  const [courseId, setCourseId] = useState<string | null>(null);
-  const [genStatus, setGenStatus] = useState("pending");
-  const [genProgress, setGenProgress] = useState<{
-    stage: string;
-    detail: string;
-    percent: number;
-    queuePosition?: number;
-    estimatedWait?: number;
-  }>({ stage: "pending", detail: "Waiting to start...", percent: 0 });
-  const [genError, setGenError] = useState<string | null>(null);
+  /* ── Keyboard & Focus Trap ─────────────────────────────────────── */
 
   useEffect(() => {
-    if (initialPreview) {
-      setRepoMeta({
-        name: initialPreview.name,
-        fullName: initialPreview.fullName,
-        description: initialPreview.description,
-        stars: initialPreview.stars,
-        language: initialPreview.language,
-        updatedAt: new Date().toISOString(),
-        owner: {
-          avatar: initialPreview.avatar,
-          login: initialPreview.fullName.split("/")[0],
-        },
-      });
-      setRepoLoading(false);
-      return;
-    }
-
-    const match = githubUrl.match(/github\.com\/([^/]+)\/([^/]+)/);
-    if (!match) {
-      setRepoError("Invalid GitHub URL");
-      setRepoLoading(false);
-      return;
-    }
-    const [, owner, repo] = match;
-
-    const controller = new AbortController();
-    fetch(
-      `/api/github/repo?repo=${encodeURIComponent(`${owner}/${repo.replace(/\.git$/, "")}`)}`,
-      {
-        signal: controller.signal,
-        credentials: "include",
-      },
-    )
-      .then((r) => {
-        if (!r.ok) throw new Error("Repository not found");
-        return r.json();
-      })
-      .then((data) => {
-        setRepoMeta({
-          name: data.name,
-          fullName: data.full_name,
-          description: data.description,
-          stars: data.stargazers_count,
-          language: data.language,
-          updatedAt: data.pushed_at,
-          owner: { avatar: data.owner.avatar_url, login: data.owner.login },
-        });
-      })
-      .catch((e) => {
-        if (e.name !== "AbortError") setRepoError(e.message);
-      })
-      .finally(() => setRepoLoading(false));
-
-    return () => controller.abort();
-  }, [githubUrl, initialPreview]);
-
-  const canProceed = useCallback(() => {
-    if (step === 1) return !!repoMeta;
-    if (step === 2) return !!persona;
-    if (step === 3) return true;
-    return true;
-  }, [step, repoMeta, persona]);
-
-  const handleGenerate = useCallback(async () => {
-    const config: WizardConfig = { persona, depth, focusAreas, customContext };
-    savePrefs(config);
-    setGenerating(true);
-    setGenError(null);
-
-    try {
-      const res = await fetch("/api/courses/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          githubUrl,
-          targetAudience: persona,
-          depth,
-          focusAreas,
-          customContext,
-          ...(organizationSlug ? { organizationSlug } : {}),
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to start generation");
-      setCourseId(data.courseId);
-    } catch (err) {
-      setGenError(err instanceof Error ? err.message : "Something went wrong");
-      setGenerating(false);
-    }
-  }, [githubUrl, persona, depth, focusAreas, customContext, organizationSlug]);
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !isGenerating) {
+        onClose();
+      }
+      if (e.key === "Enter" && !isGenerating && step < 3) {
+        e.preventDefault();
+        handleNext();
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [step, isGenerating]);
 
   useEffect(() => {
-    if (!courseId) return;
-    let active = true;
-    let eventSource: EventSource | null = null;
-    let pollTimer: ReturnType<typeof setTimeout> | null = null;
-
-    const handleStatusUpdate = (data: {
-      status: string;
-      progress?: {
-        stage: string;
-        detail: string;
-        percent: number;
-        queuePosition?: number;
-        estimatedWait?: number;
-      };
-      errorMessage?: string;
-    }) => {
-      if (!active) return;
-      setGenStatus(data.status);
-      if (data.progress) setGenProgress(data.progress);
-      if (data.errorMessage) setGenError(data.errorMessage);
-
-      if (data.status === "completed") {
-        import("canvas-confetti")
-          .then((mod) =>
-            mod.default({ particleCount: 100, spread: 70, origin: { y: 0.6 } }),
-          )
-          .catch(() => {});
-        setTimeout(() => router.push(`/course/${courseId}`), 1500);
+    // Focus trap: focus first interactive element on mount
+    if (modalRef.current && !isGenerating) {
+      const focusable = modalRef.current.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusable.length > 0) {
+        firstFocusableRef.current = focusable[0];
+        focusable[0].focus();
       }
-    };
+    }
+  }, [step, isGenerating]);
 
-    const trySSE = () => {
-      try {
-        eventSource = new EventSource(`/api/courses/${courseId}/status/stream`);
-        eventSource.onmessage = (event) => {
-          try {
-            const data = JSON.parse(event.data);
-            handleStatusUpdate(data);
-            if (data.status === "completed" || data.status === "failed") {
-              eventSource?.close();
-            }
-          } catch {}
-        };
-        eventSource.onerror = () => {
-          eventSource?.close();
-          eventSource = null;
-          if (active) fallbackToPoll();
-        };
-      } catch {
-        fallbackToPoll();
-      }
-    };
+  /* ── Navigation ─────────────────────────────────────────────────── */
 
-    const fallbackToPoll = () => {
-      const poll = async () => {
-        try {
-          const res = await fetch(`/api/courses/${courseId}/status`, {
-            credentials: "include",
-          });
-          if (!res.ok || !active) return;
-          const data = await res.json();
-          handleStatusUpdate(data);
-          if (data.status === "completed" || data.status === "failed") return;
-        } catch {}
-        if (active) pollTimer = setTimeout(poll, 2000);
-      };
-      poll();
-    };
+  const goToStep = useCallback(
+    (next: number) => {
+      if (next === step || next < 0 || next > 3) return;
+      setIsTransitioning(true);
+      setTimeout(() => {
+        setStep(next);
+        setIsTransitioning(false);
+      }, 200);
+    },
+    [step]
+  );
 
-    trySSE();
+  const handleNext = useCallback(() => {
+    if (step === 3) {
+      handleGenerate();
+      return;
+    }
+    goToStep(step + 1);
+  }, [step, goToStep]);
 
-    return () => {
-      active = false;
-      eventSource?.close();
-      if (pollTimer) clearTimeout(pollTimer);
-    };
-  }, [courseId, router]);
+  const handleBack = useCallback(() => {
+    if (isGenerating) return;
+    goToStep(step - 1);
+  }, [step, isGenerating, goToStep]);
 
-  const toggleFocusArea = (key: string) => {
+  /* ── Toggle Focus Area ──────────────────────────────────────────── */
+
+  const toggleFocus = (key: string) => {
     setFocusAreas((prev) =>
-      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
+      prev.includes(key) ? prev.filter((f) => f !== key) : [...prev, key]
     );
   };
 
-  const currentStageIndex = GENERATION_STAGES.findIndex(
-    (s) => s.key === genProgress.stage,
-  );
+  /* ── Generate Course ────────────────────────────────────────────── */
 
-  if (generating) {
-    const defaultLabel = genProgress.stage || "generating";
-    const label = genStatus === "failed" ? "FAILED" : genStatus === "completed" ? "COMPLETE" : defaultLabel;
-    const defaultDetail = genProgress.detail || "Waiting to start...";
-    const detail = genStatus === "failed" 
-        ? (genError || "An unexpected error occurred.") 
-        : genStatus === "completed" 
-            ? "Redirecting to your course..." 
-            : defaultDetail;
+  const handleGenerate = async () => {
+    setIsGenerating(true);
+    setGenerationProgress(0);
+    setGenerationStage("Analyzing repository...");
+    setError(null);
 
+    try {
+      const config: WizardConfig = {
+        persona,
+        depth,
+        focusAreas,
+        customContext,
+      };
+
+      const res = await fetch("/api/courses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          githubUrl,
+          organizationSlug,
+          config,
+        }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => null);
+        throw new Error(errData?.error || `Server error: ${res.status}`);
+      }
+
+      const data = await res.json();
+      const courseId = data.id;
+
+      // Poll for completion
+      const poll = async () => {
+        for (let i = 0; i < 120; i++) {
+          await new Promise((r) => setTimeout(r, 3000));
+          const statusRes = await fetch(`/api/courses/${courseId}`);
+          if (!statusRes.ok) continue;
+          const statusData = await statusRes.json();
+
+          if (statusData.status === "completed") {
+            setGenerationProgress(100);
+            setGenerationStage("Course ready!");
+            setTimeout(() => {
+              setIsGenerating(false);
+              window.location.href = `/course/${courseId}`;
+            }, 800);
+            return;
+          }
+          if (statusData.status === "failed") {
+            throw new Error(statusData.error || "Generation failed");
+          }
+
+          setGenerationStage(statusData.stage || "Processing...");
+          setGenerationProgress(Math.min(95, (i / 120) * 100));
+        }
+        throw new Error("Generation timed out");
+      };
+
+      await poll();
+    } catch (err: any) {
+      setError(err.message || "Something went wrong");
+      setIsGenerating(false);
+    }
+  };
+
+  /* ── Derived Values ─────────────────────────────────────────────── */
+
+  const selectedPersona = PERSONAS.find((p) => p.key === persona) || PERSONAS[0];
+  const depthPreset = DEPTH_PRESETS[depth];
+  const canProceed = step === 0 ? !!repoPreview : true;
+
+  /* ── Generating State ───────────────────────────────────────────── */
+
+  if (isGenerating) {
     return (
-      <>
-        <ReactorKnob
-          progress={genProgress.percent}
-          label={label.toUpperCase().replace("-", " ")}
-          detail={detail}
-        />
-        {genStatus === "failed" && (
-          <div
-            className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 backdrop-blur-sm"
-            onClick={(e) => {
-              if (e.target === e.currentTarget) onClose();
-            }}
-          >
-            <div className="bg-neutral-900 border border-red-500/30 p-8 rounded-xl text-center max-w-sm">
-              <div className="text-red-500 mb-4 text-5xl">⚠</div>
-              <h3 className="text-white font-bold mb-2 text-xl font-heading">Generation Failed</h3>
-              <p className="text-neutral-400 text-sm mb-6">{genError || "An unexpected error occurred during generation."}</p>
-              <button
-                className="bg-white text-black px-6 py-2.5 rounded-lg font-bold w-full transition-transform hover:scale-105 active:scale-95"
-                onClick={onClose}
-              >
-                Try Again
-              </button>
-            </div>
-          </div>
-        )}
-      </>
+      <ReactorKnob
+        progress={generationProgress}
+        label="Generating"
+        detail={generationStage}
+      />
     );
   }
 
-  return (
-    <div
-      className="modal-overlay"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div
-        className="modal-content wizard-modal"
-        style={{ maxWidth: 620 }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div
-          className="wizard-steps-indicator"
-          style={{ display: "flex", gap: "0.5rem", marginBottom: "1.5rem" }}
-        >
-          {[1, 2, 3, 4].map((s) => (
-            <div
-              key={s}
-              style={{
-                flex: 1,
-                height: 4,
-                borderRadius: 2,
-                background: s <= step ? "var(--accent)" : "var(--bg-tertiary)",
-                transition: "background 0.3s",
-              }}
-            />
-          ))}
-        </div>
+  /* ── Render ─────────────────────────────────────────────────────── */
 
+  return (
+    <div className="wizard-modal-overlay" onClick={onClose}>
+      <div
+        className="wizard-modal-container"
+        ref={modalRef}
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Course generation wizard"
+      >
+        {/* Close Button */}
         <button
+          className="wizard-close-btn"
           onClick={onClose}
-          style={{
-            position: "absolute",
-            top: "1rem",
-            right: "1rem",
-            background: "none",
-            border: "none",
-            fontSize: "1.2rem",
-            color: "var(--text-tertiary)",
-            cursor: "pointer",
-            lineHeight: 1,
-          }}
+          aria-label="Close wizard"
+          type="button"
         >
-          &times;
+          <CloseIcon />
         </button>
 
-        {step === 1 && (
-          <div>
-            <h2 className="wizard-title">Confirm Repository</h2>
-            <p className="wizard-subtitle">
-              Make sure this is the right repo before we begin.
-            </p>
-
-            {repoLoading && (
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "0.75rem",
-                }}
-              >
+        {/* Step Indicator */}
+        <div className="wizard-step-indicator">
+          {STEPS.map((s, i) => {
+            const isCompleted = i < step;
+            const isCurrent = i === step;
+            return (
+              <div key={s.key} className="wizard-step-item">
                 <div
-                  className="skeleton"
-                  style={{ height: 20, width: "60%" }}
-                />
-                <div
-                  className="skeleton"
-                  style={{ height: 16, width: "80%" }}
-                />
-                <div
-                  className="skeleton"
-                  style={{ height: 16, width: "40%" }}
-                />
-              </div>
-            )}
-
-            {repoError && (
-              <p style={{ color: "var(--error)", fontSize: "0.85rem" }}>
-                {repoError}
-              </p>
-            )}
-
-            {repoMeta && (
-              <div className="lux-repo-card">
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.75rem",
-                    marginBottom: "0.75rem",
-                  }}
+                  className="wizard-step-circle"
+                  data-state={isCompleted ? "completed" : isCurrent ? "current" : "upcoming"}
                 >
-                  <img
-                    src={repoMeta.owner.avatar}
-                    alt=""
-                    style={{ width: 40, height: 40, borderRadius: "50%" }}
+                  {isCompleted ? <CheckCircleIcon /> : <span>{i + 1}</span>}
+                </div>
+                <span
+                  className="wizard-step-label"
+                  data-active={isCurrent}
+                >
+                  {s.label}
+                </span>
+                {i < STEPS.length - 1 && (
+                  <div
+                    className="wizard-step-line"
+                    data-filled={i < step}
                   />
-                  <div>
-                    <div
-                      style={{
-                        fontFamily: "var(--font-mono)",
-                        fontSize: "0.95rem",
-                        fontWeight: 600,
-                      }}
-                    >
-                      {repoMeta.fullName}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: "0.8rem",
-                        color: "var(--text-tertiary)",
-                      }}
-                    >
-                      Updated{" "}
-                      {new Date(repoMeta.updatedAt).toLocaleDateString()}
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Error Banner */}
+        {error && (
+          <div className="wizard-error-banner">
+            <AlertIcon />
+            <span>{error}</span>
+          </div>
+        )}
+
+        {/* Step Content */}
+        <div
+          className={`wizard-content ${
+            isTransitioning ? "wizard-content-exit" : "wizard-content-enter"
+          }`}
+        >
+          {/* Step 0: Repository */}
+          {step === 0 && (
+            <div>
+              <h2 className="wizard-step-title">Repository</h2>
+              <p className="wizard-step-desc">
+                Confirm the repository you want to turn into a course.
+              </p>
+              {repoPreview ? (
+                <div className="wizard-repo-card">
+                  <img
+                    className="wizard-repo-avatar"
+                    src={repoPreview.avatar}
+                    alt=""
+                  />
+                  <div className="wizard-repo-info">
+                    <div className="wizard-repo-name">{repoPreview.fullName}</div>
+                    {repoPreview.description && (
+                      <p className="wizard-repo-desc">{repoPreview.description}</p>
+                    )}
+                    <div className="wizard-repo-tags">
+                      {repoPreview.language && (
+                        <span className="wizard-repo-tag">
+                          {repoPreview.language}
+                        </span>
+                      )}
+                      <span className="wizard-repo-tag">
+                        {repoPreview.stars.toLocaleString()} stars
+                      </span>
                     </div>
                   </div>
                 </div>
-                {repoMeta.description && (
-                  <p
-                    style={{
-                      fontSize: "0.85rem",
-                      color: "var(--text-secondary)",
-                      lineHeight: 1.5,
-                      marginBottom: "0.75rem",
-                    }}
-                  >
-                    {repoMeta.description}
-                  </p>
-                )}
-                <div
-                  style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}
-                >
-                  {repoMeta.language && (
-                    <span
-                      className="badge"
-                      style={{
-                        background: "var(--teal-light)",
-                        color: "var(--teal)",
-                      }}
-                    >
-                      {repoMeta.language}
-                    </span>
-                  )}
-                  <span
-                    className="badge"
-                    style={{
-                      background: "var(--bg-secondary)",
-                      color: "var(--text-secondary)",
-                    }}
-                  >
-                    {repoMeta.stars.toLocaleString()} stars
-                  </span>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {step === 2 && (
-          <div>
-            <h2 className="wizard-title">Who are you?</h2>
-            <p className="wizard-subtitle">
-              Choose your role so we tailor the course to you.
-            </p>
-
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: "1rem",
-              }}
-            >
-              {PERSONAS.map((p) => {
-                const isSelected = persona === p.key;
-                return (
-                  <button
-                    key={p.key}
-                    onClick={() => setPersona(p.key)}
-                    className={`lux-selector ${isSelected ? "selected" : ""}`}
-                  >
-                    <div style={{ fontSize: "1.75rem", marginBottom: "0.75rem" }}>
-                      {p.emoji}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: "0.9rem",
-                        fontWeight: 600,
-                        marginBottom: "0.25rem",
-                      }}
-                    >
-                      {p.label}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: "0.75rem",
-                        color: "var(--text-secondary)",
-                        lineHeight: 1.4,
-                        marginBottom: "0.5rem",
-                      }}
-                    >
-                      {p.tagline}
-                    </div>
-                    <ul
-                      style={{
-                        fontSize: "0.7rem",
-                        color: "var(--text-tertiary)",
-                        listStyle: "none",
-                        padding: 0,
-                      }}
-                    >
-                      {p.learnPoints.map((lp, i) => (
-                        <li key={i} style={{ marginBottom: "0.2rem" }}>
-                          {"\u2192"} {lp}
-                        </li>
-                      ))}
-                    </ul>
-                  </button>
-                );
-              })}
+              ) : (
+                <p className="wizard-step-desc" style={{ color: "var(--error)" }}>
+                  Could not load repository preview.
+                </p>
+              )}
             </div>
-          </div>
-        )}
+          )}
 
-        {step === 3 && (
-          <div>
-            <h2 className="wizard-title">Customize Your Course</h2>
-            <p className="wizard-subtitle">
-              Set the depth and focus areas for your learning experience.
-            </p>
-
-            <div style={{ marginBottom: "1.5rem" }}>
-              <label
-                style={{
-                  fontSize: "0.8rem",
-                  fontWeight: 600,
-                  color: "var(--text-primary)",
-                  marginBottom: "0.5rem",
-                  display: "block",
-                }}
-              >
-                Course Depth
-              </label>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr 1fr",
-                  gap: "0.75rem",
-                }}
-              >
-                {(
-                  Object.entries(DEPTH_PRESETS) as [
-                    keyof typeof DEPTH_PRESETS,
-                    (typeof DEPTH_PRESETS)[keyof typeof DEPTH_PRESETS],
-                  ][]
-                ).map(([key, preset]) => (
-                  <button
-                    key={key}
-                    onClick={() => setDepth(key as "quick" | "full" | "deep")}
-                    className={`lux-selector ${depth === key ? "selected" : ""}`}
-                    style={{ textAlign: "center", padding: "1rem" }}
-                  >
-                    <div style={{ fontSize: "0.85rem", fontWeight: 600 }}>
-                      {preset.label}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: "0.7rem",
-                        color: "var(--text-tertiary)",
-                        marginTop: "0.25rem",
-                      }}
-                    >
-                      ~{preset.modules} modules, {preset.minutes} min
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div style={{ marginBottom: "1.5rem" }}>
-              <label
-                style={{
-                  fontSize: "0.8rem",
-                  fontWeight: 600,
-                  color: "var(--text-primary)",
-                  marginBottom: "0.5rem",
-                  display: "block",
-                }}
-              >
-                Focus Areas{" "}
-                <span
-                  style={{ fontWeight: 400, color: "var(--text-tertiary)" }}
-                >
-                  (optional)
-                </span>
-              </label>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "0.6rem" }}>
-                {FOCUS_AREAS.map((fa) => {
-                  const isSelected = focusAreas.includes(fa.key);
+          {/* Step 1: Persona */}
+          {step === 1 && (
+            <div>
+              <h2 className="wizard-step-title">Who is this course for?</h2>
+              <p className="wizard-step-desc">
+                Pick the role that best matches your audience. The AI will tailor the content accordingly.
+              </p>
+              <div className="wizard-persona-grid">
+                {PERSONAS.map((p) => {
+                  const isSelected = p.key === persona;
                   return (
                     <button
-                      key={fa.key}
-                      onClick={() => toggleFocusArea(fa.key)}
-                      className={`lux-badge ${isSelected ? "selected" : ""}`}
+                      key={p.key}
+                      className="wizard-persona-card"
+                      data-selected={isSelected}
+                      onClick={() => setPersona(p.key)}
+                      type="button"
                     >
-                      {fa.emoji} {fa.label}
+                      <div className="wizard-persona-emoji">{p.emoji}</div>
+                      <div className="wizard-persona-name">{p.label}</div>
+                      <div className="wizard-persona-tagline">{p.tagline}</div>
+                      <ul className="wizard-persona-points">
+                        {p.learnPoints.map((pt, i) => (
+                          <li key={i}>{pt}</li>
+                        ))}
+                      </ul>
+                      {isSelected && (
+                        <div className="wizard-persona-check">
+                          <CheckCircleIcon />
+                        </div>
+                      )}
                     </button>
                   );
                 })}
               </div>
             </div>
+          )}
 
+          {/* Step 2: Customize */}
+          {step === 2 && (
             <div>
-              <label
-                style={{
-                  fontSize: "0.8rem",
-                  fontWeight: 600,
-                  color: "var(--text-primary)",
-                  marginBottom: "0.5rem",
-                  display: "block",
-                }}
-              >
-                Anything specific?{" "}
-                <span
-                  style={{ fontWeight: 400, color: "var(--text-tertiary)" }}
-                >
-                  (optional)
-                </span>
-              </label>
-              <textarea
-                value={customContext}
-                onChange={(e) => setCustomContext(e.target.value)}
-                placeholder="e.g., I want to understand how the auth system works with the database..."
-                style={{
-                  width: "100%",
-                  minHeight: 70,
-                  padding: "0.75rem",
-                  border: "1.5px solid var(--border-color)",
-                  borderRadius: "var(--radius-sm)",
-                  fontSize: "0.85rem",
-                  fontFamily: "var(--font-body)",
-                  resize: "vertical",
-                  outline: "none",
-                }}
-                onFocus={(e) => (e.target.style.borderColor = "var(--accent)")}
-                onBlur={(e) =>
-                  (e.target.style.borderColor = "var(--border-color)")
-                }
-              />
-            </div>
-          </div>
-        )}
-
-        {step === 4 && (
-          <div>
-            <h2 className="wizard-title">Ready to Generate</h2>
-            <p className="wizard-subtitle">
-              Review your selections and start building your course.
-            </p>
-
-            <div
-              style={{
-                border: "1px solid var(--border-color)",
-                borderRadius: "var(--radius-md)",
-                padding: "1rem",
-                display: "flex",
-                flexDirection: "column",
-                gap: "0.75rem",
-                marginBottom: "1rem",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  fontSize: "0.85rem",
-                }}
-              >
-                <span style={{ color: "var(--text-tertiary)" }}>
-                  Repository
-                </span>
-                <span
-                  style={{ fontFamily: "var(--font-mono)", fontWeight: 600 }}
-                >
-                  {repoMeta?.fullName ||
-                    githubUrl.replace("https://github.com/", "")}
-                </span>
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  fontSize: "0.85rem",
-                }}
-              >
-                <span style={{ color: "var(--text-tertiary)" }}>Persona</span>
-                <span style={{ fontWeight: 600 }}>
-                  {PERSONAS.find((p) => p.key === persona)?.label}
-                </span>
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  fontSize: "0.85rem",
-                }}
-              >
-                <span style={{ color: "var(--text-tertiary)" }}>Depth</span>
-                <span style={{ fontWeight: 600 }}>
-                  {DEPTH_PRESETS[depth].label} (~{DEPTH_PRESETS[depth].modules}{" "}
-                  modules)
-                </span>
-              </div>
-              {focusAreas.length > 0 && (
-                <div>
-                  <span
-                    style={{
-                      color: "var(--text-tertiary)",
-                      fontSize: "0.85rem",
-                    }}
-                  >
-                    Focus areas
-                  </span>
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: "0.375rem",
-                      flexWrap: "wrap",
-                      marginTop: "0.375rem",
-                    }}
-                  >
-                    {focusAreas.map((key) => {
-                      const fa = FOCUS_AREAS.find((f) => f.key === key);
-                      return fa ? (
-                        <span
-                          key={key}
-                          className="badge"
-                          style={{
-                            background: "var(--accent-light)",
-                            color: "var(--accent)",
-                          }}
-                        >
-                          {fa.emoji} {fa.label}
-                        </span>
-                      ) : null;
-                    })}
-                  </div>
-                </div>
-              )}
-              {customContext && (
-                <div style={{ fontSize: "0.8rem" }}>
-                  <span style={{ color: "var(--text-tertiary)" }}>
-                    Custom context
-                  </span>
-                  <p
-                    style={{
-                      color: "var(--text-secondary)",
-                      marginTop: "0.25rem",
-                      fontStyle: "italic",
-                    }}
-                  >
-                    {customContext}
-                  </p>
-                </div>
-              )}
-            </div>
-
-            {genError && (
-              <p
-                style={{
-                  color: "var(--error)",
-                  fontSize: "0.85rem",
-                  marginBottom: "0.75rem",
-                }}
-              >
-                {genError}
+              <h2 className="wizard-step-title">Customize your course</h2>
+              <p className="wizard-step-desc">
+                Choose how deep to go and which areas to focus on.
               </p>
-            )}
-          </div>
-        )}
 
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            marginTop: "1.5rem",
-            gap: "0.75rem",
-          }}
-        >
-          {step > 1 ? (
+              {/* Course Depth */}
+              <div className="wizard-section">
+                <label className="wizard-section-label">Course Depth</label>
+                <div className="wizard-depth-grid">
+                  {(Object.entries(DEPTH_PRESETS) as [string, typeof DEPTH_PRESETS.quick][]).map(
+                    ([key, preset]) => {
+                      const isSelected = key === depth;
+                      return (
+                        <button
+                          key={key}
+                          className="wizard-depth-card"
+                          data-selected={isSelected}
+                          onClick={() => setDepth(key as "quick" | "full" | "deep")}
+                          type="button"
+                        >
+                          <div className="wizard-depth-name">{preset.label}</div>
+                          <div className="wizard-depth-detail">
+                            {preset.modules} modules &middot; ~{preset.minutes} min
+                          </div>
+                          <div className="wizard-depth-detail">{preset.description}</div>
+                        </button>
+                      );
+                    }
+                  )}
+                </div>
+              </div>
+
+              {/* Focus Areas */}
+              <div className="wizard-section">
+                <label className="wizard-section-label">
+                  Focus Areas <span className="wizard-section-optional">(optional)</span>
+                </label>
+                <div className="wizard-focus-grid">
+                  {FOCUS_AREAS.map((area) => {
+                    const isSelected = focusAreas.includes(area.key);
+                    return (
+                      <button
+                        key={area.key}
+                        className="wizard-focus-pill"
+                        data-selected={isSelected}
+                        onClick={() => toggleFocus(area.key)}
+                        type="button"
+                      >
+                        {area.emoji} {area.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Custom Context */}
+              <div className="wizard-section">
+                <label className="wizard-section-label">
+                  Custom Context <span className="wizard-section-optional">(optional)</span>
+                </label>
+                <textarea
+                  className="wizard-textarea"
+                  placeholder="Add any extra context for the AI — e.g. 'Focus on the authentication flow' or 'Skip the CI/CD section'..."
+                  value={customContext}
+                  onChange={(e) => setCustomContext(e.target.value)}
+                  rows={3}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Step 3: Review */}
+          {step === 3 && (
+            <div>
+              <h2 className="wizard-step-title">Review & Generate</h2>
+              <p className="wizard-step-desc">
+                Double-check your settings before generating the course.
+              </p>
+              <div className="wizard-summary-card">
+                <div className="wizard-summary-row">
+                  <span className="wizard-summary-label">Repository</span>
+                  <span className="wizard-summary-value wizard-summary-mono">
+                    {repoPreview?.fullName || githubUrl}
+                  </span>
+                </div>
+                <div className="wizard-summary-divider" />
+                <div className="wizard-summary-row">
+                  <span className="wizard-summary-label">Persona</span>
+                  <span className="wizard-summary-value">
+                    {selectedPersona.emoji} {selectedPersona.label}
+                  </span>
+                </div>
+                <div className="wizard-summary-divider" />
+                <div className="wizard-summary-row">
+                  <span className="wizard-summary-label">Depth</span>
+                  <span className="wizard-summary-value">{depthPreset.label}</span>
+                </div>
+                <div className="wizard-summary-divider" />
+                <div className="wizard-summary-row">
+                  <span className="wizard-summary-label">Focus Areas</span>
+                  <span className="wizard-summary-value">
+                    {focusAreas.length > 0 ? (
+                      <span className="wizard-summary-tags">
+                        {focusAreas.map((key) => {
+                          const area = FOCUS_AREAS.find((a) => a.key === key);
+                          return (
+                            <span key={key} className="wizard-summary-tag">
+                              {area?.emoji} {area?.label}
+                            </span>
+                          );
+                        })}
+                      </span>
+                    ) : (
+                      <span className="wizard-summary-muted">None selected</span>
+                    )}
+                  </span>
+                </div>
+                <div className="wizard-summary-divider" />
+                <div className="wizard-summary-row" style={{ flexDirection: "column", alignItems: "flex-start", gap: "0.25rem" }}>
+                  <span className="wizard-summary-label">Custom Context</span>
+                  <span className="wizard-summary-value wizard-summary-context">
+                    {customContext || (
+                      <span className="wizard-summary-muted">Not provided</span>
+                    )}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="wizard-footer">
+          {step > 0 ? (
             <button
-              className="btn-secondary"
-              onClick={() => setStep(step - 1)}
-              style={{ fontSize: "0.85rem" }}
+              className="wizard-btn-back"
+              onClick={handleBack}
+              type="button"
+              disabled={isGenerating}
             >
-              Back
+              <ChevronLeftIcon /> Back
             </button>
           ) : (
             <div />
           )}
-
-          {step < 4 ? (
-            <button
-              className="btn-primary"
-              onClick={() => setStep(step + 1)}
-              disabled={!canProceed()}
-              style={{ fontSize: "0.85rem", padding: "0.625rem 1.5rem" }}
-            >
-              Continue
-            </button>
-          ) : (
-            <button
-              className="btn-primary"
-              onClick={handleGenerate}
-              style={{ fontSize: "0.85rem", padding: "0.625rem 1.5rem" }}
-            >
-              Generate Course
-            </button>
-          )}
+          <button
+            className={step === 3 ? "wizard-btn-generate" : "wizard-btn-next"}
+            onClick={step === 3 ? handleGenerate : handleNext}
+            type="button"
+            disabled={!canProceed}
+          >
+            {step === 3 ? (
+              <>
+                <LightningIcon /> Generate Course
+              </>
+            ) : (
+              <>
+                Continue <ChevronRightIcon />
+              </>
+            )}
+          </button>
         </div>
       </div>
     </div>
