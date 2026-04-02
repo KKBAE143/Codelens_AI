@@ -12,7 +12,6 @@ import { FlashcardReview, FlashcardDueBanner } from "@/components/FlashcardRevie
 import { PracticeMode } from "@/components/PracticeMode";
 import { CourseWizard } from "@/components/CourseWizard";
 import {
-  isV2Course,
   parseV2Course,
   type V2Block,
   type V2CourseData,
@@ -62,12 +61,13 @@ interface CourseData {
   difficulty: string | null;
   estimatedMinutes: number | null;
   moduleCount: number | null;
-  html: string;
+  html: string | null;
+  v2Data?: V2CourseData | null;
   version: number;
   changesSince: ChangesSince | null;
   shareToken: string | null;
   isPublic: boolean;
-  createdBy: string;
+  createdBy: string | null;
 }
 
 async function fetchCourse(id: string): Promise<{ course: CourseData; webhook: WebhookInfo | null }> {
@@ -587,15 +587,18 @@ export default function CourseViewer() {
     queryKey: ["course", courseId],
     queryFn: () => fetchCourse(courseId),
     enabled: isAuthenticated && !!courseId,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   const course = data?.course ?? null;
   const webhookInfo = data?.webhook ?? null;
 
   const v2Data: V2CourseData | null = useMemo(() => {
+    if (course?.v2Data) return course.v2Data;
     if (!course?.html) return null;
     return parseV2Course(course.html);
-  }, [course?.html]);
+  }, [course?.v2Data, course?.html]);
 
   const isV2 = !!v2Data;
 
@@ -818,7 +821,7 @@ export default function CourseViewer() {
     );
   }
 
-  if (!course || !course.html) {
+  if (!course || (!course.html && !course.v2Data)) {
     return (
       <main style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
         <p style={{ color: "var(--text-secondary)" }}>Course content is not available yet.</p>

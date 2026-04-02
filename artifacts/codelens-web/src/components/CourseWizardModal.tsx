@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { ReactorKnob } from "./ui/control-knob";
 import {
   PERSONAS,
   DEPTH_PRESETS,
@@ -307,179 +308,43 @@ export function CourseWizardModal({
   );
 
   if (generating) {
+    const defaultLabel = genProgress.stage || "generating";
+    const label = genStatus === "failed" ? "FAILED" : genStatus === "completed" ? "COMPLETE" : defaultLabel;
+    const defaultDetail = genProgress.detail || "Waiting to start...";
+    const detail = genStatus === "failed" 
+        ? (genError || "An unexpected error occurred.") 
+        : genStatus === "completed" 
+            ? "Redirecting to your course..." 
+            : defaultDetail;
+
     return (
-      <div
-        className="modal-overlay"
-        onClick={(e) =>
-          e.target === e.currentTarget && genStatus === "failed" && onClose()
-        }
-      >
-        <div className="modal-content" style={{ maxWidth: 560 }}>
-          <div style={{ textAlign: "center", marginBottom: "1.5rem" }}>
-            <h2
-              style={{
-                fontFamily: "var(--font-heading)",
-                fontSize: "1.5rem",
-                fontWeight: 700,
-                marginBottom: "0.5rem",
-              }}
-            >
-              {genStatus === "completed"
-                ? "Your course is ready!"
-                : genStatus === "failed"
-                  ? "Generation failed"
-                  : "Generating your course..."}
-            </h2>
-            {genStatus !== "completed" && genStatus !== "failed" && (
-              <p
-                style={{ color: "var(--text-secondary)", fontSize: "0.85rem" }}
-              >
-                {genProgress.queuePosition
-                  ? `Position ${genProgress.queuePosition} in queue — ~${Math.ceil((genProgress.estimatedWait || 120) / 60)} min`
-                  : "This typically takes 2-4 minutes"}
-              </p>
-            )}
-          </div>
-
+      <>
+        <ReactorKnob
+          progress={genProgress.percent}
+          label={label.toUpperCase().replace("-", " ")}
+          detail={detail}
+        />
+        {genStatus === "failed" && (
           <div
-            style={{
-              background: "var(--bg-secondary)",
-              borderRadius: "var(--radius-md)",
-              height: 6,
-              marginBottom: "1.5rem",
-              overflow: "hidden",
+            className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 backdrop-blur-sm"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) onClose();
             }}
           >
-            <div
-              style={{
-                height: "100%",
-                width: `${genProgress.percent}%`,
-                background:
-                  genStatus === "failed" ? "var(--error)" : "var(--accent)",
-                borderRadius: "var(--radius-md)",
-                transition: "width 0.5s ease",
-              }}
-            />
-          </div>
-
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "0.75rem",
-              marginBottom: "1.5rem",
-            }}
-          >
-            {GENERATION_STAGES.map((stage, i) => {
-              const isActive = stage.key === genProgress.stage;
-              const isDone = currentStageIndex > i || genStatus === "completed";
-              const isFuture =
-                currentStageIndex < i && genStatus !== "completed";
-              return (
-                <div
-                  key={stage.key}
-                  style={{
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: "0.75rem",
-                    opacity: isFuture ? 0.35 : 1,
-                    transition: "opacity 0.3s",
-                  }}
-                >
-                  <div
-                    style={{
-                      width: 24,
-                      height: 24,
-                      borderRadius: "50%",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: "0.7rem",
-                      fontWeight: 700,
-                      flexShrink: 0,
-                      background: isDone
-                        ? "var(--teal)"
-                        : isActive
-                          ? "var(--accent)"
-                          : "var(--bg-tertiary)",
-                      color:
-                        isDone || isActive ? "white" : "var(--text-tertiary)",
-                    }}
-                  >
-                    {isDone ? "\u2713" : i + 1}
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div
-                      style={{
-                        fontSize: "0.9rem",
-                        fontWeight: isActive ? 600 : 400,
-                        color: isActive
-                          ? "var(--text-primary)"
-                          : "var(--text-secondary)",
-                      }}
-                    >
-                      {stage.label}
-                    </div>
-                    {isActive && genProgress.detail && (
-                      <div
-                        style={{
-                          fontSize: "0.8rem",
-                          color: "var(--text-tertiary)",
-                          marginTop: "0.25rem",
-                        }}
-                      >
-                        {genProgress.detail}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {genStatus === "failed" && (
-            <div
-              style={{
-                background: "#FFF0EE",
-                border: "1px solid #F5C6C0",
-                borderRadius: "var(--radius-sm)",
-                padding: "1rem",
-              }}
-            >
-              <p
-                style={{
-                  fontSize: "0.85rem",
-                  color: "var(--error)",
-                  marginBottom: "0.75rem",
-                }}
-              >
-                {genError || "An unexpected error occurred during generation."}
-              </p>
+            <div className="bg-neutral-900 border border-red-500/30 p-8 rounded-xl text-center max-w-sm">
+              <div className="text-red-500 mb-4 text-5xl">⚠</div>
+              <h3 className="text-white font-bold mb-2 text-xl font-heading">Generation Failed</h3>
+              <p className="text-neutral-400 text-sm mb-6">{genError || "An unexpected error occurred during generation."}</p>
               <button
-                className="btn-primary"
+                className="bg-white text-black px-6 py-2.5 rounded-lg font-bold w-full transition-transform hover:scale-105 active:scale-95"
                 onClick={onClose}
-                style={{ width: "100%" }}
               >
                 Try Again
               </button>
             </div>
-          )}
-
-          {genStatus === "completed" && (
-            <div style={{ textAlign: "center" }}>
-              <p
-                style={{
-                  color: "var(--teal)",
-                  fontWeight: 600,
-                  fontSize: "0.95rem",
-                }}
-              >
-                Redirecting to your course...
-              </p>
-            </div>
-          )}
-        </div>
-      </div>
+          </div>
+        )}
+      </>
     );
   }
 
@@ -532,23 +397,8 @@ export function CourseWizardModal({
 
         {step === 1 && (
           <div>
-            <h2
-              style={{
-                fontFamily: "var(--font-heading)",
-                fontSize: "1.25rem",
-                fontWeight: 700,
-                marginBottom: "0.25rem",
-              }}
-            >
-              Confirm Repository
-            </h2>
-            <p
-              style={{
-                color: "var(--text-secondary)",
-                fontSize: "0.85rem",
-                marginBottom: "1.25rem",
-              }}
-            >
+            <h2 className="wizard-title">Confirm Repository</h2>
+            <p className="wizard-subtitle">
               Make sure this is the right repo before we begin.
             </p>
 
@@ -582,14 +432,7 @@ export function CourseWizardModal({
             )}
 
             {repoMeta && (
-              <div
-                className="wizard-repo-card"
-                style={{
-                  border: "1px solid var(--border-color)",
-                  borderRadius: "var(--radius-md)",
-                  padding: "1.25rem",
-                }}
-              >
+              <div className="lux-repo-card">
                 <div
                   style={{
                     display: "flex",
@@ -667,23 +510,8 @@ export function CourseWizardModal({
 
         {step === 2 && (
           <div>
-            <h2
-              style={{
-                fontFamily: "var(--font-heading)",
-                fontSize: "1.25rem",
-                fontWeight: 700,
-                marginBottom: "0.25rem",
-              }}
-            >
-              Who are you?
-            </h2>
-            <p
-              style={{
-                color: "var(--text-secondary)",
-                fontSize: "0.85rem",
-                marginBottom: "1.25rem",
-              }}
-            >
+            <h2 className="wizard-title">Who are you?</h2>
+            <p className="wizard-subtitle">
               Choose your role so we tailor the course to you.
             </p>
 
@@ -691,7 +519,7 @@ export function CourseWizardModal({
               style={{
                 display: "grid",
                 gridTemplateColumns: "1fr 1fr",
-                gap: "0.75rem",
+                gap: "1rem",
               }}
             >
               {PERSONAS.map((p) => {
@@ -700,31 +528,9 @@ export function CourseWizardModal({
                   <button
                     key={p.key}
                     onClick={() => setPersona(p.key)}
-                    style={{
-                      padding: "1rem",
-                      border: `2px solid ${isSelected ? "var(--accent)" : "var(--border-color)"}`,
-                      borderRadius: "var(--radius-md)",
-                      background: isSelected ? "var(--accent-light)" : "white",
-                      cursor: "pointer",
-                      textAlign: "left",
-                      transition: "all 0.15s",
-                      position: "relative",
-                    }}
+                    className={`lux-selector ${isSelected ? "selected" : ""}`}
                   >
-                    {isSelected && (
-                      <span
-                        style={{
-                          position: "absolute",
-                          top: 8,
-                          right: 8,
-                          color: "var(--accent)",
-                          fontSize: "1rem",
-                        }}
-                      >
-                        {"\u2713"}
-                      </span>
-                    )}
-                    <div style={{ fontSize: "1.5rem", marginBottom: "0.5rem" }}>
+                    <div style={{ fontSize: "1.75rem", marginBottom: "0.75rem" }}>
                       {p.emoji}
                     </div>
                     <div
@@ -769,23 +575,8 @@ export function CourseWizardModal({
 
         {step === 3 && (
           <div>
-            <h2
-              style={{
-                fontFamily: "var(--font-heading)",
-                fontSize: "1.25rem",
-                fontWeight: 700,
-                marginBottom: "0.25rem",
-              }}
-            >
-              Customize Your Course
-            </h2>
-            <p
-              style={{
-                color: "var(--text-secondary)",
-                fontSize: "0.85rem",
-                marginBottom: "1.25rem",
-              }}
-            >
+            <h2 className="wizard-title">Customize Your Course</h2>
+            <p className="wizard-subtitle">
               Set the depth and focus areas for your learning experience.
             </p>
 
@@ -805,7 +596,7 @@ export function CourseWizardModal({
                 style={{
                   display: "grid",
                   gridTemplateColumns: "1fr 1fr 1fr",
-                  gap: "0.5rem",
+                  gap: "0.75rem",
                 }}
               >
                 {(
@@ -817,16 +608,8 @@ export function CourseWizardModal({
                   <button
                     key={key}
                     onClick={() => setDepth(key as "quick" | "full" | "deep")}
-                    style={{
-                      padding: "0.75rem",
-                      border: `2px solid ${depth === key ? "var(--accent)" : "var(--border-color)"}`,
-                      borderRadius: "var(--radius-sm)",
-                      background:
-                        depth === key ? "var(--accent-light)" : "white",
-                      cursor: "pointer",
-                      textAlign: "center",
-                      transition: "all 0.15s",
-                    }}
+                    className={`lux-selector ${depth === key ? "selected" : ""}`}
+                    style={{ textAlign: "center", padding: "1rem" }}
                   >
                     <div style={{ fontSize: "0.85rem", fontWeight: 600 }}>
                       {preset.label}
@@ -862,28 +645,14 @@ export function CourseWizardModal({
                   (optional)
                 </span>
               </label>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "0.6rem" }}>
                 {FOCUS_AREAS.map((fa) => {
                   const isSelected = focusAreas.includes(fa.key);
                   return (
                     <button
                       key={fa.key}
                       onClick={() => toggleFocusArea(fa.key)}
-                      style={{
-                        padding: "0.375rem 0.75rem",
-                        border: `1.5px solid ${isSelected ? "var(--accent)" : "var(--border-color)"}`,
-                        borderRadius: "var(--radius-full)",
-                        background: isSelected
-                          ? "var(--accent-light)"
-                          : "white",
-                        color: isSelected
-                          ? "var(--accent)"
-                          : "var(--text-secondary)",
-                        cursor: "pointer",
-                        fontSize: "0.8rem",
-                        fontWeight: 500,
-                        transition: "all 0.15s",
-                      }}
+                      className={`lux-badge ${isSelected ? "selected" : ""}`}
                     >
                       {fa.emoji} {fa.label}
                     </button>
@@ -935,23 +704,8 @@ export function CourseWizardModal({
 
         {step === 4 && (
           <div>
-            <h2
-              style={{
-                fontFamily: "var(--font-heading)",
-                fontSize: "1.25rem",
-                fontWeight: 700,
-                marginBottom: "0.25rem",
-              }}
-            >
-              Ready to Generate
-            </h2>
-            <p
-              style={{
-                color: "var(--text-secondary)",
-                fontSize: "0.85rem",
-                marginBottom: "1.25rem",
-              }}
-            >
+            <h2 className="wizard-title">Ready to Generate</h2>
+            <p className="wizard-subtitle">
               Review your selections and start building your course.
             </p>
 

@@ -44,6 +44,8 @@ export default function SharedCourseViewer() {
     queryKey: ["shared-course", token],
     queryFn: () => fetchSharedCourse(token),
     enabled: !!token,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   const course = data?.course ?? null;

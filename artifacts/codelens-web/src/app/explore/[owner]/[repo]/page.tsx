@@ -44,7 +44,8 @@ interface PublicCourse {
   moduleCount: number | null;
   stars: number | null;
   focusAreas: string[] | null;
-  html: string;
+  html: string | null;
+  v2Data?: V2CourseData | null;
   version: number;
   createdAt: string;
   updatedAt: string;
@@ -262,14 +263,17 @@ export default function PublicCourseViewer() {
     queryKey: ["public-course", owner, repo],
     queryFn: () => fetchPublicCourse(owner, repo),
     enabled: !!owner && !!repo,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   const course = data?.course ?? null;
 
   const v2Data: V2CourseData | null = useMemo(() => {
+    if (course?.v2Data) return course.v2Data;
     if (!course?.html) return null;
     return parseV2Course(course.html);
-  }, [course?.html]);
+  }, [course?.v2Data, course?.html]);
 
   useEffect(() => {
     if (!course) return;
@@ -392,16 +396,16 @@ export default function PublicCourseViewer() {
   return (
     <div className="v2-layout">
       <div className={`v2-sidebar ${showSidebar ? "" : "v2-sidebar-collapsed"}`}>
-        <div className="v2-sidebar-header">
-          <Link href="/explore" style={{ color: "var(--text-secondary)", textDecoration: "none", fontSize: "0.8rem", display: "flex", alignItems: "center", gap: "0.25rem" }}>
+        <div className="v2-sidebar-header" style={{ display: "flex", flexDirection: "column", gap: "0.25rem", paddingBottom: "0.5rem" }}>
+          <Link href="/explore" style={{ color: "var(--text-secondary)", textDecoration: "none", fontSize: "0.85rem", display: "flex", alignItems: "center", gap: "0.25rem", marginBottom: "0.5rem", width: "max-content", padding: "0.25rem 0.5rem", borderRadius: "var(--radius-sm)", backgroundColor: "var(--bg-secondary)" }}>
             &larr; Explore
           </Link>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginTop: "0.75rem" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap", wordBreak: "break-word" }}>
             <img
               src={`https://github.com/${course.ownerName}.png?size=32`}
               alt={course.ownerName}
-              width={20}
-              height={20}
+              width={24}
+              height={24}
               style={{ borderRadius: "var(--radius-full)" }}
               onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
             />
@@ -410,31 +414,34 @@ export default function PublicCourseViewer() {
               target="_blank"
               rel="noopener noreferrer"
               className="v2-repo-link"
+              style={{ fontSize: "1rem", lineHeight: 1.2 }}
             >
-              {course.ownerName}/{course.repoName}
+              <span className="opacity-70">{course.ownerName}/</span>
+              <br className="md:hidden" />
+              <strong className="text-white font-bold">{course.repoName}</strong>
             </a>
           </div>
           {course.oneLiner && (
-            <p style={{ fontSize: "0.8rem", color: "var(--text-secondary)", margin: "0.5rem 0 0" }}>{course.oneLiner}</p>
+            <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", margin: "0.5rem 0", lineHeight: "1.4" }}>{course.oneLiner}</p>
           )}
 
-          <div className="v2-sidebar-meta">
+          <div className="v2-sidebar-meta" style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", marginTop: "0.5rem" }}>
             {course.stars != null && course.stars > 0 && (
-              <span className="badge" title="GitHub stars">&#9733; {course.stars >= 1000 ? `${(course.stars / 1000).toFixed(1)}k` : course.stars}</span>
+              <span className="badge" style={{ whiteSpace: "nowrap" }} title="GitHub stars">&#9733; {course.stars >= 1000 ? `${(course.stars / 1000).toFixed(1)}k` : course.stars}</span>
             )}
             {course.difficulty && (
-              <span className="badge">{course.difficulty}</span>
+              <span className="badge" style={{ whiteSpace: "nowrap" }}>{course.difficulty}</span>
             )}
-            <span className="badge">{AUDIENCE_LABELS[course.targetAudience] || course.targetAudience}</span>
+            <span className="badge" style={{ whiteSpace: "nowrap" }}>{AUDIENCE_LABELS[course.targetAudience] || course.targetAudience}</span>
             {course.estimatedMinutes && (
-              <span className="badge">~{course.estimatedMinutes} min</span>
+              <span className="badge" style={{ whiteSpace: "nowrap" }}>~{course.estimatedMinutes} min</span>
             )}
             {course.viewCount > 0 && (
-              <span className="badge">{course.viewCount} views</span>
+              <span className="badge" style={{ whiteSpace: "nowrap" }}>{course.viewCount} views</span>
             )}
           </div>
           {course.updatedAt && (
-            <p style={{ fontSize: "0.7rem", color: "var(--text-tertiary)", margin: "0.25rem 0 0" }}>
+            <p style={{ fontSize: "0.75rem", color: "var(--text-tertiary)", margin: "0.5rem 0 0" }}>
               Last generated {formatTimeAgo(course.updatedAt)}
             </p>
           )}

@@ -5,6 +5,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { db } from "@workspace/db";
 import { courses } from "@workspace/db/schema";
 import { eq, and, isNull, sql } from "drizzle-orm";
+import { parseV2Course } from "@/lib/course-types";
 
 export async function GET(
   _request: NextRequest,
@@ -53,5 +54,13 @@ export async function GET(
     return NextResponse.json({ error: "Course not found" }, { status: 404 });
   }
 
-  return NextResponse.json({ course });
+  const v2Data = course.html ? parseV2Course(course.html) : null;
+
+  return NextResponse.json({
+    course: {
+      ...course,
+      html: v2Data ? null : course.html,
+      v2Data,
+    },
+  });
 }

@@ -600,28 +600,152 @@ code, pre, .font-mono {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(44, 44, 42, 0.6);
-  backdrop-filter: blur(4px);
+  background: rgba(15, 15, 15, 0.4);
+  backdrop-filter: blur(12px);
   z-index: 5000;
   display: flex;
   align-items: center;
   justify-content: center;
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .modal-content {
   background: var(--bg-card);
   border-radius: var(--radius-lg);
-  padding: 2rem;
+  padding: 2.5rem;
   max-width: 480px;
   width: 90%;
-  box-shadow: var(--shadow-lg);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0,0,0,0.05);
   position: relative;
   max-height: 90vh;
   overflow-y: auto;
+  animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Premium Selection Cards (Persona, Depth) */
+.lux-selector {
+  padding: 1.25rem;
+  border: 1.5px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.lux-selector:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--text-tertiary);
+}
+
+.lux-selector.selected {
+  border-color: var(--accent);
+  background: var(--accent-light);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.lux-selector.selected::after {
+  content: '\2713';
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  color: var(--accent);
+  font-weight: bold;
+  font-size: 1.1rem;
+}
+
+/* Focus Area Badges */
+.lux-badge {
+  padding: 0.5rem 1.15rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-full);
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.lux-badge:hover {
+  background: var(--bg-secondary);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
+}
+
+.lux-badge.selected {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: white;
+  box-shadow: 0 4px 12px rgba(232, 93, 48, 0.25);
+}
+
+/* Wizard Header text */
+.wizard-title {
+  font-family: var(--font-heading);
+  font-size: 1.85rem;
+  font-weight: 800;
+  background: linear-gradient(90deg, var(--text-primary), var(--text-secondary));
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-bottom: 0.6rem;
+  letter-spacing: -0.02em;
+}
+
+.wizard-subtitle {
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  margin-bottom: 2rem;
+  line-height: 1.5;
+}
+
+/* Repo summary card */
+.lux-repo-card {
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 1.75rem;
+  background: linear-gradient(to bottom right, var(--bg-card), var(--bg-secondary));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.5), var(--shadow-sm);
+  transition: all 0.2s ease;
+}
+.lux-repo-card:hover {
+  box-shadow: var(--shadow-md);
 }
 
 .wizard-modal {
   max-width: 620px;
+}
+
+.v2-layout {
+  display: flex;
+  height: 100vh;
+  width: 100%;
+  overflow: hidden;
+  background: var(--bg-primary);
+}
+
+.v2-main {
+  flex: 1;
+  overflow-y: auto;
+  background: var(--bg-card);
+  position: relative;
 }
 
 .v2-sidebar {
@@ -717,6 +841,7 @@ code, pre, .font-mono {
   text-overflow: ellipsis;
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
 }
 
@@ -2410,6 +2535,7 @@ a.v2-code-filepath:hover {
   line-height: 1.4;
   margin-bottom: 0.75rem;
   display: -webkit-box;
+  line-clamp: 2;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;

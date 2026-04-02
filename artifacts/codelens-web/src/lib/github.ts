@@ -20,6 +20,13 @@ export interface RepoHealthCheck {
   message?: string;
 }
 
+interface GitHubTreeEntry {
+  type: string;
+  path: string;
+  size?: number;
+  sha?: string;
+}
+
 export interface RepoExtraction {
   fileTree: string[];
   files: GitHubFile[];
@@ -286,18 +293,24 @@ export async function checkRepoHealth(
   repo: string,
   branch: string,
   userToken?: string,
+  preloadedTree?: GitHubTreeEntry[],
 ): Promise<RepoHealthCheck> {
-  const treeRes = await githubFetch(
-    `https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`,
-    userToken,
-  );
-  const treeData = await treeRes.json();
+  let tree = preloadedTree;
 
-  if (!treeData.tree) {
+  if (!tree) {
+    const treeRes = await githubFetch(
+      `https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`,
+      userToken,
+    );
+    const treeData = await treeRes.json();
+    tree = Array.isArray(treeData.tree) ? (treeData.tree as GitHubTreeEntry[]) : undefined;
+  }
+
+  if (!tree) {
     return { accessible: false, fileCount: 0, binaryRatio: 0, tooSmall: false, tooManyBinaries: false, isLargeRepo: false, message: "Could not read repository file tree" };
   }
 
-  const allBlobs = treeData.tree.filter((item: { type: string }) => item.type === "blob");
+  const allBlobs = tree.filter((item) => item.type === "blob");
   const nonSkipped = allBlobs.filter((item: { path: string }) => !shouldSkip(item.path));
   const binaryCount = nonSkipped.filter((item: { path: string }) => isBinaryExtension(item.path)).length;
   const sourceCount = nonSkipped.length - binaryCount;
@@ -414,7 +427,14 @@ export async function extractRepo(
   const repoData = await repoRes.json();
   const defaultBranch = branch || repoData.default_branch || "main";
 
-  const healthCheck = await checkRepoHealth(owner, repo, defaultBranch, userToken);
+  const treeRes = await githubFetch(
+    `https://api.github.com/repos/${owner}/${repo}/git/trees/${defaultBranch}?recursive=1`,
+    userToken,
+  );
+  const treeData = await treeRes.json();
+  const repoTree = Array.isArray(treeData.tree) ? (treeData.tree as GitHubTreeEntry[]) : null;
+
+  const healthCheck = await checkRepoHealth(owner, repo, defaultBranch, userToken, repoTree ?? undefined);
   if (!healthCheck.accessible) {
     throw new Error(healthCheck.message || "Repository is not accessible");
   }
@@ -425,21 +445,15 @@ export async function extractRepo(
     throw new Error(healthCheck.message || "Repository has too many binary files");
   }
 
-  const treeRes = await githubFetch(
-    `https://api.github.com/repos/${owner}/${repo}/git/trees/${defaultBranch}?recursive=1`,
-    userToken,
-  );
-  const treeData = await treeRes.json();
-
-  if (!treeData.tree) {
+  if (!repoTree) {
     throw new Error("Could not read repository file tree.");
   }
 
-  const allFiles: Array<{ path: string; size: number; sha: string }> = treeData.tree
-    .filter((item: { type: string; path: string; size?: number }) =>
+  const allFiles: Array<{ path: string; size: number; sha: string }> = repoTree
+    .filter((item) =>
       item.type === "blob" && !shouldSkip(item.path) && !isBinaryExtension(item.path)
     )
-    .map((item: { path: string; size?: number; sha?: string }) => ({
+    .map((item) => ({
       path: item.path,
       size: item.size || 0,
       sha: item.sha || "",

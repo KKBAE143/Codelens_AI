@@ -7,6 +7,7 @@ import { db } from "@workspace/db";
 import { courses, courseAssignments } from "@workspace/db/schema";
 import { eq, and, isNull } from "drizzle-orm";
 import { cleanupWebhooksForCourse, getWebhookForCourse } from "@/lib/github-webhooks";
+import { parseV2Course } from "@/lib/course-types";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -27,7 +28,25 @@ export async function GET(
   }
 
   const [course] = await db
-    .select()
+    .select({
+      id: courses.id,
+      repoName: courses.repoName,
+      ownerName: courses.ownerName,
+      githubUrl: courses.githubUrl,
+      targetAudience: courses.targetAudience,
+      techStack: courses.techStack,
+      oneLiner: courses.oneLiner,
+      difficulty: courses.difficulty,
+      estimatedMinutes: courses.estimatedMinutes,
+      moduleCount: courses.moduleCount,
+      html: courses.html,
+      version: courses.version,
+      changesSince: courses.changesSince,
+      shareToken: courses.shareToken,
+      isPublic: courses.isPublic,
+      createdBy: courses.createdBy,
+      organizationId: courses.organizationId,
+    })
     .from(courses)
     .where(
       and(
@@ -72,7 +91,16 @@ export async function GET(
     }
   }
 
-  return NextResponse.json({ course, webhook: webhookInfo });
+  const v2Data = course.html ? parseV2Course(course.html) : null;
+
+  return NextResponse.json({
+    course: {
+      ...course,
+      html: v2Data ? null : course.html,
+      v2Data,
+    },
+    webhook: webhookInfo,
+  });
 }
 
 export async function DELETE(
