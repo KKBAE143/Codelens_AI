@@ -13,7 +13,6 @@ import { FlashcardReview, FlashcardDueBanner } from "@/components/FlashcardRevie
 import { PracticeMode } from "@/components/PracticeMode";
 import { CourseWizard } from "@/components/CourseWizard";
 import {
-  findBestModuleHighlightTarget,
   normalizeV2CourseData,
   parseV2Course,
   type V2Block,
@@ -21,7 +20,6 @@ import {
   type V2Module,
   type V2QuizBlock,
 } from "@/lib/course-types";
-import { getBlockWrapperClass, getModuleState, getModuleStateLabel } from "@/lib/course-ui";
 
 const KnowledgeGraph = dynamic(
   () =>
@@ -133,10 +131,20 @@ function V2ModuleSidebar({
   completedModules: number[];
   quizScores: Map<number, number>;
   showOverview?: boolean;
-  onSelect: (i: number | null, conceptLabel?: string) => void;
+  onSelect: (i: number | null) => void;
 }) {
   return (
     <nav className="v2-module-nav" aria-label="Course modules">
+      <div className="v2-module-nav-overview">
+        <div>
+          <div className="v2-module-nav-kicker">Course roadmap</div>
+          <div className="v2-module-nav-heading">Track progress, jump between modules, and revisit completed lessons.</div>
+        </div>
+        <div className="v2-module-nav-overview-stats">
+          <span>{completedModules.length}/{modules.length} done</span>
+        </div>
+      </div>
+      <div className="v2-module-nav-list">
       {showOverview && (
         <button
           className={`v2-module-nav-item ${activeIndex === null ? "v2-module-nav-active" : ""}`}
@@ -144,11 +152,19 @@ function V2ModuleSidebar({
           aria-current={activeIndex === null ? "step" : undefined}
           aria-label="Overview canvas"
         >
-          <ProgressRing percent={activeIndex === null ? 50 : 0} size={24} stroke={2.5} />
+          <div className="v2-module-nav-marker-wrap">
+            <ProgressRing percent={activeIndex === null ? 50 : 0} size={24} stroke={2.5} />
+            {modules.length > 0 && <span className="v2-module-nav-connector" aria-hidden="true" />}
+          </div>
           <div className="v2-module-nav-text">
             <span className="v2-module-nav-label">Overview</span>
             <span className="v2-module-nav-title">Knowledge graph & abstraction map</span>
             <span className="v2-module-nav-time">Separate course canvas</span>
+          </div>
+          <div className="v2-module-nav-actions">
+            <span className={`v2-module-nav-state ${activeIndex === null ? "is-active" : ""}`}>
+              {activeIndex === null ? "Current" : "Open"}
+            </span>
           </div>
         </button>
       )}
@@ -167,7 +183,10 @@ function V2ModuleSidebar({
             aria-current={isActive ? "step" : undefined}
             aria-label={`Module ${i + 1}: ${mod.title}${isCompleted ? " (completed)" : ""}${quizScore !== undefined ? `, quiz score ${quizScore}%` : ""}`}
           >
-            <ProgressRing percent={isCompleted ? 100 : isActive ? 50 : 0} size={24} stroke={2.5} />
+            <div className="v2-module-nav-marker-wrap">
+              <ProgressRing percent={isCompleted ? 100 : isActive ? 50 : 0} size={24} stroke={2.5} />
+              {i < modules.length - 1 && <span className="v2-module-nav-connector" aria-hidden="true" />}
+            </div>
             <div className="v2-module-nav-text">
               <span className="v2-module-nav-label">Module {i + 1}</span>
               <span className="v2-module-nav-title">{mod.title}</span>
@@ -175,7 +194,7 @@ function V2ModuleSidebar({
                 <span className="v2-module-nav-time">~{mod.estimatedMinutes} min</span>
               )}
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "0.25rem", marginLeft: "auto", flexShrink: 0 }}>
+            <div className="v2-module-nav-actions">
               {quizScore !== undefined && (
                 <span
                   className="v2-mastery-badge"
@@ -190,10 +209,14 @@ function V2ModuleSidebar({
                   <polyline points="20 6 9 17 4 12" />
                 </svg>
               )}
+              <span className={`v2-module-nav-state ${isActive ? "is-active" : isCompleted ? "is-complete" : ""}`}>
+                {isActive ? "Current" : isCompleted ? "Done" : "Open"}
+              </span>
             </div>
           </button>
         );
       })}
+      </div>
     </nav>
   );
 }
@@ -211,7 +234,6 @@ function V2ModuleContent({
   onNext,
   onPractice,
   hasOverview,
-  highlightedConcept,
   doneExercises,
   onExerciseDone,
 }: {
@@ -227,7 +249,6 @@ function V2ModuleContent({
   onNext: () => void;
   onPractice: () => void;
   hasOverview: boolean;
-  highlightedConcept?: string | null;
   doneExercises?: Record<string, boolean>;
   onExerciseDone?: (key: string, done: boolean) => void;
 }) {
@@ -237,23 +258,10 @@ function V2ModuleContent({
   const masteryColor = quizScore !== undefined
     ? quizScore >= 80 ? "var(--teal)" : quizScore >= 60 ? "#F59E0B" : "var(--error)"
     : undefined;
-  const highlightBlockIndex = useMemo(
-    () => (highlightedConcept ? findBestModuleHighlightTarget(mod, highlightedConcept) : null),
-    [highlightedConcept, mod],
-  );
-
-  useEffect(() => {
-    if (!highlightedConcept) return;
-    const targetId = highlightBlockIndex !== null ? `toc-block-${highlightBlockIndex}` : "v2-module-header";
-    const frame = window.requestAnimationFrame(() => {
-      document.getElementById(targetId)?.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [highlightBlockIndex, highlightedConcept]);
 
   return (
     <article className="v2-module-content">
-      <header id="v2-module-header" className={`v2-module-header ${highlightedConcept && highlightBlockIndex === null ? "v2-module-header-highlight" : ""}`}>
+      <header className="v2-module-header">
         <span className="v2-module-index">Module {moduleIndex + 1} of {totalModules}</span>
         <h2 className="v2-module-title">{mod.title}</h2>
         {mod.learningObjective && (
@@ -304,7 +312,7 @@ function V2ModuleContent({
 
       <div className="v2-blocks">
         {mod.blocks.map((block, bi) => (
-          <div key={bi} id={`toc-block-${bi}`} className={`v2-block-wrapper ${highlightBlockIndex === bi ? "v2-block-wrapper-highlight" : ""}`}>
+          <div key={bi} id={`toc-block-${bi}`} className="v2-block-wrapper">
             <BlockRenderer
               block={block}
               githubUrl={githubUrl}
@@ -555,7 +563,6 @@ export default function CourseViewer() {
   const [showWhatsNew, setShowWhatsNew] = useState(false);
   const [showWizard, setShowWizard] = useState(false);
   const [doneExercises, setDoneExercises] = useState<Record<string, boolean>>({});
-  const [highlightedConcept, setHighlightedConcept] = useState<string | null>(null);
   const [activeModuleIndex, setActiveModuleIndex] = useState<number | null>(() => {
     if (typeof window !== "undefined") {
       const hash = window.location.hash;
@@ -700,12 +707,10 @@ export default function CourseViewer() {
       if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) return;
       if (e.key === "j" || e.key === "ArrowDown") {
         e.preventDefault();
-        setHighlightedConcept(null);
         setActiveModuleIndex((prev) => prev === null ? 0 : Math.min(totalMods - 1, prev + 1));
         mainScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
       } else if (e.key === "k" || e.key === "ArrowUp") {
         e.preventDefault();
-        setHighlightedConcept(null);
         setActiveModuleIndex((prev) => {
           if (prev === null) return null;
           if (prev === 0) return hasOverview ? null : 0;
@@ -795,9 +800,8 @@ export default function CourseViewer() {
     }
   };
 
-  const handleModuleSelect = (i: number | null, conceptLabel?: string) => {
+  const handleModuleSelect = (i: number | null) => {
     setActiveModuleIndex(i);
-    setHighlightedConcept(conceptLabel ?? null);
     setMobileMenuOpen(false);
     mainScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -929,8 +933,12 @@ export default function CourseViewer() {
           }}
         />
       )}
-      <div className="course-topbar v2-course-topbar">
-        <div className="v2-course-topbar-group v2-course-topbar-group-left">
+      <div className="course-topbar" style={{
+        height: 48, background: "var(--code-bg)", color: "white",
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "0 1rem", flexShrink: 0,
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
           {isV2 && (
             <button
               className="v2-mobile-menu-btn"
@@ -949,8 +957,8 @@ export default function CourseViewer() {
             </svg>
             <span className="v2-topbar-back-text">Dashboard</span>
           </button>
-          <span className="v2-course-topbar-divider">|</span>
-          <code className="v2-course-topbar-repo">
+          <span style={{ color: "rgba(255,255,255,0.3)" }}>|</span>
+          <code style={{ fontSize: "0.85rem", color: "rgba(255,255,255,0.9)", fontFamily: "var(--font-mono)" }}>
             {course.ownerName}/{course.repoName}
           </code>
           {course.version > 1 && (
@@ -959,16 +967,16 @@ export default function CourseViewer() {
             </span>
           )}
         </div>
-        <div className="v2-course-topbar-group v2-course-topbar-group-right">
-          <span className="v2-topbar-audience">
+        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+          <span className="v2-topbar-audience" style={{ background: "rgba(255,255,255,0.15)", padding: "0.125rem 0.5rem", borderRadius: "var(--radius-full)", color: "rgba(255,255,255,0.7)", fontSize: "0.75rem" }}>
             {AUDIENCE_LABELS[course.targetAudience] || course.targetAudience}
           </span>
           {totalModules > 0 && (
-            <div className="v2-topbar-progress" aria-label={`Course progress ${completedModules.length} of ${totalModules}`}>
-              <div className="v2-topbar-progress-track">
-                <div className="v2-topbar-progress-fill" style={{ width: `${Math.max(progress, 6)}%`, opacity: progress === 0 ? 0.32 : 1 }} />
+            <div className="v2-topbar-progress" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <div style={{ width: 100, height: 4, background: "rgba(255,255,255,0.2)", borderRadius: 2, overflow: "hidden" }}>
+                <div style={{ height: "100%", width: `${progress}%`, background: "var(--teal)", borderRadius: 2, transition: "width 0.3s ease" }} />
               </div>
-              <span className="v2-topbar-progress-value">
+              <span style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.6)" }}>
                 {completedModules.length}/{totalModules}
               </span>
             </div>
@@ -1024,27 +1032,30 @@ export default function CourseViewer() {
           <div style={{ flex: 1, display: "flex", overflow: "hidden", position: "relative" }}>
             {showSidebar && (
               <aside className="v2-sidebar course-sidebar">
-                <div className="v2-sidebar-header">
-                  <h3 className="v2-sidebar-title">Modules</h3>
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <div className="v2-sidebar-header v2-sidebar-header-course">
+                  <div className="v2-sidebar-course-hero">
+                    <div>
+                      <div className="v2-module-nav-kicker">Learning workspace</div>
+                      <h3 className="v2-sidebar-title">{course.repoName}</h3>
+                      <p className="v2-sidebar-summary">Track your progress, review key concepts, and jump to any module without losing context.</p>
+                    </div>
+                    <div className="v2-sidebar-progress-card v2-sidebar-progress-card-compact">
+                      <div className="v2-sidebar-progress-head">
+                        <span>Progress</span>
+                        <span>{progress}%</span>
+                      </div>
+                      <div className="v2-sidebar-progress-bar">
+                        <div style={{ height: "100%", width: `${progress}%`, background: progress >= 100 ? "var(--teal)" : "var(--accent)", borderRadius: 999, transition: "width 0.4s ease" }} />
+                      </div>
+                      <div className="v2-sidebar-progress-caption">{completedModules.length} of {totalModules} modules completed</div>
+                    </div>
+                  </div>
+
+                  <div className="v2-sidebar-toolbar">
                     <button
                       onClick={() => setShowFlashcards(true)}
                       title="Review flashcards"
-                      style={{
-                        background: flashcardDueCount > 0 ? "var(--accent-light)" : "transparent",
-                        border: flashcardDueCount > 0 ? "1px solid var(--accent)" : "1px solid var(--border-color)",
-                        borderRadius: "var(--radius-sm)",
-                        padding: "0.25rem 0.5rem",
-                        cursor: "pointer",
-                        color: flashcardDueCount > 0 ? "var(--accent)" : "var(--text-secondary)",
-                        fontSize: "0.75rem",
-                        fontFamily: "var(--font-body)",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "0.3rem",
-                        fontWeight: flashcardDueCount > 0 ? 600 : 400,
-                        transition: "all 0.15s",
-                      }}
+                      className={`v2-sidebar-tool-btn ${flashcardDueCount > 0 ? "has-notice" : ""}`}
                     >
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <rect x="2" y="3" width="20" height="14" rx="2" />
@@ -1073,6 +1084,32 @@ export default function CourseViewer() {
                 />
 
                 <div className="v2-sidebar-info">
+                  <div className="v2-sidebar-section v2-sidebar-section-card">
+                    <span className="v2-sidebar-label">Quick actions</span>
+                    <div className="v2-share-row">
+                      <button onClick={handleCopyShare} className="v2-share-btn">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                        </svg>
+                        Copy Share Link
+                      </button>
+                      <a
+                        href={course.githubUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="v2-share-btn"
+                        style={{ textDecoration: "none" }}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M15 3h6v6" />
+                          <path d="M10 14 21 3" />
+                          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                        </svg>
+                        Open GitHub
+                      </a>
+                    </div>
+                  </div>
                   {v2Data.languages.length > 0 && (
                     <div className="v2-sidebar-section">
                       <span className="v2-sidebar-label">Languages</span>
@@ -1100,7 +1137,7 @@ export default function CourseViewer() {
                     </div>
                   )}
                   {user && course.createdBy === user.id && (
-                    <div className="v2-sidebar-section">
+                    <div className="v2-sidebar-section v2-sidebar-section-card">
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                         <div>
                           <div style={{ fontSize: "0.8rem", fontWeight: 500 }}>Auto-update</div>
@@ -1127,15 +1164,6 @@ export default function CourseViewer() {
                       </div>
                     </div>
                   )}
-                  <a
-                    href={course.githubUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="btn-secondary"
-                    style={{ width: "100%", justifyContent: "center", textDecoration: "none", fontSize: "0.8rem", marginTop: "0.5rem" }}
-                  >
-                    View on GitHub ↗
-                  </a>
                 </div>
               </aside>
             )}
@@ -1156,8 +1184,6 @@ export default function CourseViewer() {
                     activeIndex={activeModuleIndex}
                     completedModules={completedModules}
                     quizScores={quizScores}
-                    courseName={course.repoName}
-                    progressPercent={progress}
                     showOverview={!!v2Data.overviewGraph}
                     onSelect={handleModuleSelect}
                   />
@@ -1251,7 +1277,6 @@ export default function CourseViewer() {
                   onNext={() => handleModuleSelect(Math.min(v2Data.totalModules - 1, activeModuleIndex + 1))}
                   onPractice={() => setPracticeModuleIndex(activeModuleIndex)}
                   hasOverview={!!v2Data.overviewGraph}
-                  highlightedConcept={highlightedConcept}
                 />
               )}
               </ErrorBoundary>

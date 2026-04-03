@@ -31,35 +31,12 @@ function CloseIcon() {
   );
 }
 
-function getDiagramTitle(diagramType?: V2MermaidBlock["diagramType"]): string {
-  switch (diagramType) {
-    case "sequenceDiagram":
-      return "Sequence diagram";
-    case "classDiagram":
-      return "Class diagram";
-    case "erDiagram":
-      return "Entity relationship diagram";
-    case "flowchart":
-      return "Dependency diagram";
-    case "graph":
-      return "Relationship graph";
-    default:
-      return "System diagram";
-  }
-}
-
-function getDiagramCaption(block: V2MermaidBlock): string {
-  return block.caption || "This diagram maps the key parts mentioned in this lesson and how they connect.";
-}
-
 export function MermaidBlock({ block }: { block: V2MermaidBlock }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState(false);
   const [svg, setSvg] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
   const idRef = useRef(`mermaid-${Math.random().toString(36).slice(2, 10)}`);
-  const diagramTitle = getDiagramTitle(block.diagramType);
-  const diagramCaption = getDiagramCaption(block);
 
   useEffect(() => {
     let cancelled = false;
@@ -74,20 +51,6 @@ export function MermaidBlock({ block }: { block: V2MermaidBlock }) {
             securityLevel: "strict",
             fontFamily: "var(--font-body)",
             suppressErrorRendering: true,
-            themeVariables: {
-              fontSize: "16px",
-              lineColor: "#475569",
-              primaryColor: "#FFF7F1",
-              primaryBorderColor: "#D7B08C",
-              primaryTextColor: "#1F2937",
-              secondaryColor: "#EFF4FF",
-              secondaryBorderColor: "#94A3B8",
-              tertiaryColor: "#F4F4F5",
-              tertiaryBorderColor: "#9CA3AF",
-              edgeLabelBackground: "#FFFDF9",
-              clusterBkg: "#FFFDF9",
-              clusterBorder: "#CBD5E1",
-            },
           });
           mermaidInitialized = true;
         }
@@ -135,12 +98,18 @@ export function MermaidBlock({ block }: { block: V2MermaidBlock }) {
   return (
     <>
       <div className="v2-mermaid-block" role="figure">
-        <div className="v2-mermaid-card-head">
-          <div>
-            <span className="v2-mermaid-kicker">Diagram</span>
-            <h3 className="v2-mermaid-title">{diagramTitle}</h3>
-          </div>
-          {svg && (
+        {svg ? (
+          <>
+            <div
+              ref={containerRef}
+              className="v2-mermaid-svg"
+              onClick={() => setShowModal(true)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setShowModal(true); }}
+              aria-label="Click to enlarge diagram"
+              dangerouslySetInnerHTML={{ __html: svg }}
+            />
             <button
               className="v2-mermaid-zoom-btn"
               onClick={() => setShowModal(true)}
@@ -149,23 +118,11 @@ export function MermaidBlock({ block }: { block: V2MermaidBlock }) {
             >
               <ZoomIcon /> Enlarge
             </button>
-          )}
-        </div>
-        {svg ? (
-          <div
-            ref={containerRef}
-            className="v2-mermaid-svg"
-            onClick={() => setShowModal(true)}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setShowModal(true); }}
-            aria-label="Click to enlarge diagram"
-            dangerouslySetInnerHTML={{ __html: svg }}
-          />
+          </>
         ) : (
           <div className="v2-mermaid-loading">Loading diagram...</div>
         )}
-        <p className="v2-mermaid-caption">{diagramCaption}</p>
+        {block.caption && <p className="v2-mermaid-caption">{block.caption}</p>}
       </div>
 
       {showModal && svg && (
@@ -173,7 +130,7 @@ export function MermaidBlock({ block }: { block: V2MermaidBlock }) {
           <div className="v2-mermaid-modal" onClick={(e) => e.stopPropagation()}>
             <div className="v2-mermaid-modal-header">
               <span className="v2-mermaid-modal-title">
-                {diagramTitle}
+                {block.caption || (block.diagramType ? `${block.diagramType} diagram` : "Diagram")}
               </span>
               <button
                 className="v2-mermaid-modal-close"
