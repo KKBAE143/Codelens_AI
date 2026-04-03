@@ -19,10 +19,29 @@ function getAbstractionFilesByPageRank(
   abstraction: Abstraction,
   extraction: RepoExtraction,
 ): Array<{ path: string; content: string; size: number }> {
-  const files = abstraction.file_indices
+  const filesFromIndices = abstraction.file_indices
     .filter((idx) => idx < extraction.files.length)
     .map((idx) => extraction.files[idx]);
 
+  const includedPaths = new Set(filesFromIndices.map(f => f.path));
+
+  const allFetched = extraction.allFetchedFiles || [];
+  if (allFetched.length > extraction.files.length) {
+    const indexedPaths = new Set(
+      abstraction.file_indices
+        .filter((idx) => idx < extraction.files.length)
+        .map((idx) => extraction.files[idx].path)
+    );
+    for (const f of allFetched) {
+      if (!includedPaths.has(f.path) && !indexedPaths.has(f.path)) continue;
+      if (!includedPaths.has(f.path)) {
+        filesFromIndices.push(f);
+        includedPaths.add(f.path);
+      }
+    }
+  }
+
+  const files = filesFromIndices;
   if (files.length <= 1) return files;
 
   const pageRank = computePageRank(files);
@@ -244,7 +263,7 @@ async function writeOneChapter(
       .map(([l, c]) => `${l}: ${c}`)
       .join(
         ", ",
-      )}\n\nAbstractions:\n${abstractions.map((a) => `- ${a.name}: ${a.description}`).join("\n")}\n\nRelationship graph:\n${relGraph}\n\nFile tree (first 100):\n${extraction.fileTree.slice(0, 100).join("\n")}`;
+      )}\n\nAbstractions:\n${abstractions.map((a) => `- ${a.name}: ${a.description}`).join("\n")}\n\nRelationship graph:\n${relGraph}`;
   } else if (chapter.chapterType === "setup") {
     prompt = getSetupChapterPrompt(config.audience);
     const pkgData = extraction.parsedPackageJson
@@ -265,7 +284,7 @@ async function writeOneChapter(
     const servicesData = extraction.detectedServices.length > 0
       ? `\n\nisMonorepo: ${extraction.isMonorepo}\nDetected services:\n${extraction.detectedServices.map((s) => `- ${s.name} in ${s.directory}/${s.manifest ? ` (${s.manifest})` : ""}${s.startCommand ? ` start: ${s.startCommand}` : ""}`).join("\n")}`
       : "";
-    contextData = `${pkgData}\n\n${envData}\n\n${dockerData}${manifestsData}${dockerComposeData}${servicesData}\n\nFile tree (first 50):\n${extraction.fileTree.slice(0, 50).join("\n")}`;
+    contextData = `${pkgData}\n\n${envData}\n\n${dockerData}${manifestsData}${dockerComposeData}${servicesData}`;
   } else if (chapter.chapterType === "dependencies") {
     prompt = getDependenciesChapterPrompt(config.audience);
     contextData = extraction.parsedPackageJson
@@ -306,22 +325,43 @@ async function writeOneChapter(
       config.customContext,
     );
 
-    const repoMapHeader = `=== Full Repository Map ===\n${extraction.repoMap}\n\n`;
-    const repoMapTokens = countTokens(repoMapHeader);
-    const adjustedBudget = contextBudget - repoMapTokens;
-
     if (abstraction) {
       const rankedFiles = getAbstractionFilesByPageRank(abstraction, extraction);
-      contextData = packAbstractionContext(rankedFiles, Math.max(adjustedBudget, 2000));
+      contextData = packAbstractionContext(rankedFiles, contextBudget);
     } else {
       contextData = `No specific files assigned to this abstraction.`;
     }
+  }
 
-    contextData = repoMapHeader + contextData;
+  const repoMapSection = `\n\n=== Full Repository Map ===\n${extraction.repoMap}`;
+  const fileTreeSection = `\n\n=== Complete File Tree (${extraction.fileTree.length} files) ===\n${extraction.fullFileTreeListing || extraction.fileTree.join("\n")}`;
+  const repoMapAndTree = repoMapSection + fileTreeSection;
+  const repoMapTreeTokens = countTokens(repoMapAndTree);
 
-    const currentTokens = countTokens(contextData);
-    const sigBudget = contextBudget - currentTokens;
-    if (extraction.fileSignatures && sigBudget > 500) {
+  if (countTokens(contextData) + repoMapTreeTokens <= contextBudget) {
+    contextData += repoMapAndTree;
+  } else {
+    contextData += repoMapSection;
+    const treeLines = (extraction.fullFileTreeListing || extraction.fileTree.join("\n")).split("\n");
+    const remainingBudget = contextBudget - countTokens(contextData) - 100;
+    if (remainingBudget > 200) {
+      const trimmedTree: string[] = [];
+      let treeToks = 0;
+      for (const line of treeLines) {
+        const lt = countTokens(line);
+        if (treeToks + lt > remainingBudget) break;
+        trimmedTree.push(line);
+        treeToks += lt;
+      }
+      if (trimmedTree.length > 0) {
+        contextData += `\n\n=== File Tree (${trimmedTree.length}/${treeLines.length} files) ===\n${trimmedTree.join("\n")}`;
+      }
+    }
+  }
+
+  if (extraction.fileSignatures) {
+    const sigBudget = contextBudget - countTokens(contextData);
+    if (sigBudget > 500) {
       const sigLines = extraction.fileSignatures.split("\n");
       const trimmedSig: string[] = [];
       let sigToks = 0;

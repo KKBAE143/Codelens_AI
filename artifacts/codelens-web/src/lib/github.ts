@@ -62,6 +62,7 @@ interface GitHubTreeEntry {
 export interface RepoExtraction {
   fileTree: string[];
   files: GitHubFile[];
+  allFetchedFiles: GitHubFile[];
   repoName: string;
   owner: string;
   defaultBranch: string;
@@ -69,6 +70,7 @@ export interface RepoExtraction {
   languageBreakdown: Record<string, number>;
   estimatedComplexity: "small" | "medium" | "large";
   repoMap: string;
+  fullFileTreeListing: string;
   packedContext: string;
   packedTokenCount: number;
   totalFilesCatalogued: number;
@@ -754,13 +756,14 @@ export async function extractRepo(
     return { ...f, preFetchScore: extBonus * dirBonus * alwaysBonus * codeBonus };
   }).sort((a, b) => b.preFetchScore - a.preFetchScore);
 
-  const maxFetchable = Math.min(preFetchScored.length, 500);
-  const filesToFetch = preFetchScored.slice(0, maxFetchable);
   const batchSize = 10;
+  let fetchedTokenEstimate = 0;
+  const fetchTokenCeiling = TOKEN_BUDGET * 3;
 
   const fetchedFiles: GitHubFile[] = [];
-  for (let i = 0; i < filesToFetch.length; i += batchSize) {
-    const batch = filesToFetch.slice(i, i + batchSize);
+  for (let i = 0; i < preFetchScored.length; i += batchSize) {
+    if (fetchedTokenEstimate > fetchTokenCeiling) break;
+    const batch = preFetchScored.slice(i, i + batchSize);
     const results = await Promise.allSettled(
       batch.map(async (file) => {
         const contentRes = await githubFetch(
@@ -778,6 +781,7 @@ export async function extractRepo(
     for (const result of results) {
       if (result.status === "fulfilled" && result.value) {
         fetchedFiles.push(result.value);
+        fetchedTokenEstimate += Math.ceil(result.value.size / 4);
       }
     }
   }
@@ -901,8 +905,18 @@ export async function extractRepo(
     if (name === "package.json" && !f.path.includes("node_modules") && !parsedPackageJson) {
       parsedPackageJson = parsePackageJson(f.content);
     }
-    if (name === ".env.example" || name === ".env.sample") {
-      parsedEnvExample = parseEnvExample(f.content);
+    if (/^\.env\.(example|sample|local|development|dev|template)$/i.test(name) || name === ".env.example" || name === ".env.sample") {
+      if (!parsedEnvExample) {
+        parsedEnvExample = parseEnvExample(f.content);
+      } else {
+        const additional = parseEnvExample(f.content);
+        const existingKeys = new Set(parsedEnvExample.map(v => v.key));
+        for (const v of additional) {
+          if (!existingKeys.has(v.key)) {
+            parsedEnvExample.push(v);
+          }
+        }
+      }
     }
     if (name.toLowerCase().startsWith("dockerfile") && !parsedDockerfile) {
       parsedDockerfile = parseDockerfile(f.content);
@@ -935,11 +949,21 @@ export async function extractRepo(
   const filesSignatureOnly = signatureFiles.length;
   const filesSkeletonOnly = totalFilesCatalogued - topFiles.length - filesSignatureOnly;
 
+  const fullFileTreeListing = allFiles
+    .map(f => {
+      const ext = f.path.substring(f.path.lastIndexOf(".")).toLowerCase();
+      const lang = getLanguageFromExt(ext);
+      const sizeKB = Math.round(f.size / 1024);
+      return `${f.path} (${sizeKB}KB${lang ? `, ${lang}` : ""})`;
+    })
+    .join("\n");
+
   console.log(`[Extraction] ${totalFilesCatalogued} files catalogued, ${topFiles.length} included full, ${filesSignatureOnly} signature-only, ${filesSkeletonOnly} skeleton only, ${packedTokenCount} tokens`);
 
   return {
     fileTree,
     files: topFiles,
+    allFetchedFiles: fetchedFiles,
     repoName: repo,
     owner,
     defaultBranch,
@@ -947,6 +971,7 @@ export async function extractRepo(
     languageBreakdown,
     estimatedComplexity,
     repoMap,
+    fullFileTreeListing,
     packedContext,
     packedTokenCount,
     totalFilesCatalogued,
