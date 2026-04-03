@@ -13,6 +13,7 @@ import { FlashcardReview, FlashcardDueBanner } from "@/components/FlashcardRevie
 import { PracticeMode } from "@/components/PracticeMode";
 import { CourseWizard } from "@/components/CourseWizard";
 import {
+  findBestModuleHighlightTarget,
   normalizeV2CourseData,
   parseV2Course,
   type V2Block,
@@ -124,16 +125,33 @@ function V2ModuleSidebar({
   activeIndex,
   completedModules,
   quizScores,
+  showOverview,
   onSelect,
 }: {
   modules: V2Module[];
-  activeIndex: number;
+  activeIndex: number | null;
   completedModules: number[];
   quizScores: Map<number, number>;
-  onSelect: (i: number) => void;
+  showOverview?: boolean;
+  onSelect: (i: number | null, conceptLabel?: string) => void;
 }) {
   return (
     <nav className="v2-module-nav" aria-label="Course modules">
+      {showOverview && (
+        <button
+          className={`v2-module-nav-item ${activeIndex === null ? "v2-module-nav-active" : ""}`}
+          onClick={() => onSelect(null)}
+          aria-current={activeIndex === null ? "step" : undefined}
+          aria-label="Overview canvas"
+        >
+          <ProgressRing percent={activeIndex === null ? 50 : 0} size={24} stroke={2.5} />
+          <div className="v2-module-nav-text">
+            <span className="v2-module-nav-label">Overview</span>
+            <span className="v2-module-nav-title">Knowledge graph & abstraction map</span>
+            <span className="v2-module-nav-time">Separate course canvas</span>
+          </div>
+        </button>
+      )}
       {modules.map((mod, i) => {
         const isActive = i === activeIndex;
         const isCompleted = completedModules.includes(i);
@@ -192,6 +210,8 @@ function V2ModuleContent({
   onPrev,
   onNext,
   onPractice,
+  hasOverview,
+  highlightedConcept,
   doneExercises,
   onExerciseDone,
 }: {
@@ -206,6 +226,8 @@ function V2ModuleContent({
   onPrev: () => void;
   onNext: () => void;
   onPractice: () => void;
+  hasOverview: boolean;
+  highlightedConcept?: string | null;
   doneExercises?: Record<string, boolean>;
   onExerciseDone?: (key: string, done: boolean) => void;
 }) {
@@ -215,10 +237,23 @@ function V2ModuleContent({
   const masteryColor = quizScore !== undefined
     ? quizScore >= 80 ? "var(--teal)" : quizScore >= 60 ? "#F59E0B" : "var(--error)"
     : undefined;
+  const highlightBlockIndex = useMemo(
+    () => (highlightedConcept ? findBestModuleHighlightTarget(mod, highlightedConcept) : null),
+    [highlightedConcept, mod],
+  );
+
+  useEffect(() => {
+    if (!highlightedConcept) return;
+    const targetId = highlightBlockIndex !== null ? `toc-block-${highlightBlockIndex}` : "v2-module-header";
+    const frame = window.requestAnimationFrame(() => {
+      document.getElementById(targetId)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [highlightBlockIndex, highlightedConcept]);
 
   return (
     <article className="v2-module-content">
-      <header className="v2-module-header">
+      <header id="v2-module-header" className={`v2-module-header ${highlightedConcept && highlightBlockIndex === null ? "v2-module-header-highlight" : ""}`}>
         <span className="v2-module-index">Module {moduleIndex + 1} of {totalModules}</span>
         <h2 className="v2-module-title">{mod.title}</h2>
         {mod.learningObjective && (
@@ -269,7 +304,7 @@ function V2ModuleContent({
 
       <div className="v2-blocks">
         {mod.blocks.map((block, bi) => (
-          <div key={bi} id={`toc-block-${bi}`} className="v2-block-wrapper">
+          <div key={bi} id={`toc-block-${bi}`} className={`v2-block-wrapper ${highlightBlockIndex === bi ? "v2-block-wrapper-highlight" : ""}`}>
             <BlockRenderer
               block={block}
               githubUrl={githubUrl}
@@ -289,7 +324,7 @@ function V2ModuleContent({
         <button
           className="v2-nav-btn"
           onClick={onPrev}
-          disabled={moduleIndex === 0}
+          disabled={moduleIndex === 0 && !hasOverview}
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="15 18 9 12 15 6" />
@@ -520,13 +555,15 @@ export default function CourseViewer() {
   const [showWhatsNew, setShowWhatsNew] = useState(false);
   const [showWizard, setShowWizard] = useState(false);
   const [doneExercises, setDoneExercises] = useState<Record<string, boolean>>({});
-  const [activeModuleIndex, setActiveModuleIndex] = useState(() => {
+  const [highlightedConcept, setHighlightedConcept] = useState<string | null>(null);
+  const [activeModuleIndex, setActiveModuleIndex] = useState<number | null>(() => {
     if (typeof window !== "undefined") {
       const hash = window.location.hash;
+      if (hash === "#overview") return null;
       const match = hash.match(/^#module-(\d+)$/);
       if (match) return Math.max(0, parseInt(match[1], 10) - 1);
     }
-    return 0;
+    return null;
   });
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const moduleCountRef = useRef(0);
@@ -550,7 +587,7 @@ export default function CourseViewer() {
   const webhookInfo = data?.webhook ?? null;
 
   const v2Data: V2CourseData | null = useMemo(() => {
-    if (course?.v2Data) return course.v2Data;
+    if (course?.v2Data) return normalizeV2CourseData(course.v2Data);
     if (!course?.html) return null;
     return parseV2Course(course.html);
   }, [course?.v2Data, course?.html]);
@@ -657,16 +694,23 @@ export default function CourseViewer() {
   useEffect(() => {
     if (!v2Data) return;
     const totalMods = v2Data.totalModules;
+    const hasOverview = !!v2Data.overviewGraph;
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) return;
       if (e.key === "j" || e.key === "ArrowDown") {
         e.preventDefault();
-        setActiveModuleIndex((prev) => Math.min(totalMods - 1, prev + 1));
+        setHighlightedConcept(null);
+        setActiveModuleIndex((prev) => prev === null ? 0 : Math.min(totalMods - 1, prev + 1));
         mainScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
       } else if (e.key === "k" || e.key === "ArrowUp") {
         e.preventDefault();
-        setActiveModuleIndex((prev) => Math.max(0, prev - 1));
+        setHighlightedConcept(null);
+        setActiveModuleIndex((prev) => {
+          if (prev === null) return null;
+          if (prev === 0) return hasOverview ? null : 0;
+          return prev - 1;
+        });
         mainScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
       }
     };
@@ -676,9 +720,14 @@ export default function CourseViewer() {
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      window.history.replaceState(null, "", `#module-${activeModuleIndex + 1}`);
+      window.history.replaceState(null, "", activeModuleIndex === null ? "#overview" : `#module-${activeModuleIndex + 1}`);
     }
   }, [activeModuleIndex]);
+
+  useEffect(() => {
+    if (v2Data?.overviewGraph) return;
+    if (activeModuleIndex === null) setActiveModuleIndex(0);
+  }, [activeModuleIndex, v2Data?.overviewGraph]);
 
   const markModuleComplete = useCallback((moduleIndex: number) => {
     setCompletedModules((prev) => {
@@ -746,8 +795,9 @@ export default function CourseViewer() {
     }
   };
 
-  const handleModuleSelect = (i: number) => {
+  const handleModuleSelect = (i: number | null, conceptLabel?: string) => {
     setActiveModuleIndex(i);
+    setHighlightedConcept(conceptLabel ?? null);
     setMobileMenuOpen(false);
     mainScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -879,12 +929,8 @@ export default function CourseViewer() {
           }}
         />
       )}
-      <div className="course-topbar" style={{
-        height: 48, background: "var(--code-bg)", color: "white",
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "0 1rem", flexShrink: 0,
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+      <div className="course-topbar v2-course-topbar">
+        <div className="v2-course-topbar-group v2-course-topbar-group-left">
           {isV2 && (
             <button
               className="v2-mobile-menu-btn"
@@ -903,8 +949,8 @@ export default function CourseViewer() {
             </svg>
             <span className="v2-topbar-back-text">Dashboard</span>
           </button>
-          <span style={{ color: "rgba(255,255,255,0.3)" }}>|</span>
-          <code style={{ fontSize: "0.85rem", color: "rgba(255,255,255,0.9)", fontFamily: "var(--font-mono)" }}>
+          <span className="v2-course-topbar-divider">|</span>
+          <code className="v2-course-topbar-repo">
             {course.ownerName}/{course.repoName}
           </code>
           {course.version > 1 && (
@@ -913,16 +959,16 @@ export default function CourseViewer() {
             </span>
           )}
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-          <span className="v2-topbar-audience" style={{ background: "rgba(255,255,255,0.15)", padding: "0.125rem 0.5rem", borderRadius: "var(--radius-full)", color: "rgba(255,255,255,0.7)", fontSize: "0.75rem" }}>
+        <div className="v2-course-topbar-group v2-course-topbar-group-right">
+          <span className="v2-topbar-audience">
             {AUDIENCE_LABELS[course.targetAudience] || course.targetAudience}
           </span>
           {totalModules > 0 && (
-            <div className="v2-topbar-progress" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-              <div style={{ width: 100, height: 4, background: "rgba(255,255,255,0.2)", borderRadius: 2, overflow: "hidden" }}>
-                <div style={{ height: "100%", width: `${progress}%`, background: "var(--teal)", borderRadius: 2, transition: "width 0.3s ease" }} />
+            <div className="v2-topbar-progress" aria-label={`Course progress ${completedModules.length} of ${totalModules}`}>
+              <div className="v2-topbar-progress-track">
+                <div className="v2-topbar-progress-fill" style={{ width: `${Math.max(progress, 6)}%`, opacity: progress === 0 ? 0.32 : 1 }} />
               </div>
-              <span style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.6)" }}>
+              <span className="v2-topbar-progress-value">
                 {completedModules.length}/{totalModules}
               </span>
             </div>
@@ -1022,6 +1068,7 @@ export default function CourseViewer() {
                   activeIndex={activeModuleIndex}
                   completedModules={completedModules}
                   quizScores={quizScores}
+                  showOverview={!!v2Data.overviewGraph}
                   onSelect={handleModuleSelect}
                 />
 
@@ -1109,6 +1156,9 @@ export default function CourseViewer() {
                     activeIndex={activeModuleIndex}
                     completedModules={completedModules}
                     quizScores={quizScores}
+                    courseName={course.repoName}
+                    progressPercent={progress}
+                    showOverview={!!v2Data.overviewGraph}
                     onSelect={handleModuleSelect}
                   />
                 </aside>
@@ -1117,7 +1167,7 @@ export default function CourseViewer() {
 
             <div ref={mainScrollRef} className="v2-main-scroll">
               <ErrorBoundary>
-              {activeModuleIndex === 0 && v2Data.overviewGraph && (
+              {activeModuleIndex === null && v2Data.overviewGraph && (
                 <div className="v2-overview-section">
                   <div className="v2-overview-tabs" role="tablist" aria-label="Overview visualization tabs">
                     <button
@@ -1187,7 +1237,7 @@ export default function CourseViewer() {
                   )}
                 </div>
               )}
-              {v2Data.modules[activeModuleIndex] && (
+              {activeModuleIndex !== null && v2Data.modules[activeModuleIndex] && (
                 <V2ModuleContent
                   module={v2Data.modules[activeModuleIndex]}
                   moduleIndex={activeModuleIndex}
@@ -1197,9 +1247,11 @@ export default function CourseViewer() {
                   isCompleted={completedModules.includes(activeModuleIndex)}
                   quizScore={quizScores.get(activeModuleIndex)}
                   onComplete={() => markModuleComplete(activeModuleIndex)}
-                  onPrev={() => handleModuleSelect(Math.max(0, activeModuleIndex - 1))}
+                  onPrev={() => handleModuleSelect(activeModuleIndex === 0 ? (v2Data.overviewGraph ? null : 0) : activeModuleIndex - 1)}
                   onNext={() => handleModuleSelect(Math.min(v2Data.totalModules - 1, activeModuleIndex + 1))}
                   onPractice={() => setPracticeModuleIndex(activeModuleIndex)}
+                  hasOverview={!!v2Data.overviewGraph}
+                  highlightedConcept={highlightedConcept}
                 />
               )}
               </ErrorBoundary>

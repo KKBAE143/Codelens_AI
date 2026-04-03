@@ -9,6 +9,8 @@ import { useAuth } from "@/hooks/use-auth";
 import { AbstractionMap } from "@/components/course-blocks/AbstractionMap";
 import { BlockRenderer } from "@/components/course-blocks/BlockRenderer";
 import {
+  findBestModuleHighlightTarget,
+  normalizeV2CourseData,
   parseV2Course,
   type V2CourseData,
   type V2Module,
@@ -84,15 +86,31 @@ function V2Sidebar({
   modules,
   activeIndex,
   completedModules,
+  showOverview,
   onSelect,
 }: {
   modules: V2Module[];
-  activeIndex: number;
+  activeIndex: number | null;
   completedModules: number[];
-  onSelect: (i: number) => void;
+  showOverview?: boolean;
+  onSelect: (i: number | null, conceptLabel?: string) => void;
 }) {
   return (
     <nav className="v2-module-nav" aria-label="Course modules">
+      {showOverview && (
+        <button
+          className={`v2-module-nav-item ${activeIndex === null ? "v2-module-nav-active" : ""}`}
+          onClick={() => onSelect(null)}
+          aria-current={activeIndex === null ? "step" : undefined}
+        >
+          <ProgressRing percent={activeIndex === null ? 50 : 0} />
+          <div className="v2-module-nav-text">
+            <span className="v2-module-nav-label">Overview</span>
+            <span className="v2-module-nav-title">Knowledge graph & abstraction map</span>
+            <span className="v2-module-nav-time">Separate course canvas</span>
+          </div>
+        </button>
+      )}
       {modules.map((mod, i) => {
         const isActive = i === activeIndex;
         const isCompleted = completedModules.includes(i);
@@ -124,6 +142,8 @@ function V2Content({
   onComplete,
   onPrev,
   onNext,
+  hasOverview,
+  highlightedConcept,
 }: {
   module: V2Module;
   moduleIndex: number;
@@ -133,10 +153,26 @@ function V2Content({
   onComplete: () => void;
   onPrev: () => void;
   onNext: () => void;
+  hasOverview: boolean;
+  highlightedConcept?: string | null;
 }) {
+  const highlightBlockIndex = useMemo(
+    () => (highlightedConcept ? findBestModuleHighlightTarget(mod, highlightedConcept) : null),
+    [highlightedConcept, mod],
+  );
+
+  useEffect(() => {
+    if (!highlightedConcept) return;
+    const targetId = highlightBlockIndex !== null ? `public-toc-block-${highlightBlockIndex}` : "public-v2-module-header";
+    const frame = window.requestAnimationFrame(() => {
+      document.getElementById(targetId)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [highlightBlockIndex, highlightedConcept]);
+
   return (
     <article className="v2-module-content">
-      <header className="v2-module-header">
+      <header id="public-v2-module-header" className={`v2-module-header ${highlightedConcept && highlightBlockIndex === null ? "v2-module-header-highlight" : ""}`}>
         <span className="v2-module-index">Module {moduleIndex + 1} of {totalModules}</span>
         <h2 className="v2-module-title">{mod.title}</h2>
         {mod.learningObjective && (
@@ -157,13 +193,13 @@ function V2Content({
       </header>
       <div className="v2-blocks">
         {mod.blocks.map((block, bi) => (
-          <div key={bi} className="v2-block-wrapper">
+          <div key={bi} id={`public-toc-block-${bi}`} className={`v2-block-wrapper ${highlightBlockIndex === bi ? "v2-block-wrapper-highlight" : ""}`}>
             <BlockRenderer block={block} githubUrl={githubUrl} />
           </div>
         ))}
       </div>
       <footer className="v2-module-footer">
-        <button className="btn-secondary" onClick={onPrev} disabled={moduleIndex === 0} style={{ fontSize: "0.85rem" }}>
+        <button className="btn-secondary" onClick={onPrev} disabled={moduleIndex === 0 && !hasOverview} style={{ fontSize: "0.85rem" }}>
           Previous
         </button>
         <div className="v2-module-footer-center">
@@ -263,9 +299,10 @@ export default function PublicCourseViewer() {
 
   const [completedModules, setCompletedModules] = useState<number[]>([]);
   const [showSidebar, setShowSidebar] = useState(true);
-  const [activeModuleIndex, setActiveModuleIndex] = useState(0);
+  const [activeModuleIndex, setActiveModuleIndex] = useState<number | null>(null);
   const [showSignInCta, setShowSignInCta] = useState(false);
   const [overviewTab, setOverviewTab] = useState<"graph" | "diagram">("graph");
+  const [highlightedConcept, setHighlightedConcept] = useState<string | null>(null);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["public-course", owner, repo],
@@ -278,7 +315,7 @@ export default function PublicCourseViewer() {
   const course = data?.course ?? null;
 
   const v2Data: V2CourseData | null = useMemo(() => {
-    if (course?.v2Data) return course.v2Data;
+    if (course?.v2Data) return normalizeV2CourseData(course.v2Data);
     if (!course?.html) return null;
     return parseV2Course(course.html);
   }, [course?.v2Data, course?.html]);
@@ -318,30 +355,43 @@ export default function PublicCourseViewer() {
     });
   }, [course, isAuthenticated]);
 
-  const handleModuleSelect = (i: number) => {
+  const handleModuleSelect = (i: number | null, conceptLabel?: string) => {
     setActiveModuleIndex(i);
+    setHighlightedConcept(conceptLabel ?? null);
     mainScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   useEffect(() => {
     if (!v2Data) return;
     const totalMods = v2Data.totalModules;
+    const hasOverview = !!v2Data.overviewGraph;
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) return;
       if (e.key === "j" || e.key === "ArrowDown") {
         e.preventDefault();
-        setActiveModuleIndex((prev) => Math.min(totalMods - 1, prev + 1));
+        setHighlightedConcept(null);
+        setActiveModuleIndex((prev) => prev === null ? 0 : Math.min(totalMods - 1, prev + 1));
         mainScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
       } else if (e.key === "k" || e.key === "ArrowUp") {
         e.preventDefault();
-        setActiveModuleIndex((prev) => Math.max(0, prev - 1));
+        setHighlightedConcept(null);
+        setActiveModuleIndex((prev) => {
+          if (prev === null) return null;
+          if (prev === 0) return hasOverview ? null : 0;
+          return prev - 1;
+        });
         mainScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [v2Data]);
+
+  useEffect(() => {
+    if (v2Data?.overviewGraph) return;
+    if (activeModuleIndex === null) setActiveModuleIndex(0);
+  }, [activeModuleIndex, v2Data?.overviewGraph]);
 
   if (isLoading) {
     return (
@@ -397,7 +447,7 @@ export default function PublicCourseViewer() {
     );
   }
 
-  const activeModule = v2Data.modules[activeModuleIndex];
+  const activeModule = activeModuleIndex === null ? null : v2Data.modules[activeModuleIndex];
   const totalModules = v2Data.totalModules;
   const completionPercent = Math.round((completedModules.length / totalModules) * 100);
   const shareUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/explore/${course.ownerName}/${course.repoName}`;
@@ -533,6 +583,7 @@ export default function PublicCourseViewer() {
           modules={v2Data.modules}
           activeIndex={activeModuleIndex}
           completedModules={completedModules}
+          showOverview={!!v2Data.overviewGraph}
           onSelect={handleModuleSelect}
         />
       </div>
@@ -564,7 +615,7 @@ export default function PublicCourseViewer() {
           </div>
         )}
 
-        {activeModuleIndex === 0 && v2Data.overviewGraph && (
+        {activeModuleIndex === null && v2Data.overviewGraph && (
           <div className="v2-overview-section">
             <div className="v2-overview-tabs" role="tablist" aria-label="Overview visualization tabs">
               <button
@@ -614,7 +665,7 @@ export default function PublicCourseViewer() {
           </div>
         )}
 
-        {activeModule && (
+        {activeModuleIndex !== null && activeModule && (
           <V2Content
             module={activeModule}
             moduleIndex={activeModuleIndex}
@@ -622,8 +673,10 @@ export default function PublicCourseViewer() {
             githubUrl={course.githubUrl}
             isCompleted={completedModules.includes(activeModuleIndex)}
             onComplete={() => markModuleComplete(activeModuleIndex)}
-            onPrev={() => handleModuleSelect(Math.max(0, activeModuleIndex - 1))}
+            onPrev={() => handleModuleSelect(activeModuleIndex === 0 ? (v2Data.overviewGraph ? null : 0) : activeModuleIndex - 1)}
             onNext={() => handleModuleSelect(Math.min(totalModules - 1, activeModuleIndex + 1))}
+            hasOverview={!!v2Data.overviewGraph}
+            highlightedConcept={highlightedConcept}
           />
         )}
 
