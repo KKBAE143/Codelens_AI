@@ -36,7 +36,7 @@ CodeLens AI — a SaaS platform where users paste a GitHub URL and receive an AI
 
 - V2 courses stored as `__codelens_v2__` prefix + JSON in `courses.html` column
 - V1 legacy courses render via iframe fallback
-- V2 block types: text, code, mermaid, quiz, callout, file-list, architecture-card, dependency-card, env-var-card, command-card
+- V2 block types: text, code, mermaid, quiz, callout, file-list, architecture-card, dependency-card, env-var-card, command-card, module-summary
 - Types: `artifacts/codelens-web/src/lib/course-types.ts`
 - Block renderers: `artifacts/codelens-web/src/components/course-blocks/`
 - Wizard: `artifacts/codelens-web/src/components/CourseWizardModal.tsx` (4-step: repo preview, persona, depth/focus, confirm+generate)
@@ -228,6 +228,8 @@ All routes in `artifacts/codelens-web/src/app/api/`:
 **Admin:**
 - `GET /api/admin/ai-pool/stats` — Aggregated pool stats, account health, hourly volume, recent errors (admin-only via `ADMIN_USER_IDS`)
 - `POST /api/admin/ai-pool/test` — Test Cloudflare credentials with a real LLM call (admin-only)
+- `GET /api/admin/check` — Returns `{ isAdmin: boolean }` for current user
+- `GET /api/export/pitch-pdf` — Hackathon pitch document as print-ready HTML (admin-only). Query `?mode=cheatsheet` for condensed one-page presenter reference. Pulls live stats from DB.
 
 **Auth:**
 - `GET /api/auth/login` — Initiate GitHub OAuth login

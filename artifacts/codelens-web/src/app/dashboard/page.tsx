@@ -500,6 +500,15 @@ function Dashboard() {
   };
 
   const [activeTab, setActiveTab] = useState<"courses" | "assigned" | "team">("courses");
+  const [isAdminUser, setIsAdminUser] = useState(false);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    fetch("/api/admin/check", { credentials: "include" })
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => { if (data?.isAdmin) setIsAdminUser(true); })
+      .catch(() => {});
+  }, [isAuthenticated]);
 
   useEffect(() => {
     if (myAssignments.length > 0 && courses.length === 0) setActiveTab("assigned");
@@ -546,6 +555,22 @@ function Dashboard() {
           </p>
         </div>
         <div className="lms-dash-actions">
+          {isAdminUser && (
+            <a
+              href="/api/export/pitch-pdf"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-secondary"
+              style={{ textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "0.35rem" }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              Pitch PDF
+            </a>
+          )}
           <Link href="/org/new" className="btn-secondary" style={{ textDecoration: "none" }}>
             Create Team
           </Link>
