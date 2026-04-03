@@ -130,6 +130,8 @@ interface CourseItem {
   hasWebhook: boolean;
   webhookAutoRegenerate: boolean | null;
   lastSeenVersion: number;
+  percentComplete: number;
+  lastViewedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -984,6 +986,24 @@ function Dashboard() {
                     </span>
                   )}
                 </div>
+
+                {course.status === "completed" && (
+                  <div style={{ marginTop: "0.25rem" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.25rem" }}>
+                      <span style={{ fontSize: "0.7rem", fontWeight: 600, color: course.percentComplete === 100 ? "var(--success)" : "var(--text-secondary)" }}>
+                        {course.percentComplete}% complete
+                      </span>
+                      {course.lastViewedAt && (
+                        <span style={{ fontSize: "0.7rem", color: "var(--text-tertiary)" }}>
+                          Last accessed {timeAgo(course.lastViewedAt)}
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ height: 4, background: "var(--bg-secondary)", borderRadius: 2, overflow: "hidden" }}>
+                      <div style={{ height: "100%", width: `${course.percentComplete}%`, background: course.percentComplete === 100 ? "var(--success)" : "var(--accent)", borderRadius: 2, transition: "width 0.3s" }} />
+                    </div>
+                  </div>
+                )}
 
                 <div
                   style={{

@@ -85,6 +85,8 @@ export async function GET(request: NextRequest) {
       hasWebhook: sql<boolean>`CASE WHEN ${webhookRegistrations.id} IS NOT NULL THEN true ELSE false END`.as("has_webhook"),
       webhookAutoRegenerate: webhookRegistrations.autoRegenerate,
       lastSeenVersion: sql<number>`COALESCE(${courseProgress.lastSeenVersion}, 0)`.as("last_seen_version"),
+      percentComplete: sql<number>`COALESCE(${courseProgress.percentComplete}, 0)`.as("percent_complete"),
+      lastViewedAt: courseProgress.lastViewedAt,
     })
     .from(courses)
     .leftJoin(webhookRegistrations, eq(courses.id, webhookRegistrations.courseId))
