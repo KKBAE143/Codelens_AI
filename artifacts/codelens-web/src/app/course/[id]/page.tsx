@@ -251,6 +251,24 @@ function V2ModuleContent({
         ))}
       </div>
 
+      {!mod.blocks.some((b) => b.type === "module-summary") && mod.learningObjective && (
+        <div className="v2-module-summary-card">
+          <div className="v2-module-summary-title">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+              <polyline points="22 4 12 14.01 9 11.01" />
+            </svg>
+            What You Learned
+          </div>
+          <ul className="v2-module-summary-list">
+            <li className="v2-module-summary-bullet">{mod.learningObjective}</li>
+            {mod.title && mod.title !== "Overview & Architecture" && (
+              <li className="v2-module-summary-bullet">How <strong>{mod.title}</strong> fits into the codebase</li>
+            )}
+          </ul>
+        </div>
+      )}
+
       <footer className="v2-module-footer">
         <button
           className="v2-nav-btn"
