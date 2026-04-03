@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 
 interface V2Module {
   title: string;
@@ -41,6 +41,8 @@ export interface CourseSidebarProps {
   courseId?: string;
   onOpenFlashcards?: (moduleIndex: number) => void;
   refreshKey?: number;
+  header?: ReactNode;
+  footer?: ReactNode;
 }
 
 export function CourseSidebar({
@@ -53,6 +55,8 @@ export function CourseSidebar({
   courseId,
   onOpenFlashcards,
   refreshKey,
+  header,
+  footer,
 }: CourseSidebarProps) {
   const [flashcardCounts, setFlashcardCounts] = useState<ModuleFlashcardCounts>({});
 
@@ -68,6 +72,7 @@ export function CourseSidebar({
 
   return (
     <nav className="v2-module-nav" aria-label="Course modules">
+      {header}
       <div className="v2-module-nav-overview">
         <div>
           <div className="v2-module-nav-kicker">Course roadmap</div>
@@ -175,6 +180,7 @@ export function CourseSidebar({
         );
       })}
       </div>
+      {footer}
     </nav>
   );
 }

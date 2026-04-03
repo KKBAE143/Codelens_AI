@@ -949,33 +949,6 @@ export default function CourseViewer() {
           <div style={{ flex: 1, display: "flex", overflow: "hidden", position: "relative" }}>
             {showSidebar && (
               <aside className="v2-sidebar course-sidebar">
-                <div className="v2-sidebar-header v2-sidebar-header-course">
-                  <div className="v2-sidebar-course-hero">
-                    <div>
-                      <div className="v2-module-nav-kicker">Learning workspace</div>
-                      <h3 className="v2-sidebar-title">{course.repoName}</h3>
-                      <p className="v2-sidebar-summary">Track your progress, review key concepts, and jump to any module without losing context.</p>
-                    </div>
-                    <div className="v2-sidebar-progress-card v2-sidebar-progress-card-compact">
-                      <div className="v2-sidebar-progress-head">
-                        <span>Progress</span>
-                        <span>{progress}%</span>
-                      </div>
-                      <div className="v2-sidebar-progress-bar">
-                        <div style={{ height: "100%", width: `${progress}%`, background: progress >= 100 ? "var(--teal)" : "var(--accent)", borderRadius: 999, transition: "width 0.4s ease" }} />
-                      </div>
-                      <div className="v2-sidebar-progress-caption">{completedModules.length} of {totalModules} modules completed</div>
-                    </div>
-                  </div>
-
-                  <div className="v2-sidebar-toolbar">
-                    <div className="v2-sidebar-progress">
-                      <ProgressRing percent={progress} size={32} stroke={3} />
-                      <span className="v2-sidebar-progress-text">{progress}%</span>
-                    </div>
-                  </div>
-                </div>
-
                 <CourseSidebar
                   modules={v2Data.modules}
                   activeIndex={activeModuleIndex}
@@ -989,96 +962,106 @@ export default function CourseViewer() {
                     setFlashcardModuleIndex(modIdx);
                     setShowFlashcards(true);
                   }}
-                />
-
-                <div className="v2-sidebar-info">
-                  <div className="v2-sidebar-icon-toolbar">
-                    <button onClick={handleCopyShare} className="v2-sidebar-icon-btn" title="Copy share link" aria-label="Copy share link">
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                      </svg>
-                    </button>
-                    <a
-                      href={course.githubUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="v2-sidebar-icon-btn"
-                      title="Open on GitHub"
-                      aria-label="Open on GitHub"
-                    >
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22" />
-                      </svg>
-                    </a>
-                    <button
-                      onClick={() => { setFlashcardModuleIndex(null); setShowFlashcards(true); }}
-                      className="v2-sidebar-icon-btn"
-                      title="Review all flashcards"
-                      aria-label="Review all flashcards"
-                    >
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <rect x="2" y="3" width="20" height="14" rx="2" />
-                        <line x1="8" y1="21" x2="16" y2="21" />
-                        <line x1="12" y1="17" x2="12" y2="21" />
-                      </svg>
-                    </button>
-                  </div>
-                  {v2Data.languages.length > 0 && (
-                    <div className="v2-sidebar-section">
-                      <span className="v2-sidebar-label">Languages</span>
-                      <div style={{ display: "flex", gap: "0.25rem", flexWrap: "wrap" }}>
-                        {v2Data.languages.map((l) => (
-                          <span key={l} className="badge" style={{ background: "var(--teal-light)", color: "var(--teal)" }}>{l}</span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {v2Data.frameworks.length > 0 && (
-                    <div className="v2-sidebar-section">
-                      <span className="v2-sidebar-label">Frameworks</span>
-                      <div style={{ display: "flex", gap: "0.25rem", flexWrap: "wrap" }}>
-                        {v2Data.frameworks.map((f) => (
-                          <span key={f} className="badge" style={{ background: "var(--accent-light)", color: "var(--accent)" }}>{f}</span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {v2Data.estimatedTotalMinutes > 0 && (
-                    <div className="v2-sidebar-section">
-                      <span className="v2-sidebar-label">Duration</span>
-                      <span style={{ fontSize: "0.8rem" }}>~{v2Data.estimatedTotalMinutes} min</span>
-                    </div>
-                  )}
-                  {user && course.createdBy === user.id && (
-                    <div className="v2-sidebar-section v2-sidebar-section-card">
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  header={
+                    <div className="v2-sidebar-header v2-sidebar-header-course">
+                      <div className="v2-sidebar-course-hero">
                         <div>
-                          <div style={{ fontSize: "0.8rem", fontWeight: 500 }}>Auto-update</div>
-                          <div style={{ fontSize: "0.7rem", color: "var(--text-tertiary)" }}>Regenerate on push</div>
+                          <div className="v2-module-nav-kicker">Learning workspace</div>
+                          <h3 className="v2-sidebar-title">{course.repoName}</h3>
+                          <p className="v2-sidebar-summary">Track your progress, review key concepts, and jump to any module without losing context.</p>
                         </div>
-                        <button
-                          onClick={handleToggleWebhook}
-                          disabled={webhookToggling}
-                          style={{
-                            width: 44, height: 24, borderRadius: 12, border: "none",
-                            cursor: webhookToggling ? "wait" : "pointer",
-                            background: webhookInfo?.autoRegenerate ? "var(--teal)" : "var(--border-color)",
-                            position: "relative", transition: "background 0.2s ease",
-                          }}
-                        >
-                          <div style={{
-                            width: 18, height: 18, borderRadius: "50%", background: "white",
-                            position: "absolute", top: 3,
-                            left: webhookInfo?.autoRegenerate ? 23 : 3,
-                            transition: "left 0.2s ease",
-                            boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
-                          }} />
+                        <div className="v2-sidebar-progress-card v2-sidebar-progress-card-compact">
+                          <div className="v2-sidebar-progress-head">
+                            <span>Progress</span>
+                            <span>{progress}%</span>
+                          </div>
+                          <div className="v2-sidebar-progress-bar">
+                            <div style={{ height: "100%", width: `${progress}%`, background: progress >= 100 ? "var(--teal)" : "var(--accent)", borderRadius: 999, transition: "width 0.4s ease" }} />
+                          </div>
+                          <div className="v2-sidebar-progress-caption">{completedModules.length} of {totalModules} modules completed</div>
+                        </div>
+                      </div>
+                      <div className="v2-sidebar-icon-toolbar">
+                        <button onClick={handleCopyShare} className="v2-sidebar-icon-btn" title="Copy share link" aria-label="Copy share link">
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                          </svg>
                         </button>
+                        <a
+                          href={course.githubUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="v2-sidebar-icon-btn"
+                          title="Open on GitHub"
+                          aria-label="Open on GitHub"
+                        >
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22" />
+                          </svg>
+                        </a>
                       </div>
                     </div>
-                  )}
-                </div>
+                  }
+                  footer={
+                    <div className="v2-sidebar-info">
+                      {v2Data.languages.length > 0 && (
+                        <div className="v2-sidebar-section">
+                          <span className="v2-sidebar-label">Languages</span>
+                          <div style={{ display: "flex", gap: "0.25rem", flexWrap: "wrap" }}>
+                            {v2Data.languages.map((l) => (
+                              <span key={l} className="badge" style={{ background: "var(--teal-light)", color: "var(--teal)" }}>{l}</span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {v2Data.frameworks.length > 0 && (
+                        <div className="v2-sidebar-section">
+                          <span className="v2-sidebar-label">Frameworks</span>
+                          <div style={{ display: "flex", gap: "0.25rem", flexWrap: "wrap" }}>
+                            {v2Data.frameworks.map((f) => (
+                              <span key={f} className="badge" style={{ background: "var(--accent-light)", color: "var(--accent)" }}>{f}</span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {v2Data.estimatedTotalMinutes > 0 && (
+                        <div className="v2-sidebar-section">
+                          <span className="v2-sidebar-label">Duration</span>
+                          <span style={{ fontSize: "0.8rem" }}>~{v2Data.estimatedTotalMinutes} min</span>
+                        </div>
+                      )}
+                      {user && course.createdBy === user.id && (
+                        <div className="v2-sidebar-section v2-sidebar-section-card">
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                            <div>
+                              <div style={{ fontSize: "0.8rem", fontWeight: 500 }}>Auto-update</div>
+                              <div style={{ fontSize: "0.7rem", color: "var(--text-tertiary)" }}>Regenerate on push</div>
+                            </div>
+                            <button
+                              onClick={handleToggleWebhook}
+                              disabled={webhookToggling}
+                              style={{
+                                width: 44, height: 24, borderRadius: 12, border: "none",
+                                cursor: webhookToggling ? "wait" : "pointer",
+                                background: webhookInfo?.autoRegenerate ? "var(--teal)" : "var(--border-color)",
+                                position: "relative", transition: "background 0.2s ease",
+                              }}
+                            >
+                              <div style={{
+                                width: 18, height: 18, borderRadius: "50%", background: "white",
+                                position: "absolute", top: 3,
+                                left: webhookInfo?.autoRegenerate ? 23 : 3,
+                                transition: "left 0.2s ease",
+                                boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+                              }} />
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  }
+                />
               </aside>
             )}
 

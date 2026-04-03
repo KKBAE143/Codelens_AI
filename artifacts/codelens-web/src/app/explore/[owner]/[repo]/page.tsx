@@ -15,6 +15,7 @@ import {
   type V2Module,
 } from "@/lib/course-types";
 import { CourseSidebar } from "@/components/CourseSidebar";
+import { FlashcardReview } from "@/components/FlashcardReview";
 
 const KnowledgeGraph = dynamic(
   () => import("@/components/course-blocks/KnowledgeGraph").then((m) => m.KnowledgeGraph),
@@ -80,6 +81,7 @@ function V2Content({
   onPrev,
   onNext,
   hasOverview,
+  onFlashcards,
 }: {
   module: V2Module;
   moduleIndex: number;
@@ -90,6 +92,7 @@ function V2Content({
   onPrev: () => void;
   onNext: () => void;
   hasOverview: boolean;
+  onFlashcards?: () => void;
 }) {
   return (
     <article className="v2-module-content">
@@ -109,6 +112,16 @@ function V2Content({
                 <span key={fa} className="badge" style={{ background: "var(--accent-light)", color: "var(--accent)" }}>{fa}</span>
               ))}
             </div>
+          )}
+          {onFlashcards && (
+            <button onClick={onFlashcards} className="v2-module-flashcard-btn" title="Review flashcards for this module">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="2" y="3" width="20" height="14" rx="2" />
+                <line x1="8" y1="21" x2="16" y2="21" />
+                <line x1="12" y1="17" x2="12" y2="21" />
+              </svg>
+              Flashcards
+            </button>
           )}
         </div>
       </header>
@@ -197,6 +210,9 @@ export default function PublicCourseViewer() {
   const [showSidebar, setShowSidebar] = useState(true);
   const [activeModuleIndex, setActiveModuleIndex] = useState<number | null>(null);
   const [showSignInCta, setShowSignInCta] = useState(false);
+  const [showFlashcards, setShowFlashcards] = useState(false);
+  const [flashcardModuleIndex, setFlashcardModuleIndex] = useState<number | null>(null);
+  const [flashcardRefreshKey, setFlashcardRefreshKey] = useState(0);
   const [overviewTab, setOverviewTab] = useState<"graph" | "diagram">("graph");
 
   const { data, isLoading, error } = useQuery({
@@ -408,71 +424,78 @@ export default function PublicCourseViewer() {
 
       <div style={{ flex: 1, display: "flex", overflow: "hidden", position: "relative" }}>
       <div className={`v2-sidebar ${showSidebar ? "" : "v2-sidebar-collapsed"}`}>
-        <div className="v2-sidebar-header v2-sidebar-header-public">
-          <Link href="/explore" className="v2-sidebar-backlink">
-            &larr; Explore
-          </Link>
-          <div className="v2-sidebar-repo-card">
-          <div className="v2-sidebar-repo-row">
-            <img
-              src={`https://github.com/${course.ownerName}.png?size=32`}
-              alt={course.ownerName}
-              width={36}
-              height={36}
-              className="v2-sidebar-avatar"
-              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-            />
-            <a
-              href={course.githubUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="v2-repo-link"
-            >
-              <span className="v2-repo-owner">{course.ownerName}/</span>
-              <strong className="v2-repo-name">{course.repoName}</strong>
-            </a>
-            <ShareMenu course={course} />
-          </div>
-          <div className="v2-sidebar-chip-grid">
-            <span className="v2-sidebar-chip"><strong>{AUDIENCE_LABELS[course.targetAudience] || course.targetAudience}</strong><em>Audience</em></span>
-            <span className="v2-sidebar-chip"><strong>{course.estimatedMinutes ? `~${course.estimatedMinutes}m` : "Self-paced"}</strong><em>Duration</em></span>
-            <span className="v2-sidebar-chip"><strong>{course.viewCount}</strong><em>Views</em></span>
-          </div>
-          {course.oneLiner && (
-            <p className="v2-sidebar-summary">{course.oneLiner}</p>
-          )}
-
-          <div className="v2-sidebar-meta v2-sidebar-meta-mutedline">
-            {course.stars != null && course.stars > 0 && (
-              <span className="badge" style={{ whiteSpace: "nowrap" }} title="GitHub stars">&#9733; {course.stars >= 1000 ? `${(course.stars / 1000).toFixed(1)}k` : course.stars}</span>
-            )}
-            {course.difficulty && (
-              <span className="badge" style={{ whiteSpace: "nowrap" }}>{course.difficulty}</span>
-            )}
-            {course.updatedAt && (
-              <span className="v2-sidebar-updated">Last generated {formatTimeAgo(course.updatedAt)}</span>
-            )}
-          </div>
-
-          <div className="v2-sidebar-progress-card">
-            <div className="v2-sidebar-progress-head">
-              <span>Progress</span>
-              <span>{completionPercent}%</span>
-            </div>
-            <div className="v2-sidebar-progress-bar">
-              <div style={{ height: "100%", width: completionPercent === 0 ? 2 : `${completionPercent}%`, background: completionPercent >= 100 ? "var(--teal)" : "var(--accent)", borderRadius: 999, transition: "width 0.4s ease", opacity: completionPercent === 0 ? 0.7 : 1 }} />
-            </div>
-            <div className="v2-sidebar-progress-caption">{completedModules.length === 0 ? `0 of ${totalModules} started` : `${completedModules.length} of ${totalModules} modules completed`}</div>
-          </div>
-          </div>
-        </div>
-
         <CourseSidebar
           modules={v2Data.modules}
           activeIndex={activeModuleIndex}
           completedModules={completedModules}
           showOverview={!!v2Data.overviewGraph}
           onSelect={handleModuleSelect}
+          courseId={isAuthenticated ? course.id : undefined}
+          refreshKey={flashcardRefreshKey}
+          onOpenFlashcards={isAuthenticated ? (modIdx) => {
+            setFlashcardModuleIndex(modIdx);
+            setShowFlashcards(true);
+          } : undefined}
+          header={
+            <div className="v2-sidebar-header v2-sidebar-header-public">
+              <Link href="/explore" className="v2-sidebar-backlink">
+                &larr; Explore
+              </Link>
+              <div className="v2-sidebar-repo-card">
+              <div className="v2-sidebar-repo-row">
+                <img
+                  src={`https://github.com/${course.ownerName}.png?size=32`}
+                  alt={course.ownerName}
+                  width={36}
+                  height={36}
+                  className="v2-sidebar-avatar"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                />
+                <a
+                  href={course.githubUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="v2-repo-link"
+                >
+                  <span className="v2-repo-owner">{course.ownerName}/</span>
+                  <strong className="v2-repo-name">{course.repoName}</strong>
+                </a>
+                <ShareMenu course={course} />
+              </div>
+              <div className="v2-sidebar-chip-grid">
+                <span className="v2-sidebar-chip"><strong>{AUDIENCE_LABELS[course.targetAudience] || course.targetAudience}</strong><em>Audience</em></span>
+                <span className="v2-sidebar-chip"><strong>{course.estimatedMinutes ? `~${course.estimatedMinutes}m` : "Self-paced"}</strong><em>Duration</em></span>
+                <span className="v2-sidebar-chip"><strong>{course.viewCount}</strong><em>Views</em></span>
+              </div>
+              {course.oneLiner && (
+                <p className="v2-sidebar-summary">{course.oneLiner}</p>
+              )}
+
+              <div className="v2-sidebar-meta v2-sidebar-meta-mutedline">
+                {course.stars != null && course.stars > 0 && (
+                  <span className="badge" style={{ whiteSpace: "nowrap" }} title="GitHub stars">&#9733; {course.stars >= 1000 ? `${(course.stars / 1000).toFixed(1)}k` : course.stars}</span>
+                )}
+                {course.difficulty && (
+                  <span className="badge" style={{ whiteSpace: "nowrap" }}>{course.difficulty}</span>
+                )}
+                {course.updatedAt && (
+                  <span className="v2-sidebar-updated">Last generated {formatTimeAgo(course.updatedAt)}</span>
+                )}
+              </div>
+
+              <div className="v2-sidebar-progress-card">
+                <div className="v2-sidebar-progress-head">
+                  <span>Progress</span>
+                  <span>{completionPercent}%</span>
+                </div>
+                <div className="v2-sidebar-progress-bar">
+                  <div style={{ height: "100%", width: completionPercent === 0 ? 2 : `${completionPercent}%`, background: completionPercent >= 100 ? "var(--teal)" : "var(--accent)", borderRadius: 999, transition: "width 0.4s ease", opacity: completionPercent === 0 ? 0.7 : 1 }} />
+                </div>
+                <div className="v2-sidebar-progress-caption">{completedModules.length === 0 ? `0 of ${totalModules} started` : `${completedModules.length} of ${totalModules} modules completed`}</div>
+              </div>
+              </div>
+            </div>
+          }
         />
       </div>
 
@@ -564,6 +587,10 @@ export default function PublicCourseViewer() {
             onPrev={() => handleModuleSelect(activeModuleIndex === 0 ? (v2Data.overviewGraph ? null : 0) : activeModuleIndex - 1)}
             onNext={() => handleModuleSelect(Math.min(totalModules - 1, activeModuleIndex + 1))}
             hasOverview={!!v2Data.overviewGraph}
+            onFlashcards={isAuthenticated ? () => {
+              setFlashcardModuleIndex(activeModuleIndex);
+              setShowFlashcards(true);
+            } : undefined}
           />
         )}
 
@@ -585,6 +612,18 @@ export default function PublicCourseViewer() {
       </div>
       </div>
       </div>
+
+      {showFlashcards && isAuthenticated && (
+        <FlashcardReview
+          courseId={course.id}
+          moduleIndex={flashcardModuleIndex ?? undefined}
+          onClose={() => {
+            setShowFlashcards(false);
+            setFlashcardModuleIndex(null);
+            setFlashcardRefreshKey((k) => k + 1);
+          }}
+        />
+      )}
     </div>
   );
 }
