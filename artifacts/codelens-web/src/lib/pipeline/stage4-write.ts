@@ -19,36 +19,52 @@ function getAbstractionFilesByPageRank(
   abstraction: Abstraction,
   extraction: RepoExtraction,
 ): Array<{ path: string; content: string; size: number }> {
-  const filesFromIndices = abstraction.file_indices
-    .filter((idx) => idx < extraction.files.length)
-    .map((idx) => extraction.files[idx]);
-
-  const includedPaths = new Set(filesFromIndices.map(f => f.path));
-
   const allFetched = extraction.allFetchedFiles || [];
-  if (allFetched.length > 0) {
-    const abstractionDirs = new Set<string>();
-    for (const f of filesFromIndices) {
-      const dir = f.path.substring(0, f.path.lastIndexOf("/"));
-      if (dir) abstractionDirs.add(dir);
-    }
+  const allFetchedByPath = new Map(allFetched.map(f => [f.path, f]));
 
-    for (const f of allFetched) {
-      if (includedPaths.has(f.path)) continue;
-      const fDir = f.path.substring(0, f.path.lastIndexOf("/"));
-      if (fDir && abstractionDirs.has(fDir)) {
-        filesFromIndices.push(f);
-        includedPaths.add(f.path);
+  const mappedPaths = abstraction.file_paths && abstraction.file_paths.length > 0
+    ? abstraction.file_paths
+    : abstraction.file_indices
+        .filter((idx) => idx < extraction.files.length)
+        .map((idx) => extraction.files[idx].path);
+
+  const includedPaths = new Set<string>();
+  const result: Array<{ path: string; content: string; size: number }> = [];
+
+  for (const path of mappedPaths) {
+    if (includedPaths.has(path)) continue;
+    const fromAll = allFetchedByPath.get(path);
+    if (fromAll) {
+      result.push(fromAll);
+      includedPaths.add(path);
+    } else {
+      const fromTop = extraction.files.find(f => f.path === path);
+      if (fromTop) {
+        result.push(fromTop);
+        includedPaths.add(path);
       }
     }
   }
 
-  const files = filesFromIndices;
-  if (files.length <= 1) return files;
+  const abstractionDirs = new Set<string>();
+  for (const path of mappedPaths) {
+    const dir = path.substring(0, path.lastIndexOf("/"));
+    if (dir) abstractionDirs.add(dir);
+  }
+  for (const f of allFetched) {
+    if (includedPaths.has(f.path)) continue;
+    const fDir = f.path.substring(0, f.path.lastIndexOf("/"));
+    if (fDir && abstractionDirs.has(fDir)) {
+      result.push(f);
+      includedPaths.add(f.path);
+    }
+  }
 
-  const pageRank = computePageRank(files);
+  if (result.length <= 1) return result;
 
-  return [...files].sort((a, b) => {
+  const pageRank = computePageRank(result);
+
+  return [...result].sort((a, b) => {
     const scoreA = pageRank.scores.get(a.path) || 0;
     const scoreB = pageRank.scores.get(b.path) || 0;
     const degreeA = pageRank.inDegree.get(a.path) || 0;

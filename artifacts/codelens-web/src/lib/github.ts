@@ -924,6 +924,43 @@ export async function extractRepo(
       sigEntries.push(`${f.path}:\n  ${sigLines.slice(0, 20).join("\n  ")}`);
     }
   }
+  const unfetchedNonBinary = allFiles.filter(
+    f => f.size <= MAX_FILE_SIZE && f.size > 0 && !fetchedPaths.has(f.path) && !isBinaryExtension(f.path) && !includedPaths.has(f.path)
+  );
+  if (unfetchedNonBinary.length > 0) {
+    const sigFetchBatch = 10;
+    for (let i = 0; i < unfetchedNonBinary.length; i += sigFetchBatch) {
+      const batch = unfetchedNonBinary.slice(i, i + sigFetchBatch);
+      const results = await Promise.allSettled(
+        batch.map(async (file) => {
+          const contentRes = await githubFetch(
+            `https://api.github.com/repos/${owner}/${repo}/contents/${file.path}?ref=${defaultBranch}`,
+            userToken,
+          );
+          const contentData = await contentRes.json();
+          if (contentData.content && contentData.encoding === "base64") {
+            const content = Buffer.from(contentData.content, "base64").toString("utf-8");
+            return { path: file.path, content, size: file.size };
+          }
+          return null;
+        }),
+      );
+      for (const r of results) {
+        if (r.status === "fulfilled" && r.value) {
+          const f = r.value;
+          if (includedPaths.has(f.path)) continue;
+          includedPaths.add(f.path);
+          const sigs = extractFileSignatures(f.content, f.path);
+          const sigLines = sigs.split("\n").filter(l => l.startsWith("export ") || l.startsWith("function ") || l.startsWith("class ") || l.startsWith("def ") || l.startsWith("func ") || l.startsWith("pub ") || l.startsWith("type ") || l.startsWith("interface ") || l.match(/^(public|private|protected)/));
+          if (sigLines.length > 0) {
+            sigEntries.push(`${f.path}:\n  ${sigLines.slice(0, 20).join("\n  ")}`);
+          } else {
+            sigEntries.push(`${f.path}:\n  [${inferFileDescription(f.path)}]`);
+          }
+        }
+      }
+    }
+  }
   const oversizedFiles = allFiles.filter(f => f.size > SIGNATURE_FILE_SIZE && !isBinaryExtension(f.path));
   for (const f of oversizedFiles) {
     if (!includedPaths.has(f.path)) {
@@ -1036,7 +1073,13 @@ export async function extractRepo(
     })
     .join("\n");
 
-  console.log(`[Extraction] ${totalFilesCatalogued} files catalogued, ${topFiles.length} included full, ${filesSignatureOnly} signature-only, ${filesSkeletonOnly} skeleton only, ${packedTokenCount} tokens`);
+  const totalNonBinary = allFiles.filter(f => !isBinaryExtension(f.path)).length;
+  const filesWithSignatures = sigEntries.length;
+  const filesPathOnly = totalNonBinary - topFiles.length - filesWithSignatures;
+  console.log(`[Extraction] ${totalFilesCatalogued} files catalogued | ${topFiles.length} full-content | ${filesWithSignatures} signature-only | ${filesPathOnly > 0 ? filesPathOnly : 0} path-only | ${packedTokenCount} tokens`);
+  if (filesPathOnly > 0) {
+    console.warn(`[Extraction] Warning: ${filesPathOnly} non-binary files have neither full content nor signatures`);
+  }
 
   return {
     fileTree,
