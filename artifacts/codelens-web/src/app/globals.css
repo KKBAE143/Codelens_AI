@@ -2489,6 +2489,39 @@ a.v2-code-filepath:hover {
   border-color: rgba(16,185,129,0.3) !important;
 }
 
+.v2-cmd-os-tabs {
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
+  margin-right: 0.5rem;
+  background: rgba(255,255,255,0.06);
+  border-radius: 6px;
+  padding: 2px;
+}
+
+.v2-cmd-os-tab {
+  padding: 3px 10px;
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: rgba(255,255,255,0.4);
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.v2-cmd-os-tab:hover {
+  color: rgba(255,255,255,0.7);
+  background: rgba(255,255,255,0.06);
+}
+
+.v2-cmd-os-tab-active {
+  color: rgba(255,255,255,0.9);
+  background: rgba(255,255,255,0.12);
+}
+
 /* Command block */
 .v2-cmd-block {
   display: flex;

@@ -86,6 +86,10 @@ export const v2CommandCardBlockSchema = z.object({
     error: z.string(),
     fix: z.string(),
   })).optional(),
+  osVariants: z.object({
+    mac: z.string().optional(),
+    windows: z.string().optional(),
+  }).optional(),
 });
 
 export const v2ExerciseBlockSchema = z.object({

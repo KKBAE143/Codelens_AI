@@ -244,16 +244,31 @@ export function getSetupChapterPrompt(audience: TargetAudience): string {
 
 ${PERSONA_CONTEXT[audience]}
 
-Using the package.json data, .env.example data, and Dockerfile data provided, generate a comprehensive setup chapter.
+Using ALL the setup data provided (package manifests, env vars, Dockerfile, Docker Compose, services), generate a comprehensive setup chapter.
 
-REQUIRED STRUCTURE (minimum 8 blocks):
-1. A text block (2+ paragraphs) explaining prerequisites — required Node/Python version, required global tools, OS-specific notes
-2. A text block explaining the project structure and what each directory contains
-3. One env-var-card per environment variable from .env.example (with specific purpose and what breaks without it)
-4. One command-card per important package.json script (dev, build, test, lint, etc.)
-5. A callout[command] with the complete install + start sequence from clone to running app
-6. A callout[tip] about common setup gotchas specific to THIS project
-7. A mermaid flowchart showing the setup process flow (clone → install → configure env → run)
+REQUIRED STRUCTURE (minimum 10 blocks):
+
+1. A text block (2+ paragraphs) explaining prerequisites — required language runtimes and versions (Node, Python, Go, Rust, Java, etc.), required global tools, and OS-specific notes.
+
+2. IF Docker Compose data is provided: Start with a "One-Command Start" section — a callout[tip] explaining that this project supports Docker Compose, followed by a command-card for "docker compose up" with expected output showing all services starting. This is the FAST PATH.
+
+3. A text block explaining the project structure and what each directory contains. If this is a monorepo or multi-service project, explain the directory layout and which service lives where.
+
+4. IF multiple services are detected (isMonorepo or services array): Include a "Terminal 1 / Terminal 2" guide — one command-card per service with the terminal label in the "when" field (e.g., "Terminal 1 — start the backend API server", "Terminal 2 — start the frontend dev server").
+
+5. One env-var-card per environment variable from .env.example or detected env files. For each variable include: what feature/service it enables, what breaks or degrades if missing, and an example value. Group related variables with a text block header (e.g., "Database Variables", "Auth Variables").
+
+6. One command-card per important script/target from any detected package manager manifest. For EVERY command-card:
+   - Include an "expectedOutput" field showing 2-3 lines the user should see when it succeeds
+   - Include "osVariants" with "mac" (Mac/Linux command) and "windows" (Windows/PowerShell equivalent) when they differ. Common differences: path separators, env var syntax ($VAR vs %VAR%), shell commands (rm -rf vs rmdir /s /q), package manager paths
+
+7. A callout[command] with the complete install + start sequence from clone to running app
+
+8. A callout[tip] about common setup gotchas specific to THIS project's stack
+
+9. A mermaid flowchart showing the setup process flow (clone → install deps → configure env → start services → verify)
+
+10. A "Golden Path Quick Start" section at the END — a single callout[command] block with the absolute minimum copy-paste commands to go from zero to running app. The default should be Mac/Linux commands. Use a command-card with osVariants for the Windows equivalent.
 
 ${ANTI_PLACEHOLDER_RULES}
 

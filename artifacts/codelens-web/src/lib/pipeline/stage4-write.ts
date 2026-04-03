@@ -256,7 +256,16 @@ async function writeOneChapter(
     const dockerData = extraction.parsedDockerfile
       ? `Dockerfile:\nBase: ${extraction.parsedDockerfile.baseImage}\nPorts: ${extraction.parsedDockerfile.exposePorts.join(", ")}\nCommands: ${extraction.parsedDockerfile.keyCommands.join("; ")}`
       : "No Dockerfile found";
-    contextData = `${pkgData}\n\n${envData}\n\n${dockerData}`;
+    const manifestsData = extraction.parsedSetupManifests.length > 0
+      ? `\n\nDetected package manifests:\n${extraction.parsedSetupManifests.map((m) => `- ${m.type} (${m.language}) at ${m.filePath}: install="${m.installCommand}", run="${m.runCommand}"${m.extras ? ` extras=${JSON.stringify(m.extras)}` : ""}`).join("\n")}`
+      : "";
+    const dockerComposeData = extraction.parsedDockerCompose
+      ? `\n\nDocker Compose services:\n${extraction.parsedDockerCompose.services.map((s) => `- ${s.name}${s.image ? ` (image: ${s.image})` : ""}${s.build ? ` (build: ${s.build})` : ""} ports: ${s.ports.join(", ") || "none"}`).join("\n")}`
+      : "";
+    const servicesData = extraction.detectedServices.length > 0
+      ? `\n\nisMonorepo: ${extraction.isMonorepo}\nDetected services:\n${extraction.detectedServices.map((s) => `- ${s.name} in ${s.directory}/${s.manifest ? ` (${s.manifest})` : ""}${s.startCommand ? ` start: ${s.startCommand}` : ""}`).join("\n")}`
+      : "";
+    contextData = `${pkgData}\n\n${envData}\n\n${dockerData}${manifestsData}${dockerComposeData}${servicesData}\n\nFile tree (first 50):\n${extraction.fileTree.slice(0, 50).join("\n")}`;
   } else if (chapter.chapterType === "dependencies") {
     prompt = getDependenciesChapterPrompt(config.audience);
     contextData = extraction.parsedPackageJson
@@ -297,11 +306,34 @@ async function writeOneChapter(
       config.customContext,
     );
 
+    const repoMapHeader = `=== Full Repository Map ===\n${extraction.repoMap}\n\n`;
+    const repoMapTokens = countTokens(repoMapHeader);
+    const adjustedBudget = contextBudget - repoMapTokens;
+
     if (abstraction) {
       const rankedFiles = getAbstractionFilesByPageRank(abstraction, extraction);
-      contextData = packAbstractionContext(rankedFiles, contextBudget);
+      contextData = packAbstractionContext(rankedFiles, Math.max(adjustedBudget, 2000));
     } else {
       contextData = `No specific files assigned to this abstraction.`;
+    }
+
+    contextData = repoMapHeader + contextData;
+
+    const currentTokens = countTokens(contextData);
+    const sigBudget = contextBudget - currentTokens;
+    if (extraction.fileSignatures && sigBudget > 500) {
+      const sigLines = extraction.fileSignatures.split("\n");
+      const trimmedSig: string[] = [];
+      let sigToks = 0;
+      for (const line of sigLines) {
+        const lineToks = countTokens(line);
+        if (sigToks + lineToks > sigBudget) break;
+        trimmedSig.push(line);
+        sigToks += lineToks;
+      }
+      if (trimmedSig.length > 0) {
+        contextData += `\n\n${trimmedSig.join("\n")}`;
+      }
     }
   }
 

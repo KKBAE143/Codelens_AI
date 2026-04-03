@@ -83,6 +83,10 @@ export interface V2CommandCardBlock {
   when: string;
   expectedOutput?: string;
   commonErrors?: Array<{ error: string; fix: string }>;
+  osVariants?: {
+    mac?: string;
+    windows?: string;
+  };
 }
 
 export interface V2ExerciseBlock {

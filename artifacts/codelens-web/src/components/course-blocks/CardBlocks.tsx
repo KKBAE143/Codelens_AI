@@ -155,15 +155,36 @@ export function EnvVarCardBlock({ block }: { block: V2EnvVarCardBlock }) {
   );
 }
 
+function getStoredOsPref(): "mac" | "windows" {
+  if (typeof window === "undefined") return "mac";
+  try {
+    const stored = localStorage.getItem("codelens-os-pref");
+    if (stored === "windows") return "windows";
+  } catch { /* noop */ }
+  return "mac";
+}
+
+function setStoredOsPref(os: "mac" | "windows") {
+  try {
+    localStorage.setItem("codelens-os-pref", os);
+  } catch { /* noop */ }
+}
+
 export function CommandCardBlock({ block }: { block: V2CommandCardBlock }) {
+  const hasVariants = block.osVariants && (block.osVariants.mac || block.osVariants.windows);
+  const [activeOs, setActiveOs] = useState<"mac" | "windows">(getStoredOsPref);
   const [copied, setCopied] = useState(false);
+
+  const displayCommand = hasVariants
+    ? (activeOs === "windows" && block.osVariants?.windows ? block.osVariants.windows : block.osVariants?.mac || block.command)
+    : block.command;
 
   const handleCopy = useCallback(async () => {
     try {
-      await navigator.clipboard.writeText(block.command);
+      await navigator.clipboard.writeText(displayCommand);
     } catch {
       const textarea = document.createElement("textarea");
-      textarea.value = block.command;
+      textarea.value = displayCommand;
       textarea.style.position = "fixed";
       textarea.style.opacity = "0";
       document.body.appendChild(textarea);
@@ -173,11 +194,15 @@ export function CommandCardBlock({ block }: { block: V2CommandCardBlock }) {
     }
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-  }, [block.command]);
+  }, [displayCommand]);
+
+  const handleOsSwitch = useCallback((os: "mac" | "windows") => {
+    setActiveOs(os);
+    setStoredOsPref(os);
+  }, []);
 
   return (
     <div className="v2-cmd-card">
-      {/* Terminal title bar */}
       <div className="v2-cmd-titlebar">
         <div className="v2-cmd-dots">
           <span className="v2-cmd-dot v2-cmd-dot-red" />
@@ -188,6 +213,22 @@ export function CommandCardBlock({ block }: { block: V2CommandCardBlock }) {
           <TerminalIcon />
           <span>Terminal</span>
         </div>
+        {hasVariants && (
+          <div className="v2-cmd-os-tabs">
+            <button
+              className={`v2-cmd-os-tab ${activeOs === "mac" ? "v2-cmd-os-tab-active" : ""}`}
+              onClick={() => handleOsSwitch("mac")}
+            >
+              Mac / Linux
+            </button>
+            <button
+              className={`v2-cmd-os-tab ${activeOs === "windows" ? "v2-cmd-os-tab-active" : ""}`}
+              onClick={() => handleOsSwitch("windows")}
+            >
+              Windows
+            </button>
+          </div>
+        )}
         <button
           className={`v2-cmd-copy-btn ${copied ? "v2-cmd-copy-btn-copied" : ""}`}
           onClick={handleCopy}
@@ -209,18 +250,15 @@ export function CommandCardBlock({ block }: { block: V2CommandCardBlock }) {
         </button>
       </div>
 
-      {/* Command block */}
       <div className="v2-cmd-block">
         <span className="v2-cmd-prompt">$</span>
-        <code className="v2-cmd-text">{block.command}</code>
+        <code className="v2-cmd-text">{displayCommand}</code>
       </div>
 
-      {/* Description */}
       <div className="v2-cmd-description">
         {block.when}
       </div>
 
-      {/* Expected output */}
       {block.expectedOutput && (
         <div className="v2-cmd-output-section">
           <div className="v2-cmd-output-label">Expected output</div>
@@ -228,7 +266,6 @@ export function CommandCardBlock({ block }: { block: V2CommandCardBlock }) {
         </div>
       )}
 
-      {/* Common errors */}
       {block.commonErrors && block.commonErrors.length > 0 && (
         <div className="v2-cmd-errors-section">
           <div className="v2-cmd-errors-label">Common errors</div>
