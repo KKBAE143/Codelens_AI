@@ -2,7 +2,7 @@ import { Redis } from "@upstash/redis";
 import { db } from "@workspace/db";
 import { aiPoolStats } from "@workspace/db/schema";
 
-export type LlmTask = "stage1" | "stage2" | "stage3" | "summary";
+export type LlmTask = "stage1" | "stage2" | "stage3" | "stage4" | "summary";
 
 interface GenerateTextOptions {
   task: LlmTask;
@@ -59,6 +59,11 @@ const DEFAULT_MODELS: Record<LlmTask, ModelConfig[]> = {
     { model: "@cf/zai-org/glm-4.7-flash" },
     { model: "@cf/openai/gpt-oss-20b" },
   ],
+  stage4: [
+    { model: "@cf/openai/gpt-oss-120b" },
+    { model: "@cf/zai-org/glm-4.7-flash" },
+    { model: "@cf/openai/gpt-oss-20b" },
+  ],
   summary: [
     { model: "@cf/zai-org/glm-4.7-flash" },
     { model: "@cf/openai/gpt-oss-20b" },
@@ -69,6 +74,7 @@ const ENV_MODEL_KEYS: Record<LlmTask, string> = {
   stage1: "COURSE_STAGE1_MODEL",
   stage2: "COURSE_STAGE2_MODEL",
   stage3: "COURSE_STAGE3_MODEL",
+  stage4: "COURSE_STAGE4_MODEL",
   summary: "COURSE_SUMMARY_MODEL",
 };
 
@@ -76,6 +82,7 @@ const RATE_LIMIT_QUARANTINE_MS = 5 * 60 * 1000;
 const QUOTA_QUARANTINE_MS = 60 * 60 * 1000;
 const DEFAULT_WEIGHT = 100;
 const MIN_WEIGHT = 10;
+const DAILY_TOKEN_QUOTA_ESTIMATE = 500_000;
 
 let poolRedis: Redis | null = null;
 let poolRedisChecked = false;
@@ -183,10 +190,15 @@ export function getPoolAccounts(): CloudflarePoolAccount[] {
     accounts.push({ accountId: sharedAccountId, authToken: sharedAuthToken, label: "shared" });
   }
 
-  for (let i = 1; ; i++) {
+  let consecutiveMisses = 0;
+  for (let i = 1; consecutiveMisses < 5; i++) {
     const accountId = process.env[`CLOUDFLARE_ACCOUNT_ID_${i}`]?.trim();
     const authToken = process.env[`CLOUDFLARE_AUTH_TOKEN_${i}`]?.trim();
-    if (!accountId && !authToken) break;
+    if (!accountId && !authToken) {
+      consecutiveMisses++;
+      continue;
+    }
+    consecutiveMisses = 0;
     if (!accountId || !authToken) {
       console.warn(`[Pool] Incomplete credential pair for CLOUDFLARE_ACCOUNT_ID_${i}`);
       continue;
@@ -194,7 +206,7 @@ export function getPoolAccounts(): CloudflarePoolAccount[] {
     accounts.push({ accountId, authToken, label: `account-${i}` });
   }
 
-  for (const stage of ["STAGE1", "STAGE2", "STAGE3", "SUMMARY"] as const) {
+  for (const stage of ["STAGE1", "STAGE2", "STAGE3", "STAGE4", "SUMMARY"] as const) {
     const accountId = process.env[`CLOUDFLARE_${stage}_ACCOUNT_ID`]?.trim();
     const authToken = process.env[`CLOUDFLARE_${stage}_AUTH_TOKEN`]?.trim();
     if (!accountId || !authToken) continue;
@@ -234,6 +246,13 @@ export function getAccountsForStage(stage: LlmTask): CloudflarePoolAccount[] {
   return tagged.length > 0 ? tagged : all;
 }
 
+function computeEffectiveWeight(health: AccountHealth): number {
+  const baseWeight = health.weight;
+  const usageRatio = Math.min(1, health.totalTokensToday / DAILY_TOKEN_QUOTA_ESTIMATE);
+  const usagePenalty = 1 - (usageRatio * 0.8);
+  return Math.max(MIN_WEIGHT, Math.floor(baseWeight * usagePenalty));
+}
+
 async function selectAccountWeightedRR(
   accounts: CloudflarePoolAccount[],
   excludeLabels?: Set<string>,
@@ -245,7 +264,7 @@ async function selectAccountWeightedRR(
     if (excludeLabels?.has(account.label)) continue;
     const health = await getAccountHealth(account.label);
     if (!isAccountHealthy(health)) continue;
-    const w = health.weight;
+    const w = computeEffectiveWeight(health);
     candidates.push({ account, health, weight: w });
     totalWeight += w;
   }
@@ -407,9 +426,10 @@ async function tryAccountWithModels(
         const retryDelayMs = getRetryDelayMs(error);
         const shouldRetry = attempt < 3 && retryDelayMs !== null;
 
+        logPoolStat(account.label, options.task, config.model, 0, latency, false, shouldRetry ? "retry" : "error");
+
         if (!shouldRetry) {
           errors.push(`cloudflare:${account.label}:${config.model} -> ${message}`);
-          logPoolStat(account.label, options.task, config.model, 0, latency, false, "error");
           break;
         }
 
@@ -540,7 +560,7 @@ Each text block must contain multiple paragraphs of real technical explanation. 
     ];
   }
 
-  if (options.task === "stage3") {
+  if (options.task === "stage3" || options.task === "stage4") {
     return [
       {
         role: "system",

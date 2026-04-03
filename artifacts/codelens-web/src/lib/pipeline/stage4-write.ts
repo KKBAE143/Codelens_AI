@@ -1,4 +1,4 @@
-import { generateText, getAccountsForStage, getHealthyAccountCount, sleep } from "../llm";
+import { generateText, getAccountsForStage, getHealthyAccountCount, sleep, type LlmTask } from "../llm";
 import { countTokens, truncateAtFunctionBoundary, getDepthTokenBudget, getDepthContextBudget } from "../token-counter";
 import { v2ChapterSchema } from "../v2-schema";
 import { type RepoExtraction, fetchFileContent } from "../github";
@@ -399,7 +399,7 @@ async function writeOneChapter(
       const fullPrompt = `${prompt}${progressiveHint}\n\n${contextData}`;
 
       const response = await generateText({
-        task: "stage3",
+        task: "stage4",
         prompt: lastError
           ? `${fullPrompt}\n\nPrevious attempt failed validation with this error:\n${lastError}\n\nFix the schema issues and return JSON only.`
           : fullPrompt,
@@ -491,37 +491,41 @@ export async function runStage4WriteChapters(
 
   const chaptersToWrite = chapters.filter((c) => !completedMap.has(c.index));
 
-  let healthyCount = await getHealthyAccountCount("stage3");
+  const stage4Task: LlmTask = "stage4";
+  let healthyCount = await getHealthyAccountCount(stage4Task);
   if (healthyCount === 0) {
     console.log("[Pipeline] No healthy accounts at Stage 4 start, waiting for recovery...");
     let backoffMs = 5000;
-    for (let attempt = 0; attempt < 5; attempt++) {
+    for (let attempt = 0; attempt < 10; attempt++) {
       await sleep(backoffMs);
-      healthyCount = await getHealthyAccountCount("stage3");
+      healthyCount = await getHealthyAccountCount(stage4Task);
       if (healthyCount > 0) break;
-      backoffMs = Math.min(backoffMs * 2, 60000);
-      console.log(`[Pipeline] Still no healthy accounts, backoff ${backoffMs}ms (attempt ${attempt + 2}/5)`);
+      backoffMs = Math.min(backoffMs * 2, 120000);
+      console.log(`[Pipeline] Still no healthy accounts, backoff ${backoffMs}ms (attempt ${attempt + 2}/10)`);
+    }
+    if (healthyCount === 0) {
+      console.warn("[Pipeline] All accounts still unavailable after extended backoff, proceeding with concurrency=1");
     }
   }
   const concurrency = Math.max(1, Math.min(healthyCount, 8));
   console.log(`[Pipeline] Stage 4 concurrency: ${concurrency} (${healthyCount} healthy accounts)`);
 
-  const stageAccounts = getAccountsForStage("stage3");
+  const stageAccounts = getAccountsForStage(stage4Task);
   const results: ChapterResult[] = [...completedMap.values()];
 
   for (let i = 0; i < chaptersToWrite.length; i += concurrency) {
     const batch = chaptersToWrite.slice(i, i + concurrency);
 
-    const currentHealthy = await getHealthyAccountCount("stage3");
+    const currentHealthy = await getHealthyAccountCount(stage4Task);
     if (currentHealthy === 0) {
       console.log("[Pipeline] All accounts rate-limited, waiting with backoff...");
       let backoffMs = 5000;
-      for (let attempt = 0; attempt < 5; attempt++) {
+      for (let attempt = 0; attempt < 10; attempt++) {
         await sleep(backoffMs);
-        const recovered = await getHealthyAccountCount("stage3");
+        const recovered = await getHealthyAccountCount(stage4Task);
         if (recovered > 0) break;
-        backoffMs = Math.min(backoffMs * 2, 60000);
-        console.log(`[Pipeline] Still no healthy accounts, backoff ${backoffMs}ms (attempt ${attempt + 2}/5)`);
+        backoffMs = Math.min(backoffMs * 2, 120000);
+        console.log(`[Pipeline] Still no healthy accounts, backoff ${backoffMs}ms (attempt ${attempt + 2}/10)`);
       }
     }
 
