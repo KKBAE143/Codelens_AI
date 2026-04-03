@@ -753,12 +753,14 @@ export default function CourseViewer() {
 
   const [pendingConcept, setPendingConcept] = useState<string | null>(null);
   const [activeConcept, setActiveConcept] = useState<string | null>(null);
+  const [jumpedFrom, setJumpedFrom] = useState<string | null>(null);
 
   const handleModuleSelect = (i: number | null, conceptName?: string) => {
     setActiveModuleIndex(i);
     setMobileMenuOpen(false);
     setPendingConcept(conceptName ?? null);
     setActiveConcept(conceptName ?? null);
+    setJumpedFrom(conceptName ? conceptName : null);
     mainScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -1362,34 +1364,108 @@ export default function CourseViewer() {
                     </div>
                   )}
 
-                  {v2Data.conceptIndex && v2Data.conceptIndex.length > 0 && (
-                    <div className="v2-concept-index">
-                      <h3 className="v2-concept-index-title">Concept Index</h3>
-                      <div className="v2-concept-index-grid">
-                        {v2Data.conceptIndex.map((entry) => (
-                          <div key={entry.term} className="v2-concept-index-card">
-                            <div className="v2-concept-index-term">{entry.term}</div>
-                            <div className="v2-concept-index-desc">{entry.description}</div>
-                            <div className="v2-concept-index-modules">
-                              {entry.moduleIndices.map((mi) => (
-                                <button
-                                  key={mi}
-                                  className="v2-concept-index-link"
-                                  onClick={() => handleModuleSelect(mi)}
-                                >
-                                  Module {mi + 1}
-                                </button>
-                              ))}
+                  {v2Data.conceptIndex && v2Data.conceptIndex.length > 0 && (() => {
+                    const entries = v2Data.conceptIndex;
+                    const useAlphaGroups = entries.length >= 20;
+
+                    if (useAlphaGroups) {
+                      const grouped = new Map<string, typeof entries>();
+                      for (const entry of entries) {
+                        const letter = (entry.term[0] || "#").toUpperCase();
+                        const key = /[A-Z]/.test(letter) ? letter : "#";
+                        if (!grouped.has(key)) grouped.set(key, []);
+                        grouped.get(key)!.push(entry);
+                      }
+                      const sortedLetters = [...grouped.keys()].sort((a, b) =>
+                        a === "#" ? 1 : b === "#" ? -1 : a.localeCompare(b)
+                      );
+
+                      return (
+                        <div className="v2-concept-index">
+                          <h3 className="v2-concept-index-title">Concept Index ({entries.length})</h3>
+                          {sortedLetters.map((letter) => (
+                            <div key={letter} className="v2-concept-index-alpha-group">
+                              <div className="v2-concept-index-alpha-heading">{letter}</div>
+                              <div className="v2-concept-index-grid">
+                                {grouped.get(letter)!.map((entry) => (
+                                  <div key={entry.term} className="v2-concept-index-card">
+                                    <div className="v2-concept-index-term">{entry.term}</div>
+                                    <div className="v2-concept-index-desc">{entry.description}</div>
+                                    <div className="v2-concept-index-modules">
+                                      {entry.moduleIndices.map((mi) => (
+                                        <button
+                                          key={mi}
+                                          className="v2-concept-index-link"
+                                          onClick={() => handleModuleSelect(mi, entry.term)}
+                                        >
+                                          Module {mi + 1}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="v2-concept-index">
+                        <h3 className="v2-concept-index-title">Concept Index</h3>
+                        <div className="v2-concept-index-grid">
+                          {entries.map((entry) => (
+                            <div key={entry.term} className="v2-concept-index-card">
+                              <div className="v2-concept-index-term">{entry.term}</div>
+                              <div className="v2-concept-index-desc">{entry.description}</div>
+                              <div className="v2-concept-index-modules">
+                                {entry.moduleIndices.map((mi) => (
+                                  <button
+                                    key={mi}
+                                    className="v2-concept-index-link"
+                                    onClick={() => handleModuleSelect(mi, entry.term)}
+                                  >
+                                    Module {mi + 1}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    );
+                  })()}
                 </div>
               )}
               {activeModuleIndex !== null && v2Data.modules[activeModuleIndex] && (
                 <>
+                  {jumpedFrom && v2Data.overviewGraph && (
+                    <nav className="v2-jump-breadcrumb" aria-label="Navigation breadcrumb">
+                      <button
+                        type="button"
+                        className="v2-jump-breadcrumb-link"
+                        onClick={() => { handleModuleSelect(null); setJumpedFrom(null); }}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="15 18 9 12 15 6" />
+                        </svg>
+                        Overview
+                      </button>
+                      <span className="v2-jump-breadcrumb-sep">/</span>
+                      <span className="v2-jump-breadcrumb-concept">{jumpedFrom}</span>
+                      <span className="v2-jump-breadcrumb-sep">/</span>
+                      <span className="v2-jump-breadcrumb-current">Module {activeModuleIndex + 1}</span>
+                      <button
+                        type="button"
+                        className="v2-jump-breadcrumb-close"
+                        onClick={() => setJumpedFrom(null)}
+                        aria-label="Dismiss breadcrumb"
+                      >
+                        ×
+                      </button>
+                    </nav>
+                  )}
                   {activeConcept && v2Data.overviewGraph && (() => {
                     const otherModules = v2Data.overviewGraph.nodes
                       .filter(n => n.label.toLowerCase() === activeConcept.toLowerCase() && n.moduleIndex !== activeModuleIndex)

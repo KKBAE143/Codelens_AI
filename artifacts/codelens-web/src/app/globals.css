@@ -7725,6 +7725,88 @@ a.v2-code-filepath:hover {
   border-radius: var(--radius);
 }
 
+.v2-jump-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 1rem;
+  margin-bottom: 0.5rem;
+  border-radius: var(--radius);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.v2-jump-breadcrumb-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  background: none;
+  border: none;
+  color: var(--accent);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+
+.v2-jump-breadcrumb-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.v2-jump-breadcrumb-sep {
+  color: var(--text-tertiary);
+  user-select: none;
+}
+
+.v2-jump-breadcrumb-concept {
+  font-weight: 600;
+  color: var(--text-primary);
+  text-transform: capitalize;
+}
+
+.v2-jump-breadcrumb-current {
+  color: var(--text-tertiary);
+}
+
+.v2-jump-breadcrumb-close {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--text-tertiary);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 0.15rem;
+  border-radius: 4px;
+}
+
+.v2-jump-breadcrumb-close:hover {
+  color: var(--text-primary);
+  background: var(--bg-tertiary, rgba(0,0,0,0.05));
+}
+
+.v2-concept-index-alpha-group {
+  margin-bottom: 1.25rem;
+}
+
+.v2-concept-index-alpha-heading {
+  font-family: var(--font-heading);
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.25rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
 .v2-also-covered-banner {
   display: flex;
   align-items: center;
