@@ -67,7 +67,7 @@ interface CalloutConfig {
   label: string;
   className: string;
   accentColor: string;
-  tintColor: string;
+  bgGradient: string;
 }
 
 const CALLOUT_CONFIG: Record<string, CalloutConfig> = {
@@ -76,42 +76,42 @@ const CALLOUT_CONFIG: Record<string, CalloutConfig> = {
     label: "Warning",
     className: "v2-callout-warning",
     accentColor: "#D97706",
-    tintColor: "#FFF8E6",
+    bgGradient: "linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%)",
   },
   tip: {
     icon: <TipIcon />,
     label: "Tip",
     className: "v2-callout-tip",
     accentColor: "#0D9488",
-    tintColor: "#F2FCFA",
+    bgGradient: "linear-gradient(135deg, #F0FDFA 0%, #CCFBF1 100%)",
   },
   "ai-hint": {
     icon: <AiIcon />,
     label: "AI Insight",
     className: "v2-callout-ai",
     accentColor: "#7C3AED",
-    tintColor: "#F6F2FF",
+    bgGradient: "linear-gradient(135deg, #F5F3FF 0%, #EDE9FE 100%)",
   },
   "first-pr": {
     icon: <PrIcon />,
     label: "First PR Opportunity",
     className: "v2-callout-pr",
     accentColor: "#2563EB",
-    tintColor: "#EFF5FF",
+    bgGradient: "linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)",
   },
   security: {
     icon: <SecurityIcon />,
     label: "Security Note",
     className: "v2-callout-security",
     accentColor: "#DC2626",
-    tintColor: "#FEF3F3",
+    bgGradient: "linear-gradient(135deg, #FEF2F2 0%, #FEE2E2 100%)",
   },
   command: {
     icon: <CommandIcon />,
     label: "Command",
     className: "v2-callout-command",
     accentColor: "#6B7280",
-    tintColor: "#F7F8FA",
+    bgGradient: "linear-gradient(135deg, #F9FAFB 0%, #F3F4F6 100%)",
   },
 };
 
@@ -174,19 +174,43 @@ export function CalloutBlock({ block }: { block: V2CalloutBlock }) {
     <div
       className={`v2-callout ${config.className}`}
       style={{
-        ["--v2-callout-accent" as string]: config.accentColor,
-        ["--v2-callout-tint" as string]: config.tintColor,
+        background: config.bgGradient,
+        borderLeft: `4px solid ${config.accentColor}`,
+        borderRadius: "0 12px 12px 0",
+        padding: "1rem 1.25rem",
+        margin: "1rem 0",
+        boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
       }}
     >
-      <div className="v2-callout-header">
-        <span className="v2-callout-icon-svg" style={{ color: config.accentColor }}>
+      <div className="v2-callout-header" style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "0.5rem",
+        marginBottom: "0.625rem",
+      }}>
+        <span className="v2-callout-icon-svg" style={{
+          display: "flex",
+          alignItems: "center",
+          color: config.accentColor,
+          flexShrink: 0,
+        }}>
           {config.icon}
         </span>
-        <span className="v2-callout-label" style={{ color: config.accentColor }}>
+        <span className="v2-callout-label" style={{
+          fontSize: "0.8rem",
+          fontWeight: 700,
+          textTransform: "uppercase",
+          letterSpacing: "0.06em",
+          color: config.accentColor,
+        }}>
           {config.label}
         </span>
       </div>
-      <div className="v2-callout-content">
+      <div className="v2-callout-content" style={{
+        fontSize: "0.875rem",
+        lineHeight: 1.65,
+        color: "#1F2937",
+      }}>
         <ReactMarkdown remarkPlugins={[remarkGfm]} components={calloutMarkdownComponents}>
           {block.content}
         </ReactMarkdown>

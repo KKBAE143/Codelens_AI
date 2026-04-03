@@ -5,7 +5,7 @@ import type { V2Module, V2OverviewGraph } from "@/lib/course-types";
 
 interface AbstractionMapProps {
   graph: V2OverviewGraph;
-  onModuleClick: (moduleIndex: number) => void;
+  onModuleClick: (moduleIndex: number, conceptLabel?: string) => void;
   modules?: V2Module[];
 }
 
@@ -204,7 +204,7 @@ export function AbstractionMap({ graph, onModuleClick, modules = [] }: Abstracti
                 <button
                   type="button"
                   className="v2-abstraction-open-btn"
-                  onClick={() => onModuleClick(selectedNode.moduleIndex)}
+                  onClick={() => onModuleClick(selectedNode.moduleIndex, selectedNode.label)}
                 >
                   Open Module {selectedNodeModuleSerial}
                 </button>
@@ -234,7 +234,11 @@ export function AbstractionMap({ graph, onModuleClick, modules = [] }: Abstracti
                           key={edge.id}
                           type="button"
                           className="v2-abstraction-relationship-item"
-                          onClick={() => otherNode && setSelectedNodeId(otherNode.id)}
+                          onClick={() => {
+                            if (!otherNode) return;
+                            setSelectedNodeId(otherNode.id);
+                            onModuleClick(otherNode.moduleIndex, otherLabel);
+                          }}
                         >
                           <span className="v2-abstraction-relationship-target">{otherLabel}</span>
                           <span className="v2-abstraction-relationship-copy">{edge.description}</span>

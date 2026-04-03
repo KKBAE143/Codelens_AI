@@ -162,6 +162,94 @@ export function normalizeV2CourseData(data: V2CourseData): V2CourseData {
   };
 }
 
+function normalizeSearchText(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+export function getV2BlockSearchText(block: V2Block): string {
+  switch (block.type) {
+    case "text":
+      return block.content;
+    case "code":
+      return [block.filePath, block.caption, block.content].filter(Boolean).join(" ");
+    case "mermaid":
+      return [block.caption, block.source].filter(Boolean).join(" ");
+    case "quiz":
+      return [
+        block.question,
+        block.scenario,
+        ...block.options.map((option) => `${option.text} ${option.explanation}`),
+      ]
+        .filter(Boolean)
+        .join(" ");
+    case "callout":
+      return block.content;
+    case "file-list":
+      return block.files.map((file) => `${file.path} ${file.role}`).join(" ");
+    case "architecture-card":
+      return [block.decision, block.rationale, block.tradeoffs, block.alternatives]
+        .filter(Boolean)
+        .join(" ");
+    case "dependency-card":
+      return [block.packageName, block.purpose, block.whatBreaksWithout, block.alternatives]
+        .filter(Boolean)
+        .join(" ");
+    case "env-var-card":
+      return [block.varName, block.purpose, block.exampleValue, block.whatBreaksWithout]
+        .filter(Boolean)
+        .join(" ");
+    case "command-card":
+      return [
+        block.command,
+        block.when,
+        block.expectedOutput,
+        ...(block.commonErrors?.map((item) => `${item.error} ${item.fix}`) ?? []),
+      ]
+        .filter(Boolean)
+        .join(" ");
+    case "exercise":
+      return [
+        block.title,
+        block.task,
+        block.verificationHint,
+        ...(block.files?.map((file) => file.path) ?? []),
+      ]
+        .filter(Boolean)
+        .join(" ");
+    default:
+      return "";
+  }
+}
+
+export function findBestModuleHighlightTarget(module: V2Module, concept: string): number | null {
+  const conceptText = normalizeSearchText(concept);
+  if (!conceptText) return null;
+
+  let bestIndex: number | null = null;
+  let bestScore = 0;
+
+  module.blocks.forEach((block, index) => {
+    const haystack = normalizeSearchText(getV2BlockSearchText(block));
+    if (!haystack) return;
+
+    let score = 0;
+    if (haystack.includes(conceptText)) {
+      score += conceptText.length * 3;
+    }
+
+    for (const token of conceptText.split(" ").filter((token) => token.length > 2)) {
+      if (haystack.includes(token)) score += token.length;
+    }
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestIndex = index;
+    }
+  });
+
+  return bestScore > 0 ? bestIndex : null;
+}
+
 export const V2_PREFIX = "__codelens_v2__";
 
 export function isV2Course(html: string): boolean {

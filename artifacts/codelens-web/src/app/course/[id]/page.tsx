@@ -20,6 +20,7 @@ import {
   type V2Module,
   type V2QuizBlock,
 } from "@/lib/course-types";
+import { getBlockWrapperClass, getModuleState, getModuleStateLabel } from "@/lib/course-ui";
 
 const KnowledgeGraph = dynamic(
   () =>
@@ -123,59 +124,16 @@ function V2ModuleSidebar({
   activeIndex,
   completedModules,
   quizScores,
-  showOverview,
-  courseName,
-  progressPercent,
   onSelect,
 }: {
   modules: V2Module[];
-  activeIndex: number | null;
+  activeIndex: number;
   completedModules: number[];
   quizScores: Map<number, number>;
-  showOverview?: boolean;
-  courseName: string;
-  progressPercent: number;
-  onSelect: (i: number | null) => void;
+  onSelect: (i: number) => void;
 }) {
   return (
     <nav className="v2-module-nav" aria-label="Course modules">
-      <div className="v2-sidebar-mini-bar">
-        <span className="v2-sidebar-mini-title">{courseName}</span>
-        <span className="v2-sidebar-mini-progress">{progressPercent}%</span>
-      </div>
-      <div className="v2-module-nav-overview">
-        <div>
-          <div className="v2-module-nav-kicker">Course roadmap</div>
-          <div className="v2-module-nav-heading">Track progress, jump between modules, and revisit completed lessons.</div>
-        </div>
-        <div className="v2-module-nav-overview-stats">
-          <span>{completedModules.length}/{modules.length} done</span>
-        </div>
-      </div>
-      <div className="v2-module-nav-list">
-      {showOverview && (
-        <button
-          className={`v2-module-nav-item ${activeIndex === null ? "v2-module-nav-active" : ""}`}
-          onClick={() => onSelect(null)}
-          aria-current={activeIndex === null ? "step" : undefined}
-          aria-label="Overview canvas"
-        >
-          <div className="v2-module-nav-marker-wrap">
-            <ProgressRing percent={activeIndex === null ? 50 : 0} size={24} stroke={2.5} />
-            {modules.length > 0 && <span className="v2-module-nav-connector" aria-hidden="true" />}
-          </div>
-          <div className="v2-module-nav-text">
-            <span className="v2-module-nav-label">Overview</span>
-            <span className="v2-module-nav-title">Knowledge graph & abstraction map</span>
-            <span className="v2-module-nav-time">Separate course canvas</span>
-          </div>
-          <div className="v2-module-nav-actions">
-            <span className={`v2-module-nav-state ${activeIndex === null ? "is-active" : ""}`}>
-              {activeIndex === null ? "Current" : "Open"}
-            </span>
-          </div>
-        </button>
-      )}
       {modules.map((mod, i) => {
         const isActive = i === activeIndex;
         const isCompleted = completedModules.includes(i);
@@ -191,10 +149,7 @@ function V2ModuleSidebar({
             aria-current={isActive ? "step" : undefined}
             aria-label={`Module ${i + 1}: ${mod.title}${isCompleted ? " (completed)" : ""}${quizScore !== undefined ? `, quiz score ${quizScore}%` : ""}`}
           >
-            <div className="v2-module-nav-marker-wrap">
-              <ProgressRing percent={isCompleted ? 100 : isActive ? 50 : 0} size={24} stroke={2.5} />
-              {i < modules.length - 1 && <span className="v2-module-nav-connector" aria-hidden="true" />}
-            </div>
+            <ProgressRing percent={isCompleted ? 100 : isActive ? 50 : 0} size={24} stroke={2.5} />
             <div className="v2-module-nav-text">
               <span className="v2-module-nav-label">Module {i + 1}</span>
               <span className="v2-module-nav-title">{mod.title}</span>
@@ -202,7 +157,7 @@ function V2ModuleSidebar({
                 <span className="v2-module-nav-time">~{mod.estimatedMinutes} min</span>
               )}
             </div>
-            <div className="v2-module-nav-actions">
+            <div style={{ display: "flex", alignItems: "center", gap: "0.25rem", marginLeft: "auto", flexShrink: 0 }}>
               {quizScore !== undefined && (
                 <span
                   className="v2-mastery-badge"
@@ -217,14 +172,10 @@ function V2ModuleSidebar({
                   <polyline points="20 6 9 17 4 12" />
                 </svg>
               )}
-              <span className={`v2-module-nav-state ${isActive ? "is-active" : isCompleted ? "is-complete" : ""}`}>
-                {isActive ? "Current" : isCompleted ? "Done" : "Open"}
-              </span>
             </div>
           </button>
         );
       })}
-      </div>
     </nav>
   );
 }
@@ -241,7 +192,6 @@ function V2ModuleContent({
   onPrev,
   onNext,
   onPractice,
-  hasOverview,
   doneExercises,
   onExerciseDone,
 }: {
@@ -256,7 +206,6 @@ function V2ModuleContent({
   onPrev: () => void;
   onNext: () => void;
   onPractice: () => void;
-  hasOverview: boolean;
   doneExercises?: Record<string, boolean>;
   onExerciseDone?: (key: string, done: boolean) => void;
 }) {
@@ -340,7 +289,7 @@ function V2ModuleContent({
         <button
           className="v2-nav-btn"
           onClick={onPrev}
-          disabled={moduleIndex === 0 && !hasOverview}
+          disabled={moduleIndex === 0}
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="15 18 9 12 15 6" />
@@ -570,16 +519,14 @@ export default function CourseViewer() {
   const [lastSeenVersion, setLastSeenVersion] = useState<number | null>(null);
   const [showWhatsNew, setShowWhatsNew] = useState(false);
   const [showWizard, setShowWizard] = useState(false);
-  const [showShareMenu, setShowShareMenu] = useState(false);
   const [doneExercises, setDoneExercises] = useState<Record<string, boolean>>({});
-  const [activeModuleIndex, setActiveModuleIndex] = useState<number | null>(() => {
+  const [activeModuleIndex, setActiveModuleIndex] = useState(() => {
     if (typeof window !== "undefined") {
       const hash = window.location.hash;
-      if (hash === "#overview") return null;
       const match = hash.match(/^#module-(\d+)$/);
       if (match) return Math.max(0, parseInt(match[1], 10) - 1);
     }
-    return null;
+    return 0;
   });
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const moduleCountRef = useRef(0);
@@ -603,7 +550,7 @@ export default function CourseViewer() {
   const webhookInfo = data?.webhook ?? null;
 
   const v2Data: V2CourseData | null = useMemo(() => {
-    if (course?.v2Data) return normalizeV2CourseData(course.v2Data);
+    if (course?.v2Data) return course.v2Data;
     if (!course?.html) return null;
     return parseV2Course(course.html);
   }, [course?.v2Data, course?.html]);
@@ -710,21 +657,16 @@ export default function CourseViewer() {
   useEffect(() => {
     if (!v2Data) return;
     const totalMods = v2Data.totalModules;
-    const hasOverview = !!v2Data.overviewGraph;
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) return;
       if (e.key === "j" || e.key === "ArrowDown") {
         e.preventDefault();
-        setActiveModuleIndex((prev) => prev === null ? 0 : Math.min(totalMods - 1, prev + 1));
+        setActiveModuleIndex((prev) => Math.min(totalMods - 1, prev + 1));
         mainScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
       } else if (e.key === "k" || e.key === "ArrowUp") {
         e.preventDefault();
-        setActiveModuleIndex((prev) => {
-          if (prev === null) return null;
-          if (prev === 0) return hasOverview ? null : 0;
-          return prev - 1;
-        });
+        setActiveModuleIndex((prev) => Math.max(0, prev - 1));
         mainScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
       }
     };
@@ -734,14 +676,9 @@ export default function CourseViewer() {
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      window.history.replaceState(null, "", activeModuleIndex === null ? "#overview" : `#module-${activeModuleIndex + 1}`);
+      window.history.replaceState(null, "", `#module-${activeModuleIndex + 1}`);
     }
   }, [activeModuleIndex]);
-
-  useEffect(() => {
-    if (v2Data?.overviewGraph) return;
-    if (activeModuleIndex === null) setActiveModuleIndex(0);
-  }, [activeModuleIndex, v2Data?.overviewGraph]);
 
   const markModuleComplete = useCallback((moduleIndex: number) => {
     setCompletedModules((prev) => {
@@ -809,7 +746,7 @@ export default function CourseViewer() {
     }
   };
 
-  const handleModuleSelect = (i: number | null) => {
+  const handleModuleSelect = (i: number) => {
     setActiveModuleIndex(i);
     setMobileMenuOpen(false);
     mainScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
@@ -1041,53 +978,27 @@ export default function CourseViewer() {
           <div style={{ flex: 1, display: "flex", overflow: "hidden", position: "relative" }}>
             {showSidebar && (
               <aside className="v2-sidebar course-sidebar">
-                <div className="v2-sidebar-header v2-sidebar-header-course">
-                  <div className="v2-sidebar-course-hero">
-                    <div className="v2-sidebar-course-topline">
-                    <div>
-                      <div className="v2-module-nav-kicker">Learning workspace</div>
-                      <h3 className="v2-sidebar-title">{course.repoName}</h3>
-                      <p className="v2-sidebar-summary">Track your progress, review key concepts, and jump to any module without losing context.</p>
-                    </div>
-                    <div className="v2-share-popover-wrap">
-                      <button type="button" className="v2-share-icon-btn" onClick={() => setShowShareMenu((value) => !value)} aria-expanded={showShareMenu} aria-label="Share course">
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" /></svg>
-                      </button>
-                      {showShareMenu && (
-                        <div className="v2-share-popover">
-                          <button onClick={() => { handleCopyShare(); setShowShareMenu(false); }} className="v2-share-popover-item">Copy link</button>
-                          {celebrationShareUrl && <a href={`https://twitter.com/intent/tweet?url=${encodeURIComponent(celebrationShareUrl)}`} target="_blank" rel="noopener noreferrer" className="v2-share-popover-item" onClick={() => setShowShareMenu(false)}>Share on X</a>}
-                          {celebrationShareUrl && <a href={`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(celebrationShareUrl)}`} target="_blank" rel="noopener noreferrer" className="v2-share-popover-item" onClick={() => setShowShareMenu(false)}>LinkedIn</a>}
-                        </div>
-                      )}
-                    </div>
-                    </div>
-                    <div className="v2-sidebar-chip-grid">
-                      <span className="v2-sidebar-chip"><strong>{AUDIENCE_LABELS[course.targetAudience] || course.targetAudience}</strong><em>Audience</em></span>
-                      <span className="v2-sidebar-chip"><strong>{course.estimatedMinutes ? `~${course.estimatedMinutes}m` : "Self-paced"}</strong><em>Duration</em></span>
-                      <span className="v2-sidebar-chip"><strong>{totalModules}</strong><em>Modules</em></span>
-                    </div>
-                    <div className="v2-sidebar-meta v2-sidebar-meta-mutedline">
-                      <span className="badge">v{course.version}</span>
-                      <span className="v2-sidebar-updated">Saved to your dashboard</span>
-                    </div>
-                    <div className="v2-sidebar-progress-card v2-sidebar-progress-card-compact">
-                      <div className="v2-sidebar-progress-head">
-                        <span>Progress</span>
-                        <span>{progress}%</span>
-                      </div>
-                      <div className="v2-sidebar-progress-bar">
-                        <div style={{ height: "100%", width: progress === 0 ? 2 : `${progress}%`, background: progress >= 100 ? "var(--teal)" : "var(--accent)", borderRadius: 999, transition: "width 0.4s ease", opacity: progress === 0 ? 0.7 : 1 }} />
-                      </div>
-                      <div className="v2-sidebar-progress-caption">{completedModules.length === 0 ? `0 of ${totalModules} started` : `${completedModules.length} of ${totalModules} modules completed`}</div>
-                    </div>
-                  </div>
-
-                  <div className="v2-sidebar-toolbar">
+                <div className="v2-sidebar-header">
+                  <h3 className="v2-sidebar-title">Modules</h3>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
                     <button
                       onClick={() => setShowFlashcards(true)}
                       title="Review flashcards"
-                      className={`v2-sidebar-tool-btn ${flashcardDueCount > 0 ? "has-notice" : ""}`}
+                      style={{
+                        background: flashcardDueCount > 0 ? "var(--accent-light)" : "transparent",
+                        border: flashcardDueCount > 0 ? "1px solid var(--accent)" : "1px solid var(--border-color)",
+                        borderRadius: "var(--radius-sm)",
+                        padding: "0.25rem 0.5rem",
+                        cursor: "pointer",
+                        color: flashcardDueCount > 0 ? "var(--accent)" : "var(--text-secondary)",
+                        fontSize: "0.75rem",
+                        fontFamily: "var(--font-body)",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.3rem",
+                        fontWeight: flashcardDueCount > 0 ? 600 : 400,
+                        transition: "all 0.15s",
+                      }}
                     >
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <rect x="2" y="3" width="20" height="14" rx="2" />
@@ -1111,17 +1022,10 @@ export default function CourseViewer() {
                   activeIndex={activeModuleIndex}
                   completedModules={completedModules}
                   quizScores={quizScores}
-                  courseName={course.repoName}
-                  progressPercent={progress}
-                  showOverview={!!v2Data.overviewGraph}
                   onSelect={handleModuleSelect}
                 />
 
                 <div className="v2-sidebar-info">
-                  <div className="v2-sidebar-section v2-sidebar-section-card">
-                    <span className="v2-sidebar-label">Quick actions</span>
-                    <a href={course.githubUrl} target="_blank" rel="noopener noreferrer" className="v2-share-btn" style={{ textDecoration: "none" }}>Open GitHub</a>
-                  </div>
                   {v2Data.languages.length > 0 && (
                     <div className="v2-sidebar-section">
                       <span className="v2-sidebar-label">Languages</span>
@@ -1149,7 +1053,7 @@ export default function CourseViewer() {
                     </div>
                   )}
                   {user && course.createdBy === user.id && (
-                    <div className="v2-sidebar-section v2-sidebar-section-card">
+                    <div className="v2-sidebar-section">
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                         <div>
                           <div style={{ fontSize: "0.8rem", fontWeight: 500 }}>Auto-update</div>
@@ -1176,6 +1080,15 @@ export default function CourseViewer() {
                       </div>
                     </div>
                   )}
+                  <a
+                    href={course.githubUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn-secondary"
+                    style={{ width: "100%", justifyContent: "center", textDecoration: "none", fontSize: "0.8rem", marginTop: "0.5rem" }}
+                  >
+                    View on GitHub ↗
+                  </a>
                 </div>
               </aside>
             )}
@@ -1196,9 +1109,6 @@ export default function CourseViewer() {
                     activeIndex={activeModuleIndex}
                     completedModules={completedModules}
                     quizScores={quizScores}
-                    courseName={course.repoName}
-                    progressPercent={progress}
-                    showOverview={!!v2Data.overviewGraph}
                     onSelect={handleModuleSelect}
                   />
                 </aside>
@@ -1207,7 +1117,7 @@ export default function CourseViewer() {
 
             <div ref={mainScrollRef} className="v2-main-scroll">
               <ErrorBoundary>
-              {activeModuleIndex === null && v2Data.overviewGraph && (
+              {activeModuleIndex === 0 && v2Data.overviewGraph && (
                 <div className="v2-overview-section">
                   <div className="v2-overview-tabs" role="tablist" aria-label="Overview visualization tabs">
                     <button
@@ -1277,7 +1187,7 @@ export default function CourseViewer() {
                   )}
                 </div>
               )}
-              {activeModuleIndex !== null && v2Data.modules[activeModuleIndex] && (
+              {v2Data.modules[activeModuleIndex] && (
                 <V2ModuleContent
                   module={v2Data.modules[activeModuleIndex]}
                   moduleIndex={activeModuleIndex}
@@ -1287,10 +1197,9 @@ export default function CourseViewer() {
                   isCompleted={completedModules.includes(activeModuleIndex)}
                   quizScore={quizScores.get(activeModuleIndex)}
                   onComplete={() => markModuleComplete(activeModuleIndex)}
-                  onPrev={() => handleModuleSelect(activeModuleIndex === 0 ? (v2Data.overviewGraph ? null : 0) : activeModuleIndex - 1)}
+                  onPrev={() => handleModuleSelect(Math.max(0, activeModuleIndex - 1))}
                   onNext={() => handleModuleSelect(Math.min(v2Data.totalModules - 1, activeModuleIndex + 1))}
                   onPractice={() => setPracticeModuleIndex(activeModuleIndex)}
-                  hasOverview={!!v2Data.overviewGraph}
                 />
               )}
               </ErrorBoundary>
