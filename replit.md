@@ -141,7 +141,7 @@ Seed Stripe products: `pnpm --filter @workspace/scripts exec tsx src/seed-produc
 
 - **XP Events**: module_read (10), quiz_pass (25), flashcard_session (15), course_complete (100) — defined in `xp-constants.ts`
 - **Levels**: 50-level exponential curve (`50 * level^2.2`), each level has a name (e.g., "Apprentice Dev", "Senior Dev", "Grandmaster"). Constants in `xp-constants.ts`
-- **Streaks**: Timezone-aware (uses `users.timezone` column, `Intl.DateTimeFormat` en-CA format). Streak shield auto-activates at 7+ days, forgives one missed day.
+- **Streaks**: Timezone-aware (uses `users.timezone` column, `Intl.DateTimeFormat` en-CA format). Streak shield earned at every 7-day milestone (7, 14, 21…), forgives one missed day, consumed on use. SELECT FOR UPDATE prevents concurrent corruption.
 - **Atomic XP**: All XP award + streak update happens in a single DB transaction in `xp.ts` — no race conditions on concurrent calls.
 - **Badges**: 8 milestone badges in `user_badges` table — first_course, streak_7, streak_30, quiz_master, xp_1000, xp_10000, module_50, course_5. Checked/awarded after each XP event.
 - **Quiz idempotency**: Partial unique index `user_xp_quiz_pass_unique_idx` on `(user_id, course_id, event_type, module_index) WHERE event_type='quiz_pass'` + `onConflictDoNothing()` in `awardXp()` transaction — race-safe at DB level.

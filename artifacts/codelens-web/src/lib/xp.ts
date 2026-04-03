@@ -149,7 +149,9 @@ export async function awardXp(
         streakShieldActive = existing.streakShieldActive;
       } else if (existing.lastActiveDate === yesterday) {
         newStreak = (existing.currentStreak ?? 0) + 1;
-        streakShieldActive = existing.streakShieldActive || newStreak >= 7;
+        const prevStreak = existing.currentStreak ?? 0;
+        const crossedNewMilestone = Math.floor(newStreak / 7) > Math.floor(prevStreak / 7);
+        streakShieldActive = existing.streakShieldActive || (crossedNewMilestone && newStreak >= 7);
         const longestStreak = Math.max(newStreak, existing.longestStreak ?? 0);
         await tx
           .update(userStreaks)
