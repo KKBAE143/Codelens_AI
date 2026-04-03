@@ -2463,7 +2463,13 @@ a.v2-code-filepath:hover {
 .v2-overview-section {
   width: min(100%, 1120px);
   margin: 0 auto;
-  padding: 2rem 2rem 0;
+  padding: 2rem 2rem 0.75rem;
+}
+
+.v2-overview-section + .v2-module-content {
+  margin-top: 1rem;
+  padding-top: 2rem;
+  border-top: 1px solid color-mix(in srgb, var(--border-color) 82%, white);
 }
 
 .v2-overview-graph {

@@ -39,7 +39,7 @@ export function AbstractionMap({ graph, onModuleClick, modules = [] }: Abstracti
             description: node.description || (matchedModuleIndex >= 0 ? modules[matchedModuleIndex]?.learningObjective : undefined),
           };
         })
-        .sort((a, b) => b.connections - a.connections || a.label.localeCompare(b.label)),
+        .sort((a, b) => a.moduleIndex - b.moduleIndex || a.label.localeCompare(b.label)),
     [graph.nodes, modules],
   );
 
@@ -96,7 +96,10 @@ export function AbstractionMap({ graph, onModuleClick, modules = [] }: Abstracti
     );
   }, [relationships, selectedNodeId]);
 
-  const strongestNode = nodes[0] ?? null;
+  const strongestNode = useMemo(
+    () => [...nodes].sort((a, b) => b.connections - a.connections || a.moduleIndex - b.moduleIndex)[0] ?? null,
+    [nodes],
+  );
 
   return (
     <section className="v2-abstraction-map" aria-label="Abstraction map overview">
