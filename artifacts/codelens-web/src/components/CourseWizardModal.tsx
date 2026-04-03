@@ -74,6 +74,45 @@ function AlertIcon() {
   );
 }
 
+function PersonaIcon({ personaKey, size = 28 }: { personaKey: string; size?: number }) {
+  switch (personaKey) {
+    case "vibe_coder":
+      return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="m18 16 4-4-4-4" />
+          <path d="m6 8-4 4 4 4" />
+          <path d="m14.5 4-5 16" />
+        </svg>
+      );
+    case "new_engineer":
+      return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+          <circle cx="9" cy="7" r="4" />
+          <line x1="19" y1="8" x2="19" y2="14" />
+          <line x1="22" y1="11" x2="16" y2="11" />
+        </svg>
+      );
+    case "product_manager":
+      return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <line x1="12" y1="20" x2="12" y2="10" />
+          <line x1="18" y1="20" x2="18" y2="4" />
+          <line x1="6" y1="20" x2="6" y2="16" />
+        </svg>
+      );
+    case "security_auditor":
+      return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+          <path d="m9 12 2 2 4-4" />
+        </svg>
+      );
+    default:
+      return null;
+  }
+}
+
 /* ── Step Labels ──────────────────────────────────────────────────── */
 
 const STEPS = [
@@ -378,7 +417,9 @@ export function CourseWizardModal({
                       onClick={() => setPersona(p.key)}
                       type="button"
                     >
-                      <div className="wizard-persona-emoji">{p.emoji}</div>
+                      <div className="wizard-persona-emoji">
+                        <PersonaIcon personaKey={p.key} />
+                      </div>
                       <div className="wizard-persona-name">{p.label}</div>
                       <div className="wizard-persona-tagline">{p.tagline}</div>
                       <ul className="wizard-persona-points">
@@ -489,8 +530,8 @@ export function CourseWizardModal({
                 <div className="wizard-summary-divider" />
                 <div className="wizard-summary-row">
                   <span className="wizard-summary-label">Persona</span>
-                  <span className="wizard-summary-value">
-                    {selectedPersona.emoji} {selectedPersona.label}
+                  <span className="wizard-summary-value" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    <PersonaIcon personaKey={selectedPersona.key} size={18} /> {selectedPersona.label}
                   </span>
                 </div>
                 <div className="wizard-summary-divider" />
