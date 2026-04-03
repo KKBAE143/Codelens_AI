@@ -725,17 +725,20 @@ export default function CourseViewer() {
   };
 
   const [pendingConcept, setPendingConcept] = useState<string | null>(null);
+  const [activeConcept, setActiveConcept] = useState<string | null>(null);
 
   const handleModuleSelect = (i: number | null, conceptName?: string) => {
     setActiveModuleIndex(i);
     setMobileMenuOpen(false);
     setPendingConcept(conceptName ?? null);
+    setActiveConcept(conceptName ?? null);
     mainScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   useEffect(() => {
     if (!pendingConcept || activeModuleIndex === null) return;
     const concept = pendingConcept;
+    setPendingConcept(null);
     const timer = setTimeout(() => {
       const blocks = mainScrollRef.current?.querySelectorAll(".v2-block-wrapper");
       if (!blocks) return;
@@ -749,7 +752,6 @@ export default function CourseViewer() {
           break;
         }
       }
-      setPendingConcept(null);
     }, 350);
     return () => clearTimeout(timer);
   }, [pendingConcept, activeModuleIndex]);
@@ -1220,9 +1222,9 @@ export default function CourseViewer() {
               )}
               {activeModuleIndex !== null && v2Data.modules[activeModuleIndex] && (
                 <>
-                  {pendingConcept && v2Data.overviewGraph && (() => {
+                  {activeConcept && v2Data.overviewGraph && (() => {
                     const otherModules = v2Data.overviewGraph.nodes
-                      .filter(n => n.label.toLowerCase() === pendingConcept.toLowerCase() && n.moduleIndex !== activeModuleIndex)
+                      .filter(n => n.label.toLowerCase() === activeConcept.toLowerCase() && n.moduleIndex !== activeModuleIndex)
                       .map(n => n.moduleIndex);
                     const unique = [...new Set(otherModules)];
                     if (unique.length === 0) return null;
@@ -1235,12 +1237,20 @@ export default function CourseViewer() {
                             <button
                               type="button"
                               className="v2-also-covered-link"
-                              onClick={() => handleModuleSelect(mi, pendingConcept)}
+                              onClick={() => handleModuleSelect(mi, activeConcept)}
                             >
                               Module {mi + 1}
                             </button>
                           </span>
                         ))}
+                        <button
+                          type="button"
+                          className="v2-also-covered-dismiss"
+                          onClick={() => setActiveConcept(null)}
+                          aria-label="Dismiss"
+                        >
+                          ×
+                        </button>
                       </div>
                     );
                   })()}
