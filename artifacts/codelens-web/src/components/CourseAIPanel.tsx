@@ -2,6 +2,11 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 
+function getCsrfToken(): string {
+  const match = document.cookie.match(/(?:^|;\s*)csrf-token=([^;]*)/);
+  return match ? decodeURIComponent(match[1]) : "";
+}
+
 interface Message {
   role: "user" | "assistant";
   content: string;
@@ -22,6 +27,7 @@ export function CourseAIPanel({ courseId, moduleTitle, onClose }: CourseAIPanelP
 
   useEffect(() => {
     inputRef.current?.focus();
+    fetch("/api/csrf-token", { credentials: "include" }).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -39,7 +45,10 @@ export function CourseAIPanel({ courseId, moduleTitle, onClose }: CourseAIPanelP
     try {
       const res = await fetch(`/api/courses/${courseId}/ask`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-csrf-token": getCsrfToken(),
+        },
         credentials: "include",
         body: JSON.stringify({ question, moduleTitle }),
       });

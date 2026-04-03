@@ -505,7 +505,7 @@ export default function CourseViewer() {
   const [practiceModuleIndex, setPracticeModuleIndex] = useState<number | null>(null);
   const [celebrationShown, setCelebrationShown] = useState(false);
   const [progressInitialized, setProgressInitialized] = useState(false);
-  const [overviewTab, setOverviewTab] = useState<"graph" | "diagram">("graph");
+  const [overviewTab, setOverviewTab] = useState<"graph" | "diagram" | "safety">("graph");
   const [iframeSrc, setIframeSrc] = useState<string | null>(null);
   const [webhookToggling, setWebhookToggling] = useState(false);
   const [lastSeenVersion, setLastSeenVersion] = useState<number | null>(null);
@@ -1362,38 +1362,6 @@ export default function CourseViewer() {
                   )}
                 </div>
               )}
-              {activeModuleIndex === null && hasSafetyWarnings && (
-                <div className="v2-safety-map">
-                  <div className="v2-safety-map-title">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-                      <line x1="12" y1="9" x2="12" y2="13" />
-                      <line x1="12" y1="17" x2="12.01" y2="17" />
-                    </svg>
-                    AI Safety Map
-                  </div>
-                  <div className="v2-safety-map-grouped">
-                    {Array.from(safetyWarningsByModule.values()).map((group) => (
-                      <div key={group.moduleIndex} className="v2-safety-map-group">
-                        <div
-                          className="v2-safety-map-module"
-                          style={{ cursor: "pointer" }}
-                          onClick={() => handleModuleSelect(group.moduleIndex)}
-                        >
-                          Module {group.moduleIndex + 1}: {group.moduleTitle}
-                        </div>
-                        <ul className="v2-safety-map-list">
-                          {group.warnings.map((w, wi) => (
-                            <li key={wi} className="v2-safety-map-item">
-                              {w.replace(/\*\*/g, "").slice(0, 300)}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
               {activeModuleIndex === null && v2Data.overviewGraph && (
                 <div className="v2-overview-section">
                   <div className="v2-overview-tabs" role="tablist" aria-label="Overview visualization tabs">
@@ -1434,6 +1402,10 @@ export default function CourseViewer() {
                           setOverviewTab("graph");
                           (document.getElementById("tab-graph") as HTMLElement)?.focus();
                         }
+                        if (e.key === "ArrowRight" && hasSafetyWarnings) {
+                          setOverviewTab("safety");
+                          (document.getElementById("tab-safety") as HTMLElement)?.focus();
+                        }
                       }}
                     >
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1444,22 +1416,94 @@ export default function CourseViewer() {
                       </svg>
                       Abstraction Map
                     </button>
+                    {hasSafetyWarnings && (
+                      <button
+                        id="tab-safety"
+                        className={`v2-overview-tab v2-overview-tab-safety ${overviewTab === "safety" ? "v2-overview-tab-active" : ""}`}
+                        onClick={() => setOverviewTab("safety")}
+                        role="tab"
+                        aria-selected={overviewTab === "safety"}
+                        aria-controls="tabpanel-safety"
+                        tabIndex={overviewTab === "safety" ? 0 : -1}
+                        onKeyDown={(e) => {
+                          if (e.key === "ArrowLeft") {
+                            setOverviewTab("diagram");
+                            (document.getElementById("tab-diagram") as HTMLElement)?.focus();
+                          }
+                        }}
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                        </svg>
+                        AI Safety
+                        <span className="v2-safety-tab-badge">{Array.from(safetyWarningsByModule.values()).reduce((n, g) => n + g.warnings.length, 0)}</span>
+                      </button>
+                    )}
                   </div>
 
-                  {overviewTab === "graph" ? (
+                  {overviewTab === "graph" && (
                     <div id="tabpanel-graph" role="tabpanel" aria-labelledby="tab-graph">
                       <KnowledgeGraph
                         overviewGraph={v2Data.overviewGraph}
                         onModuleClick={handleGraphModuleSelect}
                       />
                     </div>
-                  ) : (
+                  )}
+                  {overviewTab === "diagram" && (
                     <div id="tabpanel-diagram" role="tabpanel" aria-labelledby="tab-diagram">
                       <AbstractionMap
                         graph={v2Data.overviewGraph}
                         onModuleClick={handleGraphModuleSelect}
                         modules={v2Data.modules}
                       />
+                    </div>
+                  )}
+                  {overviewTab === "safety" && hasSafetyWarnings && (
+                    <div id="tabpanel-safety" role="tabpanel" aria-labelledby="tab-safety">
+                      <div className="v2-safety-panel">
+                        <div className="v2-safety-panel-header">
+                          <div className="v2-safety-panel-icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                            </svg>
+                          </div>
+                          <div>
+                            <h3 className="v2-safety-panel-title">AI Safety &amp; Security Warnings</h3>
+                            <p className="v2-safety-panel-subtitle">
+                              {Array.from(safetyWarningsByModule.values()).reduce((n, g) => n + g.warnings.length, 0)} warnings across {safetyWarningsByModule.size} module{safetyWarningsByModule.size !== 1 ? "s" : ""}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="v2-safety-panel-groups">
+                          {Array.from(safetyWarningsByModule.values()).map((group) => (
+                            <div key={group.moduleIndex} className="v2-safety-panel-group">
+                              <button
+                                className="v2-safety-panel-module-btn"
+                                onClick={() => handleModuleSelect(group.moduleIndex)}
+                              >
+                                <span className="v2-safety-panel-module-num">M{group.moduleIndex + 1}</span>
+                                <span className="v2-safety-panel-module-name">{group.moduleTitle}</span>
+                                <span className="v2-safety-panel-module-count">{group.warnings.length} warning{group.warnings.length !== 1 ? "s" : ""}</span>
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <polyline points="9 18 15 12 9 6" />
+                                </svg>
+                              </button>
+                              <ul className="v2-safety-panel-list">
+                                {group.warnings.map((w, wi) => {
+                                  const cleanText = w.replace(/\*\*/g, "").slice(0, 400);
+                                  const isCritical = /security|vulnerab|inject|exploit|auth|credential|secret|token|password|xss|csrf|sql.?inject/i.test(cleanText);
+                                  return (
+                                    <li key={wi} className={`v2-safety-panel-item ${isCritical ? "v2-safety-critical" : "v2-safety-caution"}`}>
+                                      <span className="v2-safety-panel-severity">{isCritical ? "CRITICAL" : "CAUTION"}</span>
+                                      {cleanText}
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   )}
 
