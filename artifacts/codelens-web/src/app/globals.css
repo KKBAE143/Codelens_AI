@@ -7741,6 +7741,11 @@ a.v2-code-filepath:hover {
   z-index: 10;
 }
 
+.v2-jump-breadcrumb-label {
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+}
+
 .v2-jump-breadcrumb-link {
   display: inline-flex;
   align-items: center;
@@ -7752,16 +7757,12 @@ a.v2-code-filepath:hover {
   font-weight: 600;
   cursor: pointer;
   padding: 0;
+  margin-left: auto;
 }
 
 .v2-jump-breadcrumb-link:hover {
   text-decoration: underline;
   text-underline-offset: 2px;
-}
-
-.v2-jump-breadcrumb-sep {
-  color: var(--text-tertiary);
-  user-select: none;
 }
 
 .v2-jump-breadcrumb-concept {
@@ -7770,12 +7771,8 @@ a.v2-code-filepath:hover {
   text-transform: capitalize;
 }
 
-.v2-jump-breadcrumb-current {
-  color: var(--text-tertiary);
-}
-
 .v2-jump-breadcrumb-close {
-  margin-left: auto;
+  margin-left: 0.5rem;
   background: none;
   border: none;
   color: var(--text-tertiary);

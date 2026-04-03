@@ -1441,6 +1441,8 @@ export default function CourseViewer() {
                 <>
                   {jumpedFrom && v2Data.overviewGraph && (
                     <nav className="v2-jump-breadcrumb" aria-label="Navigation breadcrumb">
+                      <span className="v2-jump-breadcrumb-label">You jumped here from:</span>
+                      <span className="v2-jump-breadcrumb-concept">{jumpedFrom}</span>
                       <button
                         type="button"
                         className="v2-jump-breadcrumb-link"
@@ -1449,12 +1451,8 @@ export default function CourseViewer() {
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <polyline points="15 18 9 12 15 6" />
                         </svg>
-                        Overview
+                        Back to Overview
                       </button>
-                      <span className="v2-jump-breadcrumb-sep">/</span>
-                      <span className="v2-jump-breadcrumb-concept">{jumpedFrom}</span>
-                      <span className="v2-jump-breadcrumb-sep">/</span>
-                      <span className="v2-jump-breadcrumb-current">Module {activeModuleIndex + 1}</span>
                       <button
                         type="button"
                         className="v2-jump-breadcrumb-close"
