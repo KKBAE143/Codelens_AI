@@ -527,6 +527,7 @@ function Dashboard() {
 
       <div className="lms-tabs" role="tablist" aria-label="Dashboard sections">
         <button
+          id="tab-courses"
           role="tab"
           aria-selected={activeTab === "courses"}
           aria-controls="panel-courses"
@@ -538,6 +539,7 @@ function Dashboard() {
         </button>
         {myAssignments.length > 0 && (
           <button
+            id="tab-assigned"
             role="tab"
             aria-selected={activeTab === "assigned"}
             aria-controls="panel-assigned"
@@ -549,6 +551,7 @@ function Dashboard() {
           </button>
         )}
         <button
+          id="tab-team"
           role="tab"
           aria-selected={activeTab === "team"}
           aria-controls="panel-team"
@@ -560,7 +563,7 @@ function Dashboard() {
       </div>
 
       {activeTab === "assigned" && myAssignments.length > 0 && (
-        <div style={{ marginBottom: "2rem" }}>
+        <div id="panel-assigned" role="tabpanel" aria-labelledby="tab-assigned" style={{ marginBottom: "2rem" }}>
           <div
             style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}
           >
@@ -653,10 +656,12 @@ function Dashboard() {
       )}
 
       {activeTab === "team" && (
-        <DashboardTeamPanel />
+        <div id="panel-team" role="tabpanel" aria-labelledby="tab-team">
+          <DashboardTeamPanel />
+        </div>
       )}
 
-      {activeTab === "courses" && (isLoading ? (
+      {activeTab === "courses" && (<div id="panel-courses" role="tabpanel" aria-labelledby="tab-courses">{isLoading ? (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
           {[1, 2, 3, 4].map((i) => (
             <div key={i} className="skeleton" style={{ height: 160, borderRadius: "var(--radius-md)" }} />
@@ -1096,7 +1101,7 @@ function Dashboard() {
             );
           })}
         </div>
-      ))}
+      )}</div>)}
 
       {generatingCourseId && (
         <GenerationModal
