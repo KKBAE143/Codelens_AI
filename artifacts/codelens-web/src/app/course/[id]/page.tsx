@@ -118,119 +118,48 @@ function ReadingProgressBar({ scrollRef }: { scrollRef: React.RefObject<HTMLDivE
 }
 
 function OverviewGraphDisplay({ graph, onModuleClick }: { graph: V2OverviewGraph; onModuleClick: (i: number) => void }) {
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-
   if (!graph.nodes.length) return null;
-
-  const visibleEdges = selectedNodeId
-    ? graph.edges.filter((e) => e.from === selectedNodeId || e.to === selectedNodeId)
-    : graph.edges;
 
   return (
     <div className="v2-overview-graph">
-      <div className="v2-overview-header">
-        <h3 className="v2-overview-graph-title">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="18" cy="5" r="3" />
-            <circle cx="6" cy="12" r="3" />
-            <circle cx="18" cy="19" r="3" />
-            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
-            <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
-          </svg>
-          Abstraction Relationships
-        </h3>
-        <p className="v2-overview-desc">
-          This map explains how different parts of the codebase relate to each other.
-          Select an abstraction below to explore its connections and see how data flows.
-        </p>
+      <h3 className="v2-overview-graph-title">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="18" cy="5" r="3" />
+          <circle cx="6" cy="12" r="3" />
+          <circle cx="18" cy="19" r="3" />
+          <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+          <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+        </svg>
+        Abstraction Relationships
+      </h3>
+      <div className="v2-overview-nodes">
+        {graph.nodes.map((node) => (
+          <button
+            key={node.id}
+            className="v2-overview-node"
+            onClick={() => onModuleClick(node.moduleIndex)}
+            title={`Go to Module ${node.moduleIndex + 1}`}
+          >
+            <span className="v2-overview-node-label">{node.label}</span>
+            <span className="v2-overview-node-connections">
+              {node.connections} connection{node.connections !== 1 ? "s" : ""}
+            </span>
+          </button>
+        ))}
       </div>
-
-      <div className="v2-overview-interactive">
-        <div className="v2-overview-nodes-panel">
-          {graph.nodes.map((node) => {
-            const isSelected = selectedNodeId === node.id;
-            return (
-              <button
-                key={node.id}
-                className={`v2-overview-node-card ${isSelected ? "active" : ""}`}
-                onClick={() => setSelectedNodeId(isSelected ? null : node.id)}
-                aria-pressed={isSelected}
-              >
-                <div className="v2-overview-node-header">
-                  <span className="v2-overview-node-label">{node.label}</span>
-                  <span className="v2-overview-node-badge">
-                    {node.connections} connection{node.connections !== 1 ? "s" : ""}
-                  </span>
-                </div>
-                {isSelected && (
-                  <div className="v2-overview-node-expanded">
-                    <button
-                      className="v2-overview-node-jump"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onModuleClick(node.moduleIndex);
-                      }}
-                    >
-                      Go to Module {node.moduleIndex + 1}
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <line x1="5" y1="12" x2="19" y2="12" />
-                        <polyline points="12 5 19 12 12 19" />
-                      </svg>
-                    </button>
-                  </div>
-                )}
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="v2-overview-edges-panel">
-          {selectedNodeId ? (
-            <>
-              <h4 className="v2-overview-edges-title">
-                Connections for <strong>{graph.nodes.find((n) => n.id === selectedNodeId)?.label}</strong>
-              </h4>
-              <div className="v2-overview-edges-list">
-                {visibleEdges.length > 0 ? (
-                  visibleEdges.map((edge, i) => {
-                    const isOutgoing = edge.from === selectedNodeId;
-                    const otherNodeId = isOutgoing ? edge.to : edge.from;
-                    const otherNode = graph.nodes.find((n) => n.id === otherNodeId);
-                    return (
-                      <div key={i} className={`v2-overview-edge-card ${isOutgoing ? "outgoing" : "incoming"}`}>
-                        <div className="v2-overview-edge-direction" data-type={isOutgoing ? "out" : "in"}>
-                          {isOutgoing ? (
-                            <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg> Sends to</>
-                          ) : (
-                            <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg> Receives from</>
-                          )}
-                        </div>
-                        <div className="v2-overview-edge-target">
-                          {otherNode?.label || otherNodeId}
-                        </div>
-                        <div className="v2-overview-edge-relation">
-                          {edge.label || edge.relation}
-                        </div>
-                      </div>
-                    );
-                  })
-                ) : (
-                  <p className="v2-overview-edges-empty">No direct connections found.</p>
-                )}
-              </div>
-            </>
-          ) : (
-            <div className="v2-overview-edges-prompt">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10" />
-                <line x1="12" y1="16" x2="12" y2="12" />
-                <line x1="12" y1="8" x2="12.01" y2="8" />
-              </svg>
-              <p>Select a concept from the list to view its relationships.</p>
+      {graph.edges.length > 0 && (
+        <div className="v2-overview-edges">
+          {graph.edges.map((edge, i) => (
+            <div key={i} className="v2-overview-edge">
+              <span className="v2-overview-edge-from">{graph.nodes.find(n => n.id === edge.from)?.label || edge.from}</span>
+              <span className="v2-overview-edge-arrow">→</span>
+              <span className="v2-overview-edge-relation">{edge.label || edge.relation}</span>
+              <span className="v2-overview-edge-arrow">→</span>
+              <span className="v2-overview-edge-to">{graph.nodes.find(n => n.id === edge.to)?.label || edge.to}</span>
             </div>
-          )}
+          ))}
         </div>
-      </div>
+      )}
     </div>
   );
 }
