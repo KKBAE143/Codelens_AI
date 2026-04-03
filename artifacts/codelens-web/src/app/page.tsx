@@ -805,6 +805,8 @@ function HomeInner() {
               >
                 {demoCourses.map((demo) => {
                   const isAvailable = !!demo.shareToken;
+                  const [demoOwner, demoRepo] = demo.repo.split("/");
+                  const demoUrl = demoOwner && demoRepo ? `/explore/${demoOwner}/${demoRepo}` : "#";
                   return (
                     <div
                       key={demo.repo}
@@ -820,7 +822,7 @@ function HomeInner() {
                       }}
                       onClick={() => {
                         if (isAvailable)
-                          window.location.href = `/share/${demo.shareToken}`;
+                          window.location.href = demoUrl;
                       }}
                     >
                       <code
@@ -852,7 +854,7 @@ function HomeInner() {
                       </div>
                       {isAvailable ? (
                         <Link
-                          href={`/share/${demo.shareToken}`}
+                          href={demoUrl}
                           className="btn-secondary"
                           style={{ textAlign: "center", textDecoration: "none", fontSize: "0.8rem", padding: "0.5rem" }}
                           onClick={(e) => e.stopPropagation()}

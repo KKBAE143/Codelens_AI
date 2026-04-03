@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useAuth } from "@/hooks/use-auth";
 import { BlockRenderer } from "@/components/course-blocks/BlockRenderer";
 import {
@@ -11,6 +12,11 @@ import {
   type V2CourseData,
   type V2Module,
 } from "@/lib/course-types";
+
+const KnowledgeGraph = dynamic(
+  () => import("@/components/course-blocks/KnowledgeGraph").then((m) => m.KnowledgeGraph),
+  { ssr: false }
+);
 
 const AUDIENCE_LABELS: Record<string, string> = {
   vibe_coder: "Vibe Coder",
@@ -178,6 +184,53 @@ function V2Content({
   );
 }
 
+function OverviewGraphDisplay({ graph, onModuleClick }: { graph: NonNullable<V2CourseData["overviewGraph"]>; onModuleClick: (i: number) => void }) {
+  if (!graph.nodes.length) return null;
+
+  return (
+    <div className="v2-overview-graph">
+      <h3 className="v2-overview-graph-title">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="18" cy="5" r="3" />
+          <circle cx="6" cy="12" r="3" />
+          <circle cx="18" cy="19" r="3" />
+          <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+          <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+        </svg>
+        Abstraction Relationships
+      </h3>
+      <div className="v2-overview-nodes">
+        {graph.nodes.map((node) => (
+          <button
+            key={node.id}
+            className="v2-overview-node"
+            onClick={() => onModuleClick(node.moduleIndex)}
+            title={`Go to Module ${node.moduleIndex + 1}`}
+          >
+            <span className="v2-overview-node-label">{node.label}</span>
+            <span className="v2-overview-node-connections">
+              {node.connections} connection{node.connections !== 1 ? "s" : ""}
+            </span>
+          </button>
+        ))}
+      </div>
+      {graph.edges.length > 0 && (
+        <div className="v2-overview-edges">
+          {graph.edges.map((edge, i) => (
+            <div key={i} className="v2-overview-edge">
+              <span className="v2-overview-edge-from">{graph.nodes.find((n) => n.id === edge.from)?.label || edge.from}</span>
+              <span className="v2-overview-edge-arrow">→</span>
+              <span className="v2-overview-edge-relation">{edge.label || edge.relation}</span>
+              <span className="v2-overview-edge-arrow">→</span>
+              <span className="v2-overview-edge-to">{graph.nodes.find((n) => n.id === edge.to)?.label || edge.to}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function getVisitorId(): string {
   if (typeof window === "undefined") return "ssr";
   let id = localStorage.getItem("codelens_visitor_id");
@@ -258,6 +311,7 @@ export default function PublicCourseViewer() {
   const [showSidebar, setShowSidebar] = useState(true);
   const [activeModuleIndex, setActiveModuleIndex] = useState(0);
   const [showSignInCta, setShowSignInCta] = useState(false);
+  const [overviewTab, setOverviewTab] = useState<"graph" | "diagram">("graph");
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["public-course", owner, repo],
@@ -392,9 +446,71 @@ export default function PublicCourseViewer() {
   const activeModule = v2Data.modules[activeModuleIndex];
   const totalModules = v2Data.totalModules;
   const completionPercent = Math.round((completedModules.length / totalModules) * 100);
+  const shareUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/explore/${course.ownerName}/${course.repoName}`;
 
   return (
-    <div className="v2-layout">
+    <div className="v2-layout v2-public-layout">
+      <div className="course-topbar" style={{
+        height: 48,
+        background: "var(--code-bg)",
+        color: "white",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        padding: "0 1rem",
+        flexShrink: 0,
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", minWidth: 0 }}>
+          <Link href="/explore" className="v2-topbar-back" style={{ textDecoration: "none" }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
+            <span className="v2-topbar-back-text">Explore</span>
+          </Link>
+          <span style={{ color: "rgba(255,255,255,0.3)" }}>|</span>
+          <code style={{ fontSize: "0.85rem", color: "rgba(255,255,255,0.9)", fontFamily: "var(--font-mono)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {course.ownerName}/{course.repoName}
+          </code>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+          <span className="v2-topbar-audience" style={{ background: "rgba(255,255,255,0.15)", padding: "0.125rem 0.5rem", borderRadius: "var(--radius-full)", color: "rgba(255,255,255,0.7)", fontSize: "0.75rem" }}>
+            {AUDIENCE_LABELS[course.targetAudience] || course.targetAudience}
+          </span>
+          <div className="v2-topbar-progress" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <div style={{ width: 100, height: 4, background: "rgba(255,255,255,0.2)", borderRadius: 2, overflow: "hidden" }}>
+              <div style={{ height: "100%", width: `${completionPercent}%`, background: "var(--teal)", borderRadius: 2, transition: "width 0.3s ease" }} />
+            </div>
+            <span style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.6)" }}>
+              {completedModules.length}/{totalModules}
+            </span>
+          </div>
+          <button
+            onClick={() => navigator.clipboard.writeText(shareUrl)}
+            className="v2-topbar-share-btn"
+            aria-label="Copy course link"
+            title="Copy course link"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+            </svg>
+            <span className="v2-topbar-share-text">Copy Link</span>
+          </button>
+          <button
+            onClick={() => setShowSidebar((prev) => !prev)}
+            className="v2-topbar-sidebar-btn"
+            aria-label={showSidebar ? "Hide sidebar" : "Show sidebar"}
+            title={showSidebar ? "Hide sidebar" : "Show sidebar"}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+              <line x1="9" y1="3" x2="9" y2="21" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <div style={{ flex: 1, display: "flex", overflow: "hidden", position: "relative" }}>
       <div className={`v2-sidebar ${showSidebar ? "" : "v2-sidebar-collapsed"}`}>
         <div className="v2-sidebar-header" style={{ display: "flex", flexDirection: "column", gap: "0.25rem", paddingBottom: "0.5rem" }}>
           <Link href="/explore" style={{ color: "var(--text-secondary)", textDecoration: "none", fontSize: "0.85rem", display: "flex", alignItems: "center", gap: "0.25rem", marginBottom: "0.5rem", width: "max-content", padding: "0.25rem 0.5rem", borderRadius: "var(--radius-sm)", backgroundColor: "var(--bg-secondary)" }}>
@@ -467,15 +583,8 @@ export default function PublicCourseViewer() {
         />
       </div>
 
-      <button
-        className="v2-sidebar-toggle"
-        onClick={() => setShowSidebar((prev) => !prev)}
-        aria-label={showSidebar ? "Collapse sidebar" : "Expand sidebar"}
-      >
-        {showSidebar ? "‹" : "›"}
-      </button>
-
-      <div className="v2-main" ref={mainScrollRef}>
+      <div className="v2-main">
+        <div className="v2-main-scroll" ref={mainScrollRef}>
         {showSignInCta && !isAuthenticated && (
           <div style={{
             background: "linear-gradient(90deg, var(--accent-light), #FFF3E0)",
@@ -498,6 +607,56 @@ export default function PublicCourseViewer() {
                 Dismiss
               </button>
             </div>
+          </div>
+        )}
+
+        {activeModuleIndex === 0 && v2Data.overviewGraph && (
+          <div className="v2-overview-section">
+            <div className="v2-overview-tabs" role="tablist" aria-label="Overview visualization tabs">
+              <button
+                id="public-tab-graph"
+                className={`v2-overview-tab ${overviewTab === "graph" ? "v2-overview-tab-active" : ""}`}
+                onClick={() => setOverviewTab("graph")}
+                role="tab"
+                aria-selected={overviewTab === "graph"}
+                aria-controls="public-tabpanel-graph"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="18" cy="5" r="3" />
+                  <circle cx="6" cy="12" r="3" />
+                  <circle cx="18" cy="19" r="3" />
+                  <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+                  <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+                </svg>
+                Knowledge Graph
+              </button>
+              <button
+                id="public-tab-diagram"
+                className={`v2-overview-tab ${overviewTab === "diagram" ? "v2-overview-tab-active" : ""}`}
+                onClick={() => setOverviewTab("diagram")}
+                role="tab"
+                aria-selected={overviewTab === "diagram"}
+                aria-controls="public-tabpanel-diagram"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="3" width="7" height="7" />
+                  <rect x="14" y="3" width="7" height="7" />
+                  <rect x="14" y="14" width="7" height="7" />
+                  <rect x="3" y="14" width="7" height="7" />
+                </svg>
+                Abstraction Map
+              </button>
+            </div>
+
+            {overviewTab === "graph" ? (
+              <div id="public-tabpanel-graph" role="tabpanel" aria-labelledby="public-tab-graph">
+                <KnowledgeGraph overviewGraph={v2Data.overviewGraph} onModuleClick={handleModuleSelect} />
+              </div>
+            ) : (
+              <div id="public-tabpanel-diagram" role="tabpanel" aria-labelledby="public-tab-diagram">
+                <OverviewGraphDisplay graph={v2Data.overviewGraph} onModuleClick={handleModuleSelect} />
+              </div>
+            )}
           </div>
         )}
 
@@ -529,6 +688,8 @@ export default function PublicCourseViewer() {
             </Link>
           </div>
         </div>
+      </div>
+      </div>
       </div>
     </div>
   );
