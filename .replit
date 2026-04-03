@@ -40,7 +40,7 @@ outputType = "webview"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "pnpm --filter @workspace/codelens-web run dev"
-waitForPort = 5000
+waitForPort = 3000
 
 [[workflows.workflow]]
 name = "API Server"
