@@ -391,6 +391,27 @@ async function githubFetch(url: string, token?: string): Promise<Response> {
   return res;
 }
 
+export async function fetchFileContent(
+  owner: string,
+  repo: string,
+  filePath: string,
+  ref: string,
+  userToken?: string,
+): Promise<{ path: string; content: string; size: number } | null> {
+  try {
+    const res = await githubFetch(
+      `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}?ref=${ref}`,
+      userToken,
+    );
+    const data = await res.json();
+    if (data.content && data.encoding === "base64") {
+      const content = Buffer.from(data.content, "base64").toString("utf-8");
+      return { path: filePath, content, size: data.size || content.length };
+    }
+  } catch { /* skip */ }
+  return null;
+}
+
 export async function checkRepoHealth(
   owner: string,
   repo: string,
@@ -973,23 +994,10 @@ export async function extractRepo(
   let packedContext = buildPackedContext(fileTree, topFiles, languageBreakdown, repoMap);
   let packedTokenCount = countTokens(packedContext);
 
-  const sigBudgetRemaining = TOKEN_BUDGET - packedTokenCount;
-  if (sigEntries.length > 0 && sigBudgetRemaining > 500) {
-    const trimmedSigEntries: string[] = [];
-    let sigTokens = 0;
-    const sigHeader = `=== File Signatures (additional files) ===\n`;
-    sigTokens += countTokens(sigHeader);
-    for (const entry of sigEntries) {
-      const entryTokens = countTokens(entry);
-      if (sigTokens + entryTokens > sigBudgetRemaining) break;
-      trimmedSigEntries.push(entry);
-      sigTokens += entryTokens;
-    }
-    if (trimmedSigEntries.length > 0) {
-      fileSignaturesText = `=== File Signatures (${trimmedSigEntries.length} additional files) ===\n${trimmedSigEntries.join("\n\n")}`;
-      packedContext += `\n\n${fileSignaturesText}`;
-      packedTokenCount = countTokens(packedContext);
-    }
+  if (sigEntries.length > 0) {
+    fileSignaturesText = `=== File Signatures (${sigEntries.length} additional files) ===\n${sigEntries.join("\n\n")}`;
+    packedContext += `\n\n${fileSignaturesText}`;
+    packedTokenCount = countTokens(packedContext);
   }
 
   const sourceFileHashes: Record<string, string> = {};

@@ -1,7 +1,7 @@
 import { generateText } from "../llm";
 import { countTokens, truncateAtFunctionBoundary, getDepthTokenBudget, getDepthContextBudget } from "../token-counter";
 import { v2ChapterSchema } from "../v2-schema";
-import type { RepoExtraction } from "../github";
+import { type RepoExtraction, fetchFileContent } from "../github";
 import type { PipelineEmitter } from "./events";
 import {
   getChapterWritePrompt,
@@ -15,10 +15,11 @@ import { safeParseJson } from "../utils/safe-json-parse";
 import { normalizeBlock, buildFallbackBlocks } from "./helpers";
 import type { Abstraction, Relationship, OrderedChapter, ChapterResult, PipelineConfig } from "./types";
 
-function getAbstractionFilesByPageRank(
+async function getAbstractionFilesByPageRank(
   abstraction: Abstraction,
   extraction: RepoExtraction,
-): Array<{ path: string; content: string; size: number }> {
+  userToken?: string,
+): Promise<Array<{ path: string; content: string; size: number }>> {
   const allFetched = extraction.allFetchedFiles || [];
   const allFetchedByPath = new Map(allFetched.map(f => [f.path, f]));
 
@@ -30,6 +31,7 @@ function getAbstractionFilesByPageRank(
 
   const includedPaths = new Set<string>();
   const result: Array<{ path: string; content: string; size: number }> = [];
+  const missingPaths: string[] = [];
 
   for (const path of mappedPaths) {
     if (includedPaths.has(path)) continue;
@@ -42,6 +44,22 @@ function getAbstractionFilesByPageRank(
       if (fromTop) {
         result.push(fromTop);
         includedPaths.add(path);
+      } else {
+        missingPaths.push(path);
+      }
+    }
+  }
+
+  if (missingPaths.length > 0 && extraction.owner && extraction.repoName) {
+    const fetched = await Promise.allSettled(
+      missingPaths.map(p =>
+        fetchFileContent(extraction.owner, extraction.repoName, p, extraction.commitSha || extraction.defaultBranch, userToken)
+      )
+    );
+    for (const r of fetched) {
+      if (r.status === "fulfilled" && r.value && !includedPaths.has(r.value.path)) {
+        result.push(r.value);
+        includedPaths.add(r.value.path);
       }
     }
   }
@@ -344,7 +362,7 @@ async function writeOneChapter(
     );
 
     if (abstraction) {
-      const rankedFiles = getAbstractionFilesByPageRank(abstraction, extraction);
+      const rankedFiles = await getAbstractionFilesByPageRank(abstraction, extraction);
       contextData = packAbstractionContext(rankedFiles, contextBudget);
     } else {
       contextData = `No specific files assigned to this abstraction.`;
@@ -356,22 +374,7 @@ async function writeOneChapter(
   contextData = contextData + repoMapSection + fileTreeSection;
 
   if (extraction.fileSignatures) {
-    const currentTokens = countTokens(contextData);
-    const sigBudget = Math.max(contextBudget - currentTokens, 0);
-    if (sigBudget > 500) {
-      const sigLines = extraction.fileSignatures.split("\n");
-      const trimmedSig: string[] = [];
-      let sigToks = 0;
-      for (const line of sigLines) {
-        const lineToks = countTokens(line);
-        if (sigToks + lineToks > sigBudget) break;
-        trimmedSig.push(line);
-        sigToks += lineToks;
-      }
-      if (trimmedSig.length > 0) {
-        contextData += `\n\n${trimmedSig.join("\n")}`;
-      }
-    }
+    contextData += `\n\n${extraction.fileSignatures}`;
   }
 
   let blocks: unknown[] = [];
