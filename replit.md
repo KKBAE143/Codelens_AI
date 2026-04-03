@@ -36,6 +36,10 @@ CodeLens AI — a SaaS platform where users paste a GitHub URL and receive an AI
 - Knowledge graph: Interactive Sigma.js/WebGL force-directed graph on overview page, Louvain community detection for node clustering, search/filter, minimap, click-to-navigate, zoom/pan/drag. Component: `KnowledgeGraph.tsx`, utilities: `graph-utils.ts`. Uses `sigma`, `graphology`, `graphology-communities-louvain`, `graphology-types`.
 - Overview page tabs: "Knowledge Graph" (Sigma.js interactive) and "Abstraction Map" (existing node/edge list)
 - Viewer: Two-column layout (sidebar with module nav + progress rings, main content with block rendering)
+- Unified sidebar: `CourseSidebar.tsx` component shared by both `/course/[id]` and `/explore/[owner]/[repo]` pages
+- Per-module flashcard chips: Each module row shows due flashcard count; clicking opens per-module flashcard review
+- Flashcard counts API: `/api/courses/[id]/flashcards/counts` returns per-module due counts
+- Flashcard moduleIndex filter: GET `/api/courses/[id]/flashcards?moduleIndex=N` filters cards by module
 - Keyboard navigation: j/k or arrow keys to navigate between modules
 - Deep linking: `#module-N` hash in URL for direct module access
 - Generation progress: SSE with polling fallback, queue position/ETA display

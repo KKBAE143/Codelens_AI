@@ -37,7 +37,7 @@ async function checkCourseAccess(courseId: string, userId: string) {
 }
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   let user;
@@ -51,6 +51,14 @@ export async function GET(
 
   const course = await checkCourseAccess(courseId, user.id);
   if (!course) return NextResponse.json({ error: "Not found or not authorized" }, { status: 403 });
+
+  const url = new URL(request.url);
+  const moduleIndexParam = url.searchParams.get("moduleIndex");
+  const moduleFilter = moduleIndexParam !== null ? parseInt(moduleIndexParam, 10) : null;
+
+  const whereConditions = moduleFilter !== null && !isNaN(moduleFilter)
+    ? and(eq(flashcards.courseId, courseId), eq(flashcards.moduleIndex, moduleFilter))
+    : eq(flashcards.courseId, courseId);
 
   const cards = await db
     .select({
@@ -75,7 +83,7 @@ export async function GET(
       flashcardReviews,
       and(eq(flashcardReviews.flashcardId, flashcards.id), eq(flashcardReviews.userId, user.id))
     )
-    .where(eq(flashcards.courseId, courseId));
+    .where(whereConditions);
 
   const now = new Date();
   const f = fsrs();

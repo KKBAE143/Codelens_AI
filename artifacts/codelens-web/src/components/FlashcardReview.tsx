@@ -16,6 +16,7 @@ interface FlashcardData {
 
 interface FlashcardReviewProps {
   courseId: string;
+  moduleIndex?: number | null;
   onClose: () => void;
 }
 
@@ -34,7 +35,7 @@ function formatInterval(days: number): string {
   return `${Math.round(days / 365)} years`;
 }
 
-export function FlashcardReview({ courseId, onClose }: FlashcardReviewProps) {
+export function FlashcardReview({ courseId, moduleIndex, onClose }: FlashcardReviewProps) {
   const [cards, setCards] = useState<FlashcardData[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
@@ -46,7 +47,13 @@ export function FlashcardReview({ courseId, onClose }: FlashcardReviewProps) {
   const [dueCount, setDueCount] = useState(0);
 
   useEffect(() => {
-    fetch(`/api/courses/${courseId}/flashcards`, { credentials: "include" })
+    const params = new URLSearchParams();
+    if (moduleIndex !== undefined && moduleIndex !== null) {
+      params.set("moduleIndex", String(moduleIndex));
+    }
+    const qs = params.toString();
+    const url = `/api/courses/${courseId}/flashcards${qs ? `?${qs}` : ""}`;
+    fetch(url, { credentials: "include" })
       .then((r) => r.ok ? r.json() : null)
       .then((data) => {
         if (data) {
@@ -57,7 +64,7 @@ export function FlashcardReview({ courseId, onClose }: FlashcardReviewProps) {
         setIsLoading(false);
       })
       .catch(() => setIsLoading(false));
-  }, [courseId]);
+  }, [courseId, moduleIndex]);
 
   const currentCard = cards[currentIndex];
 

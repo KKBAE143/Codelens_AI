@@ -4990,6 +4990,35 @@ a.v2-code-filepath:hover {
   opacity: 0.9;
 }
 
+.v2-module-nav-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.v2-module-flashcard-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(232, 93, 48, 0.08);
+  border: 1px solid rgba(232, 93, 48, 0.18);
+  color: var(--accent);
+  font-size: 0.65rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.v2-module-flashcard-chip:hover {
+  background: rgba(232, 93, 48, 0.15);
+  border-color: rgba(232, 93, 48, 0.3);
+}
+
 @media (max-width: 640px) {
   .practice-modal {
     max-width: 100%;

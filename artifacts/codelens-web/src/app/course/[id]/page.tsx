@@ -10,6 +10,7 @@ import { BlockRenderer } from "@/components/course-blocks/BlockRenderer";
 import { AbstractionMap } from "@/components/course-blocks/AbstractionMap";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { FlashcardReview, FlashcardDueBanner } from "@/components/FlashcardReview";
+import { CourseSidebar } from "@/components/CourseSidebar";
 import { PracticeMode } from "@/components/PracticeMode";
 import { CourseWizard } from "@/components/CourseWizard";
 import {
@@ -115,109 +116,6 @@ function ReadingProgressBar({ scrollRef }: { scrollRef: React.RefObject<HTMLDivE
     <div className="v2-reading-progress">
       <div className="v2-reading-progress-bar" style={{ width: `${progress}%` }} />
     </div>
-  );
-}
-
-function V2ModuleSidebar({
-  modules,
-  activeIndex,
-  completedModules,
-  quizScores,
-  showOverview,
-  onSelect,
-}: {
-  modules: V2Module[];
-  activeIndex: number | null;
-  completedModules: number[];
-  quizScores: Map<number, number>;
-  showOverview?: boolean;
-  onSelect: (i: number | null) => void;
-}) {
-  return (
-    <nav className="v2-module-nav" aria-label="Course modules">
-      <div className="v2-module-nav-overview">
-        <div>
-          <div className="v2-module-nav-kicker">Course roadmap</div>
-          <div className="v2-module-nav-heading">Track progress, jump between modules, and revisit completed lessons.</div>
-        </div>
-        <div className="v2-module-nav-overview-stats">
-          <span>{completedModules.length}/{modules.length} done</span>
-        </div>
-      </div>
-      <div className="v2-module-nav-list">
-      {showOverview && (
-        <button
-          className={`v2-module-nav-item ${activeIndex === null ? "v2-module-nav-active" : ""}`}
-          onClick={() => onSelect(null)}
-          aria-current={activeIndex === null ? "step" : undefined}
-          aria-label="Overview canvas"
-        >
-          <div className="v2-module-nav-marker-wrap">
-            <ProgressRing percent={activeIndex === null ? 50 : 0} size={24} stroke={2.5} />
-            {modules.length > 0 && <span className="v2-module-nav-connector" aria-hidden="true" />}
-          </div>
-          <div className="v2-module-nav-text">
-            <span className="v2-module-nav-label">Overview</span>
-            <span className="v2-module-nav-title">Knowledge graph & abstraction map</span>
-            <span className="v2-module-nav-time">Separate course canvas</span>
-          </div>
-          <div className="v2-module-nav-actions">
-            <span className={`v2-module-nav-state ${activeIndex === null ? "is-active" : ""}`}>
-              {activeIndex === null ? "Current" : "Open"}
-            </span>
-          </div>
-        </button>
-      )}
-      {modules.map((mod, i) => {
-        const isActive = i === activeIndex;
-        const isCompleted = completedModules.includes(i);
-        const quizScore = quizScores.get(i);
-        const masteryColor = quizScore !== undefined
-          ? quizScore >= 80 ? "var(--teal)" : quizScore >= 60 ? "#F59E0B" : "var(--error)"
-          : undefined;
-        return (
-          <button
-            key={i}
-            className={`v2-module-nav-item ${isActive ? "v2-module-nav-active" : ""} ${isCompleted ? "v2-module-nav-completed" : ""}`}
-            onClick={() => onSelect(i)}
-            aria-current={isActive ? "step" : undefined}
-            aria-label={`Module ${i + 1}: ${mod.title}${isCompleted ? " (completed)" : ""}${quizScore !== undefined ? `, quiz score ${quizScore}%` : ""}`}
-          >
-            <div className="v2-module-nav-marker-wrap">
-              <ProgressRing percent={isCompleted ? 100 : isActive ? 50 : 0} size={24} stroke={2.5} />
-              {i < modules.length - 1 && <span className="v2-module-nav-connector" aria-hidden="true" />}
-            </div>
-            <div className="v2-module-nav-text">
-              <span className="v2-module-nav-label">Module {i + 1}</span>
-              <span className="v2-module-nav-title">{mod.title}</span>
-              {mod.estimatedMinutes && (
-                <span className="v2-module-nav-time">~{mod.estimatedMinutes} min</span>
-              )}
-            </div>
-            <div className="v2-module-nav-actions">
-              {quizScore !== undefined && (
-                <span
-                  className="v2-mastery-badge"
-                  style={{ color: masteryColor, borderColor: masteryColor }}
-                  title={`Quiz mastery: ${quizScore}%`}
-                >
-                  {quizScore}%
-                </span>
-              )}
-              {isCompleted && (
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-              )}
-              <span className={`v2-module-nav-state ${isActive ? "is-active" : isCompleted ? "is-complete" : ""}`}>
-                {isActive ? "Current" : isCompleted ? "Done" : "Open"}
-              </span>
-            </div>
-          </button>
-        );
-      })}
-      </div>
-    </nav>
   );
 }
 
@@ -551,6 +449,8 @@ export default function CourseViewer() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
   const [showFlashcards, setShowFlashcards] = useState(false);
+  const [flashcardModuleIndex, setFlashcardModuleIndex] = useState<number | null>(null);
+  const [flashcardRefreshKey, setFlashcardRefreshKey] = useState(0);
   const [flashcardDueCount, setFlashcardDueCount] = useState(0);
   const [quizScores, setQuizScores] = useState<Map<number, number>>(new Map());
   const [practiceModuleIndex, setPracticeModuleIndex] = useState<number | null>(null);
@@ -893,8 +793,11 @@ export default function CourseViewer() {
       {showFlashcards && (
         <FlashcardReview
           courseId={courseId}
+          moduleIndex={flashcardModuleIndex}
           onClose={() => {
             setShowFlashcards(false);
+            setFlashcardModuleIndex(null);
+            setFlashcardRefreshKey((k) => k + 1);
             fetch(`/api/courses/${courseId}/flashcards`, { credentials: "include" })
               .then((r) => r.ok ? r.json() : null)
               .then((data) => { if (data) setFlashcardDueCount(data.dueCount ?? 0); })
@@ -1052,21 +955,6 @@ export default function CourseViewer() {
                   </div>
 
                   <div className="v2-sidebar-toolbar">
-                    <button
-                      onClick={() => setShowFlashcards(true)}
-                      title="Review flashcards"
-                      className={`v2-sidebar-tool-btn ${flashcardDueCount > 0 ? "has-notice" : ""}`}
-                    >
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <rect x="2" y="3" width="20" height="14" rx="2" />
-                        <line x1="8" y1="21" x2="16" y2="21" />
-                        <line x1="12" y1="17" x2="12" y2="21" />
-                      </svg>
-                      Review
-                      {flashcardDueCount > 0 && (
-                        <span className="flashcard-tab-badge">{flashcardDueCount}</span>
-                      )}
-                    </button>
                     <div className="v2-sidebar-progress">
                       <ProgressRing percent={progress} size={32} stroke={3} />
                       <span className="v2-sidebar-progress-text">{progress}%</span>
@@ -1074,13 +962,19 @@ export default function CourseViewer() {
                   </div>
                 </div>
 
-                <V2ModuleSidebar
+                <CourseSidebar
                   modules={v2Data.modules}
                   activeIndex={activeModuleIndex}
                   completedModules={completedModules}
                   quizScores={quizScores}
                   showOverview={!!v2Data.overviewGraph}
                   onSelect={handleModuleSelect}
+                  courseId={courseId}
+                  refreshKey={flashcardRefreshKey}
+                  onOpenFlashcards={(modIdx) => {
+                    setFlashcardModuleIndex(modIdx);
+                    setShowFlashcards(true);
+                  }}
                 />
 
                 <div className="v2-sidebar-info">
@@ -1179,13 +1073,20 @@ export default function CourseViewer() {
                       <span className="v2-sidebar-progress-text">{progress}%</span>
                     </div>
                   </div>
-                  <V2ModuleSidebar
+                  <CourseSidebar
                     modules={v2Data.modules}
                     activeIndex={activeModuleIndex}
                     completedModules={completedModules}
                     quizScores={quizScores}
                     showOverview={!!v2Data.overviewGraph}
                     onSelect={handleModuleSelect}
+                    courseId={courseId}
+                    refreshKey={flashcardRefreshKey}
+                    onOpenFlashcards={(modIdx) => {
+                      setFlashcardModuleIndex(modIdx);
+                      setShowFlashcards(true);
+                      setMobileMenuOpen(false);
+                    }}
                   />
                 </aside>
               </>

@@ -14,6 +14,7 @@ import {
   type V2CourseData,
   type V2Module,
 } from "@/lib/course-types";
+import { CourseSidebar } from "@/components/CourseSidebar";
 
 const KnowledgeGraph = dynamic(
   () => import("@/components/course-blocks/KnowledgeGraph").then((m) => m.KnowledgeGraph),
@@ -67,101 +68,6 @@ async function fetchPublicCourse(owner: string, repo: string): Promise<{ course:
     throw new Error(data.error || "Course not found");
   }
   return res.json();
-}
-
-function ProgressRing({ percent, size = 24, stroke = 2.5 }: { percent: number; size?: number; stroke?: number }) {
-  const radius = (size - stroke) / 2;
-  const circumference = radius * 2 * Math.PI;
-  const offset = circumference - (percent / 100) * circumference;
-  return (
-    <svg width={size} height={size} style={{ transform: "rotate(-90deg)", flexShrink: 0 }}>
-      <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="var(--bg-tertiary)" strokeWidth={stroke} />
-      <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={percent >= 100 ? "var(--teal)" : "var(--accent)"} strokeWidth={stroke} strokeDasharray={circumference} strokeDashoffset={offset} strokeLinecap="round" style={{ transition: "stroke-dashoffset 0.4s ease" }} />
-    </svg>
-  );
-}
-
-function V2Sidebar({
-  modules,
-  activeIndex,
-  completedModules,
-  showOverview,
-  courseName,
-  progressPercent,
-  onSelect,
-}: {
-  modules: V2Module[];
-  activeIndex: number | null;
-  completedModules: number[];
-  showOverview?: boolean;
-  courseName: string;
-  progressPercent: number;
-  onSelect: (i: number | null) => void;
-}) {
-  return (
-    <nav className="v2-module-nav" aria-label="Course modules">
-      <div className="v2-sidebar-mini-bar">
-        <span className="v2-sidebar-mini-title">{courseName}</span>
-        <span className="v2-sidebar-mini-progress">{progressPercent}%</span>
-      </div>
-      <div className="v2-module-nav-overview">
-        <div>
-          <div className="v2-module-nav-kicker">Course roadmap</div>
-          <div className="v2-module-nav-heading">Follow the modules in order or jump to a concept you need.</div>
-        </div>
-        <div className="v2-module-nav-overview-stats">
-          <span>{completedModules.length}/{modules.length} done</span>
-        </div>
-      </div>
-      <div className="v2-module-nav-list">
-      {showOverview && (
-        <button
-          className={`v2-module-nav-item ${activeIndex === null ? "v2-module-nav-active" : ""}`}
-          onClick={() => onSelect(null)}
-          aria-current={activeIndex === null ? "step" : undefined}
-        >
-          <div className="v2-module-nav-marker-wrap">
-            <ProgressRing percent={activeIndex === null ? 50 : 0} />
-            {modules.length > 0 && <span className="v2-module-nav-connector" aria-hidden="true" />}
-          </div>
-          <div className="v2-module-nav-text">
-            <span className="v2-module-nav-label">Overview</span>
-            <span className="v2-module-nav-title">Knowledge graph & abstraction map</span>
-            <span className="v2-module-nav-time">Separate course canvas</span>
-          </div>
-          <span className={`v2-module-nav-state ${activeIndex === null ? "is-active" : ""}`}>
-            {activeIndex === null ? "Current" : "Open"}
-          </span>
-        </button>
-      )}
-      {modules.map((mod, i) => {
-        const isActive = i === activeIndex;
-        const isCompleted = completedModules.includes(i);
-        return (
-          <button
-            key={i}
-            className={`v2-module-nav-item ${isActive ? "v2-module-nav-active" : ""} ${isCompleted ? "v2-module-nav-completed" : ""}`}
-            onClick={() => onSelect(i)}
-            aria-current={isActive ? "step" : undefined}
-          >
-            <div className="v2-module-nav-marker-wrap">
-              <ProgressRing percent={isCompleted ? 100 : isActive ? 50 : 0} />
-              {i < modules.length - 1 && <span className="v2-module-nav-connector" aria-hidden="true" />}
-            </div>
-            <div className="v2-module-nav-text">
-              <span className="v2-module-nav-label">Module {i + 1}</span>
-              <span className="v2-module-nav-title">{mod.title}</span>
-              <span className="v2-module-nav-time">{mod.estimatedMinutes ? `~${mod.estimatedMinutes} min` : "Guided lesson"}</span>
-            </div>
-            <span className={`v2-module-nav-state ${isActive ? "is-active" : isCompleted ? "is-complete" : ""}`}>
-              {isActive ? "Current" : isCompleted ? "Done" : "Open"}
-            </span>
-          </button>
-        );
-      })}
-      </div>
-    </nav>
-  );
 }
 
 function V2Content({
@@ -561,12 +467,10 @@ export default function PublicCourseViewer() {
           </div>
         </div>
 
-        <V2Sidebar
+        <CourseSidebar
           modules={v2Data.modules}
           activeIndex={activeModuleIndex}
           completedModules={completedModules}
-          courseName={course.repoName}
-          progressPercent={completionPercent}
           showOverview={!!v2Data.overviewGraph}
           onSelect={handleModuleSelect}
         />
