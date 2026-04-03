@@ -15,10 +15,12 @@ import { safeParseJson } from "../utils/safe-json-parse";
 import { normalizeBlock, buildFallbackBlocks } from "./helpers";
 import type { Abstraction, Relationship, OrderedChapter, ChapterResult, PipelineConfig } from "./types";
 
+type FileEntry = { path: string; content: string; size: number };
+
 async function getAbstractionFilesByPageRank(
   abstraction: Abstraction,
   extraction: RepoExtraction,
-): Promise<Array<{ path: string; content: string; size: number }>> {
+): Promise<{ mapped: FileEntry[]; supplemental: FileEntry[] }> {
   const allFetched = extraction.allFetchedFiles || [];
   const allFetchedByPath = new Map(allFetched.map(f => [f.path, f]));
 
@@ -29,19 +31,19 @@ async function getAbstractionFilesByPageRank(
         .map((idx) => extraction.files[idx].path);
 
   const includedPaths = new Set<string>();
-  const result: Array<{ path: string; content: string; size: number }> = [];
+  const mapped: FileEntry[] = [];
   const missingPaths: string[] = [];
 
   for (const path of mappedPaths) {
     if (includedPaths.has(path)) continue;
     const fromAll = allFetchedByPath.get(path);
     if (fromAll) {
-      result.push(fromAll);
+      mapped.push(fromAll);
       includedPaths.add(path);
     } else {
       const fromTop = extraction.files.find(f => f.path === path);
       if (fromTop) {
-        result.push(fromTop);
+        mapped.push(fromTop);
         includedPaths.add(path);
       } else {
         missingPaths.push(path);
@@ -57,12 +59,13 @@ async function getAbstractionFilesByPageRank(
     );
     for (const r of fetched) {
       if (r.status === "fulfilled" && r.value && !includedPaths.has(r.value.path)) {
-        result.push(r.value);
+        mapped.push(r.value);
         includedPaths.add(r.value.path);
       }
     }
   }
 
+  const supplemental: FileEntry[] = [];
   const abstractionDirs = new Set<string>();
   for (const path of mappedPaths) {
     const dir = path.substring(0, path.lastIndexOf("/"));
@@ -72,22 +75,22 @@ async function getAbstractionFilesByPageRank(
     if (includedPaths.has(f.path)) continue;
     const fDir = f.path.substring(0, f.path.lastIndexOf("/"));
     if (fDir && abstractionDirs.has(fDir)) {
-      result.push(f);
+      supplemental.push(f);
       includedPaths.add(f.path);
     }
   }
 
-  if (result.length <= 1) return result;
+  if (supplemental.length > 1) {
+    const allFiles = [...mapped, ...supplemental];
+    const pageRank = computePageRank(allFiles);
+    supplemental.sort((a, b) => {
+      const scoreA = pageRank.scores.get(a.path) || 0;
+      const scoreB = pageRank.scores.get(b.path) || 0;
+      return scoreB - scoreA;
+    });
+  }
 
-  const pageRank = computePageRank(result);
-
-  return [...result].sort((a, b) => {
-    const scoreA = pageRank.scores.get(a.path) || 0;
-    const scoreB = pageRank.scores.get(b.path) || 0;
-    const degreeA = pageRank.inDegree.get(a.path) || 0;
-    const degreeB = pageRank.inDegree.get(b.path) || 0;
-    return (scoreB * 1000 + degreeB) - (scoreA * 1000 + degreeA);
-  });
+  return { mapped, supplemental };
 }
 
 function buildCrossAbstractionContext(
@@ -117,24 +120,33 @@ function buildCrossAbstractionContext(
   return `\n\nRelated abstractions the reader already knows about:\n${summaries.join("\n")}`;
 }
 
-function packAbstractionContext(
-  files: Array<{ path: string; content: string; size: number }>,
+function packAbstractionContextWithMapped(
+  mapped: FileEntry[],
+  supplemental: FileEntry[],
   contextBudget: number,
 ): string {
-  const fileTree = files.map((f) => {
+  const allFiles = [...mapped, ...supplemental];
+  const fileTree = allFiles.map((f) => {
     const lines = f.content.split("\n").length;
     return `  ${f.path} (${lines} lines)`;
   }).join("\n");
-  const treeSummary = `=== File Tree (${files.length} files, ordered by importance) ===\n${fileTree}\n`;
+  const treeSummary = `=== File Tree (${allFiles.length} files, ${mapped.length} mapped + ${supplemental.length} supplemental) ===\n${fileTree}\n`;
   const treeSummaryTokens = countTokens(treeSummary);
 
   const parts: string[] = [treeSummary];
   let tokensSoFar = treeSummaryTokens;
 
-  for (const f of files) {
+  for (const f of mapped) {
+    const header = `\n=== File (mapped): ${f.path} ===\n`;
+    const headerTokens = countTokens(header);
+    const blockTokens = countTokens(f.content);
+    parts.push(`${header}${f.content}`);
+    tokensSoFar += headerTokens + blockTokens;
+  }
+
+  for (const f of supplemental) {
     const header = `\n=== File: ${f.path} ===\n`;
     const headerTokens = countTokens(header);
-
     const remaining = contextBudget - tokensSoFar - headerTokens;
     if (remaining <= 100) break;
 
@@ -361,8 +373,8 @@ async function writeOneChapter(
     );
 
     if (abstraction) {
-      const rankedFiles = await getAbstractionFilesByPageRank(abstraction, extraction);
-      contextData = packAbstractionContext(rankedFiles, contextBudget);
+      const { mapped, supplemental } = await getAbstractionFilesByPageRank(abstraction, extraction);
+      contextData = packAbstractionContextWithMapped(mapped, supplemental, contextBudget);
     } else {
       contextData = `No specific files assigned to this abstraction.`;
     }
