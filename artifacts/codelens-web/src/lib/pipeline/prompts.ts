@@ -182,7 +182,7 @@ NEW ENGINEER CHAPTER REQUIREMENTS (in addition to the structure below):
 VIBE CODER CHAPTER REQUIREMENTS (in addition to the structure below):
 - The FIRST text block must answer: "What does this part of the code DO when a user interacts with the app?" in plain terms. No abstract descriptions.
 - Include at least ONE callout[ai-hint] block with a concrete AI steering tip — an actual prompt snippet the learner can paste into Cursor/Copilot to modify this part of the code safely.
-- Include at least ONE callout[warning] as an "AI Danger Zone" — a specific place where AI tools commonly generate broken or insecure code, with what to watch for and how to fix it.
+- Include at least ONE callout[warning] as an "AI Danger Zone" — a specific place where AI tools commonly generate broken or insecure code, with what to watch for and how to fix it. For auth, payment, and database code, ALWAYS include a callout[warning] identifying security-critical pitfalls (e.g., missing auth checks, SQL injection, payment validation bypass). These warnings are aggregated into an "AI Safety Map" on the course overview.
 - For each code block, add a caption that explains not just WHAT the code does but WHAT BREAKS if they change it wrong.
 - Quizzes must be debugging-oriented: "You see this error in the console — what caused it and what do you fix?" or "Your AI tool generated this code — what's wrong with it?"
 - Include an exercise that involves TRACING a real data flow: "Start at X, follow the data through Y, and explain what Z returns."` : "";

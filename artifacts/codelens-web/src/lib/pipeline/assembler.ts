@@ -139,30 +139,40 @@ function buildCodebasePassport(
   const avgConnections = abstractions.length > 0
     ? totalRelationships / abstractions.length
     : 0;
-  const complexityLevel: "simple" | "moderate" | "complex" | "very-complex" =
-    avgConnections < 1.5 && abstractions.length <= 6 ? "simple"
-    : avgConnections < 2.5 && abstractions.length <= 10 ? "moderate"
-    : avgConnections < 4 ? "complex"
-    : "very-complex";
+  const complexityLevel: "Beginner" | "Intermediate" | "Advanced" =
+    avgConnections < 2 && abstractions.length <= 6 ? "Beginner"
+    : avgConnections < 3.5 && abstractions.length <= 12 ? "Intermediate"
+    : "Advanced";
 
-  const patternKeywords = ["middleware", "plugin", "hook", "event", "observer", "factory", "singleton", "decorator", "adapter", "proxy", "mvc", "mvvm", "rest", "graphql", "pub/sub", "queue", "pipeline", "microservice", "monorepo", "module", "layer"];
-  const allText = chapters.map((ch) => JSON.stringify(ch.blocks)).join(" ").toLowerCase();
-  const mainPatterns = patternKeywords.filter((p) => allText.includes(p)).slice(0, 5);
+  const archCardPatterns: string[] = [];
+  for (const ch of chapters) {
+    for (const block of ch.blocks as Array<Record<string, unknown>>) {
+      if (block.type === "architecture-card" && typeof block.decision === "string") {
+        const dec = (block.decision as string).toLowerCase();
+        const archKeywords = ["middleware", "plugin", "hook", "event-driven", "observer", "factory", "singleton", "decorator", "adapter", "proxy", "mvc", "mvvm", "rest", "graphql", "pub/sub", "queue", "pipeline", "microservice", "monorepo", "layered"];
+        for (const kw of archKeywords) {
+          if (dec.includes(kw) && !archCardPatterns.includes(kw)) {
+            archCardPatterns.push(kw);
+          }
+        }
+      }
+    }
+  }
+  const mainPatterns = archCardPatterns.slice(0, 5);
 
   const testFiles = extraction.fileTree?.filter((f: string) =>
     /\.(test|spec)\.(ts|js|tsx|jsx|py)$/.test(f) || f.includes("__tests__") || f.includes("test/")
   ) ?? [];
-  const testRatio = extraction.totalFilesCatalogued > 0
-    ? testFiles.length / extraction.totalFilesCatalogued
+  const testPct = extraction.totalFilesCatalogued > 0
+    ? Math.round((testFiles.length / extraction.totalFilesCatalogued) * 100)
     : 0;
-  const testCoverageEstimate: "none" | "minimal" | "partial" | "good" =
-    testRatio === 0 ? "none"
-    : testRatio < 0.05 ? "minimal"
-    : testRatio < 0.15 ? "partial"
-    : "good";
+  const testCoverageEstimate = `~${testPct}% files`;
 
   const langList = topLanguages.map((l) => l.language).join(", ");
-  const personalitySummary = `A ${complexityLevel} ${langList} project with ${abstractions.length} core abstractions and ${totalRelationships} relationships${mainPatterns.length > 0 ? `, using ${mainPatterns.join(", ")} patterns` : ""}.`;
+  const complexityAdj = complexityLevel === "Beginner" ? "straightforward" : complexityLevel === "Intermediate" ? "moderately complex" : "highly complex";
+  const personalitySummary = `This is a ${complexityAdj} ${langList} project with ${abstractions.length} core abstractions and ${totalRelationships} relationships. ` +
+    `${mainPatterns.length > 0 ? `It relies on ${mainPatterns.join(", ")} patterns to structure its architecture. ` : ""}` +
+    `${testPct > 0 ? `Approximately ${testPct}% of the codebase consists of test files, indicating ${testPct > 15 ? "solid" : testPct > 5 ? "moderate" : "minimal"} testing practices.` : "The project has no detectable test files."}`;
 
   return {
     repoName: extraction.repoName,

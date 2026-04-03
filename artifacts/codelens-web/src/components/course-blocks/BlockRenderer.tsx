@@ -109,18 +109,15 @@ function ConfusedButton({ block, courseId, moduleTitle }: { block: V2Block; cour
   );
 }
 
-function extractTldr(content: string): string | null {
-  const stripped = content.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-  if (stripped.length < 300) return null;
-  const firstSentences = stripped.match(/^(.+?[.!?])\s+(.+?[.!?])/);
-  if (firstSentences) return firstSentences[1] + " " + firstSentences[2];
-  return stripped.slice(0, 150) + "...";
-}
-
 function BlockContent({ block, githubUrl, exerciseContext, courseId, moduleTitle, beginnerMode }: BlockRendererProps) {
   const showConfusedBtn = ["text", "code", "callout"].includes(block.type) && courseId;
   const isAdvancedBlock = block.type === "architecture-card" || block.type === "mermaid" ||
     (block.type === "code" && block.content && block.content.split("\n").length > 20);
+
+  const blockAny = block as Record<string, unknown>;
+  if (blockAny.beginnerOnly && !beginnerMode) {
+    return null;
+  }
 
   if (beginnerMode && isAdvancedBlock) {
     return (
@@ -137,21 +134,6 @@ function BlockContent({ block, githubUrl, exerciseContext, courseId, moduleTitle
         </div>
       </details>
     );
-  }
-
-  if (beginnerMode && block.type === "text") {
-    const tldr = extractTldr(block.content);
-    if (tldr) {
-      return (
-        <>
-          <div className="beginner-tldr">
-            <strong>TL;DR:</strong> {tldr}
-          </div>
-          <InnerBlockContent block={block} githubUrl={githubUrl} exerciseContext={exerciseContext} />
-          {showConfusedBtn && <ConfusedButton block={block} courseId={courseId} moduleTitle={moduleTitle} />}
-        </>
-      );
-    }
   }
 
   return (

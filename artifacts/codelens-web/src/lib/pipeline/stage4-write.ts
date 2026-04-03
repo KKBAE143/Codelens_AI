@@ -220,16 +220,34 @@ function extractTextFromBlock(block: Record<string, unknown>): string {
   return "";
 }
 
+function injectBeginnerSummaries(blocks: Array<Record<string, unknown>>): Array<Record<string, unknown>> {
+  const result: Array<Record<string, unknown>> = [];
+  for (const block of blocks) {
+    result.push(block);
+    if (block.type === "text" && typeof block.content === "string") {
+      const stripped = (block.content as string).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+      if (stripped.length >= 300) {
+        const sentences = stripped.match(/^(.+?[.!?])\s+(.+?[.!?])/);
+        const summary = sentences ? `${sentences[1]} ${sentences[2]}` : stripped.slice(0, 150) + "...";
+        result.push({
+          type: "callout",
+          variant: "tip",
+          beginnerOnly: true,
+          content: `**In plain terms:** ${summary}`,
+        });
+      }
+    }
+  }
+  return result;
+}
+
 function injectJargonCallouts(blocks: Array<Record<string, unknown>>): Array<Record<string, unknown>> {
   const seenTerms = new Set<string>();
   const result: Array<Record<string, unknown>> = [];
-  const MAX_JARGON_CALLOUTS = 3;
-  let jargonCount = 0;
 
   for (const block of blocks) {
     result.push(block);
 
-    if (jargonCount >= MAX_JARGON_CALLOUTS) continue;
     if (block.type === "callout") continue;
 
     const text = extractTextFromBlock(block).toLowerCase();
@@ -259,7 +277,6 @@ function injectJargonCallouts(blocks: Array<Record<string, unknown>>): Array<Rec
         variant: "tip",
         content: `📖 **Jargon Buster**\n\n${glossaryContent}`,
       });
-      jargonCount++;
     }
   }
 
@@ -456,7 +473,11 @@ async function writeOneChapter(
     }
   }
 
-  const processedBlocks = injectJargonCallouts(blocks as Array<Record<string, unknown>>);
+  let processedBlocks = injectJargonCallouts(blocks as Array<Record<string, unknown>>);
+
+  if (config.depth === "full" || config.depth === "deep") {
+    processedBlocks = injectBeginnerSummaries(processedBlocks);
+  }
 
   return {
     index: chapter.index,

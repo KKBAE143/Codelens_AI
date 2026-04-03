@@ -252,19 +252,30 @@ function V2ModuleContent({
       </div>
 
       {(() => {
-        const topics: string[] = [];
+        const bullets: string[] = [];
+        if (mod.learningObjective) {
+          bullets.push(mod.learningObjective);
+        }
+        if (mod.title && mod.title !== "Overview & Architecture") {
+          bullets.push(`How ${mod.title} fits into the codebase architecture`);
+        }
+        const quizTerms: string[] = [];
         for (const block of mod.blocks) {
-          if (block.type === "text") {
-            const match = block.content.match(/<h[23][^>]*>([^<]+)<\/h[23]>/g);
-            if (match) {
-              for (const m of match) {
-                const inner = m.replace(/<[^>]+>/g, "").trim();
-                if (inner && inner.length > 3 && topics.length < 5) topics.push(inner);
+          if (block.type === "quiz" && block.question) {
+            const keywords = block.question.match(/\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b/g);
+            if (keywords) {
+              for (const kw of keywords) {
+                if (kw.length > 3 && !quizTerms.includes(kw) && quizTerms.length < 3) {
+                  quizTerms.push(kw);
+                }
               }
             }
           }
         }
-        if (topics.length < 2) return null;
+        if (quizTerms.length > 0) {
+          bullets.push(`Key concepts: ${quizTerms.join(", ")}`);
+        }
+        if (bullets.length < 1) return null;
         return (
           <div className="v2-module-summary-card">
             <div className="v2-module-summary-title">
@@ -275,7 +286,7 @@ function V2ModuleContent({
               What You Learned
             </div>
             <ul className="v2-module-summary-list">
-              {topics.map((t, i) => <li key={i}>{t}</li>)}
+              {bullets.map((t, i) => <li key={i}>{t}</li>)}
             </ul>
           </div>
         );
@@ -1344,8 +1355,8 @@ export default function CourseViewer() {
                   {(v2Data.codebasePassport.complexityLevel || v2Data.codebasePassport.testCoverageEstimate) && (
                     <div className="v2-passport-extra">
                       {v2Data.codebasePassport.complexityLevel && (
-                        <span className={`v2-passport-badge v2-passport-badge-${v2Data.codebasePassport.complexityLevel}`}>
-                          {v2Data.codebasePassport.complexityLevel.replace("-", " ")}
+                        <span className={`v2-passport-badge v2-passport-badge-${v2Data.codebasePassport.complexityLevel.toLowerCase()}`}>
+                          {v2Data.codebasePassport.complexityLevel}
                         </span>
                       )}
                       {v2Data.codebasePassport.testCoverageEstimate && (

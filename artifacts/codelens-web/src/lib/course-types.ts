@@ -156,9 +156,9 @@ export interface V2CodebasePassport {
   persona: string;
   depth: string;
   coreComponents: Array<{ name: string; connections: number }>;
-  complexityLevel?: "simple" | "moderate" | "complex" | "very-complex";
+  complexityLevel?: "Beginner" | "Intermediate" | "Advanced";
   mainPatterns?: string[];
-  testCoverageEstimate?: "none" | "minimal" | "partial" | "good";
+  testCoverageEstimate?: string;
   personalitySummary?: string;
 }
 

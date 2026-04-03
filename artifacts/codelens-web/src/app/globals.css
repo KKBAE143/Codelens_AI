@@ -8754,23 +8754,6 @@ details[open] > .beginner-collapsed-summary::before {
   padding: 0.75rem;
 }
 
-.beginner-tldr {
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
-  border-radius: var(--radius-sm);
-  padding: 0.5rem 0.75rem;
-  font-size: 0.82rem;
-  color: #1e40af;
-  line-height: 1.5;
-  margin-bottom: 0.5rem;
-}
-
-[data-theme="dark"] .beginner-tldr {
-  background: #1e293b;
-  border-color: #334155;
-  color: #93c5fd;
-}
-
 .v2-concept-index {
   margin-top: 2rem;
   padding: 1.5rem;
@@ -8961,10 +8944,9 @@ details[open] > .beginner-collapsed-summary::before {
   text-transform: capitalize;
 }
 
-.v2-passport-badge-simple { background: #d1fae5; color: #065f46; }
-.v2-passport-badge-moderate { background: #dbeafe; color: #1e40af; }
-.v2-passport-badge-complex { background: #fef3c7; color: #92400e; }
-.v2-passport-badge-very-complex { background: #fee2e2; color: #991b1b; }
+.v2-passport-badge-beginner { background: #d1fae5; color: #065f46; }
+.v2-passport-badge-intermediate { background: #dbeafe; color: #1e40af; }
+.v2-passport-badge-advanced { background: #fef3c7; color: #92400e; }
 .v2-passport-badge-test { background: var(--bg-secondary); color: var(--text-secondary); border: 1px solid var(--border-color); }
 
 .v2-passport-patterns {

@@ -100,28 +100,41 @@ function renderBlock(block: V2Block): string {
 }
 
 function renderModule(mod: V2Module, index: number): string {
-  const topics: string[] = [];
+  const bullets: string[] = [];
+  if (mod.learningObjective) {
+    bullets.push(mod.learningObjective);
+  }
+  if (mod.title && mod.title !== "Overview & Architecture") {
+    bullets.push(`How ${mod.title} fits into the codebase architecture`);
+  }
+  const quizTerms: string[] = [];
   for (const block of mod.blocks) {
-    if (block.type === "text") {
-      const matches = block.content.match(/<h[23][^>]*>([^<]+)<\/h[23]>/g);
-      if (matches) {
-        for (const m of matches) {
-          const inner = m.replace(/<[^>]+>/g, "").trim();
-          if (inner && inner.length > 3 && topics.length < 5) topics.push(inner);
+    if (block.type === "quiz" && block.question) {
+      const keywords = block.question.match(/\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b/g);
+      if (keywords) {
+        for (const kw of keywords) {
+          if (kw.length > 3 && !quizTerms.includes(kw) && quizTerms.length < 3) {
+            quizTerms.push(kw);
+          }
         }
       }
     }
   }
+  if (quizTerms.length > 0) {
+    bullets.push(`Key concepts: ${quizTerms.join(", ")}`);
+  }
 
-  const summaryHtml = topics.length >= 2
-    ? `<div class="module-summary"><div class="module-summary-title">What You Learned</div><ul>${topics.map((t) => `<li>${escapeHtml(t)}</li>`).join("")}</ul></div>`
+  const summaryHtml = bullets.length > 0
+    ? `<div class="module-summary"><div class="module-summary-title">What You Learned</div><ul>${bullets.map((t) => `<li>${escapeHtml(t)}</li>`).join("")}</ul></div>`
     : "";
+
+  const filteredBlocks = mod.blocks.filter((b) => !(b as Record<string, unknown>).beginnerOnly);
 
   return `
     <section class="module">
       <h2>Module ${index + 1}: ${escapeHtml(mod.title)}</h2>
       ${mod.learningObjective ? `<p class="learning-objective"><strong>Learning Objective:</strong> ${escapeHtml(mod.learningObjective)}</p>` : ""}
-      ${mod.blocks.map(renderBlock).join("\n")}
+      ${filteredBlocks.map(renderBlock).join("\n")}
       ${summaryHtml}
     </section>
   `;
@@ -151,7 +164,7 @@ function buildPdfHtml(
     .cover .meta { color: #666; font-size: 0.9em; margin-top: 0.5em; }
     .cover .badges { display: flex; gap: 0.5em; justify-content: center; margin-top: 0.75em; flex-wrap: wrap; }
     .cover .badge { background: #e8f5e9; color: #2e7d32; padding: 0.15em 0.5em; border-radius: 4px; font-size: 0.8em; }
-    .module { page-break-inside: avoid; margin-bottom: 1.5rem; }
+    .module { margin-bottom: 1.5rem; }
     .learning-objective { font-style: italic; color: #555; margin-bottom: 1em; font-size: 0.9em; }
     .block { margin: 0.75em 0; }
     .block-text { line-height: 1.7; }
@@ -202,7 +215,8 @@ function buildPdfHtml(
     .module-summary li { margin: 0.15em 0; }
     @media print {
       body { padding: 0; font-size: 10pt; }
-      .module { page-break-inside: avoid; }
+      .module { page-break-before: always; }
+      .module:first-of-type { page-break-before: avoid; }
       h2 { page-break-after: avoid; }
       .block-code { page-break-inside: avoid; }
       .block-quiz { page-break-inside: avoid; }
@@ -210,6 +224,7 @@ function buildPdfHtml(
       .block-card { page-break-inside: avoid; }
       .module-summary { page-break-inside: avoid; }
       .no-print { display: none; }
+      @page { @top-center { content: "${escapeHtml(ownerName)}/${escapeHtml(repoName)} — CodeLens AI"; font-size: 8pt; color: #999; } }
     }
   </style>
 </head>
