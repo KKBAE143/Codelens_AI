@@ -196,8 +196,8 @@ export default function ExplorePage() {
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg-primary)" }}>
       <main style={{ maxWidth: 1200, margin: "0 auto", padding: "2rem 1.5rem" }}>
-        <header style={{ marginBottom: "2rem" }}>
-          <h1 style={{ fontSize: "2rem", fontWeight: 700, marginBottom: "0.5rem" }}>
+        <header style={{ marginBottom: "1.5rem" }}>
+          <h1 style={{ fontFamily: "var(--font-heading)", fontSize: "2rem", fontWeight: 700, marginBottom: "0.5rem", letterSpacing: "-0.02em" }}>
             Explore Courses
           </h1>
           <p style={{ color: "var(--text-secondary)", fontSize: "1.05rem" }}>
@@ -205,7 +205,7 @@ export default function ExplorePage() {
           </p>
         </header>
 
-        <div className="explore-filters">
+        <div className="explore-filters" style={{ marginBottom: "1rem" }}>
           <div className="explore-search-wrap">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text-tertiary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="11" cy="11" r="8" />
@@ -220,109 +220,149 @@ export default function ExplorePage() {
             />
           </div>
 
-          <select
-            value={language}
-            onChange={(e) => { setLanguage(e.target.value); setPage(1); }}
-            className="explore-select"
-          >
-            <option value="">All Languages</option>
-            {LANGUAGES.map((l) => (
-              <option key={l} value={l}>{l}</option>
-            ))}
-          </select>
-
-          <select
-            value={audience}
-            onChange={(e) => { setAudience(e.target.value); setPage(1); }}
-            className="explore-select"
-          >
-            <option value="">All Audiences</option>
-            {AUDIENCES.map((a) => (
-              <option key={a.value} value={a.value}>{a.label}</option>
-            ))}
-          </select>
-
-          <select
-            value={depth}
-            onChange={(e) => { setDepth(e.target.value); setPage(1); }}
-            className="explore-select"
-          >
-            <option value="">All Depths</option>
-            {DEPTHS.map((d) => (
-              <option key={d.value} value={d.value}>{d.label}</option>
-            ))}
-          </select>
-
-          <select
-            value={focusArea}
-            onChange={(e) => { setFocusArea(e.target.value); setPage(1); }}
-            className="explore-select"
-          >
-            <option value="">All Focus Areas</option>
-            {FOCUS_AREAS.map((fa) => (
-              <option key={fa} value={fa}>{fa}</option>
-            ))}
-          </select>
-
-          <select
-            value={sort}
-            onChange={(e) => { setSort(e.target.value); setPage(1); }}
-            className="explore-select"
-          >
+          <select value={sort} onChange={(e) => { setSort(e.target.value); setPage(1); }} className="explore-select">
             {SORT_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>{o.label}</option>
             ))}
           </select>
         </div>
 
-        {loading ? (
-          <div style={{ textAlign: "center", padding: "4rem 0", color: "var(--text-secondary)" }}>
-            Loading courses...
-          </div>
-        ) : courses.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "4rem 0" }}>
-            <p style={{ color: "var(--text-secondary)", fontSize: "1.1rem", marginBottom: "1rem" }}>
-              No courses found{search ? ` for "${search}"` : ""}.
-            </p>
-            <Link href="/" className="btn-primary" style={{ textDecoration: "none" }}>
-              Generate Your First Course
-            </Link>
-          </div>
-        ) : (
-          <>
-            <div className="explore-grid">
-              {courses.map((course) => (
-                <CourseCard key={course.id} course={course} />
-              ))}
+        <div className="lms-category-chips">
+          {LANGUAGES.map((l) => (
+            <button
+              key={l}
+              className={`lms-category-chip ${language === l ? "lms-category-chip-active" : ""}`}
+              onClick={() => { setLanguage(language === l ? "" : l); setPage(1); }}
+            >
+              {l}
+            </button>
+          ))}
+        </div>
+
+        <div className="explore-mobile-filters" style={{ display: "none", gap: "0.5rem", flexWrap: "wrap", marginBottom: "1rem" }}>
+          <select value={audience} onChange={(e) => { setAudience(e.target.value); setPage(1); }} className="explore-select">
+            <option value="">All Audiences</option>
+            {AUDIENCES.map((a) => <option key={a.value} value={a.value}>{a.label}</option>)}
+          </select>
+          <select value={depth} onChange={(e) => { setDepth(e.target.value); setPage(1); }} className="explore-select">
+            <option value="">All Depths</option>
+            {DEPTHS.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
+          </select>
+          <select value={focusArea} onChange={(e) => { setFocusArea(e.target.value); setPage(1); }} className="explore-select">
+            <option value="">All Focus Areas</option>
+            {FOCUS_AREAS.map((fa) => <option key={fa} value={fa}>{fa}</option>)}
+          </select>
+        </div>
+
+        <div className="lms-explore-layout">
+          <aside className="lms-explore-sidebar">
+            <div className="lms-explore-sidebar-section">
+              <h3>Audience</h3>
+              <div className="lms-filter-list">
+                <button
+                  className={`lms-filter-item ${audience === "" ? "lms-filter-item-active" : ""}`}
+                  onClick={() => { setAudience(""); setPage(1); }}
+                >
+                  All Audiences
+                </button>
+                {AUDIENCES.map((a) => (
+                  <button
+                    key={a.value}
+                    className={`lms-filter-item ${audience === a.value ? "lms-filter-item-active" : ""}`}
+                    onClick={() => { setAudience(audience === a.value ? "" : a.value); setPage(1); }}
+                  >
+                    {a.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            {totalPages > 1 && (
-              <div className="explore-pagination">
+            <div className="lms-explore-sidebar-section">
+              <h3>Depth</h3>
+              <div className="lms-filter-list">
                 <button
-                  className="btn-secondary"
-                  disabled={page <= 1}
-                  onClick={() => setPage((p) => p - 1)}
+                  className={`lms-filter-item ${depth === "" ? "lms-filter-item-active" : ""}`}
+                  onClick={() => { setDepth(""); setPage(1); }}
                 >
-                  Previous
+                  All Depths
                 </button>
-                <span style={{ color: "var(--text-secondary)", fontSize: "0.9rem" }}>
-                  Page {page} of {totalPages}
-                </span>
-                <button
-                  className="btn-secondary"
-                  disabled={page >= totalPages}
-                  onClick={() => setPage((p) => p + 1)}
-                >
-                  Next
-                </button>
+                {DEPTHS.map((d) => (
+                  <button
+                    key={d.value}
+                    className={`lms-filter-item ${depth === d.value ? "lms-filter-item-active" : ""}`}
+                    onClick={() => { setDepth(depth === d.value ? "" : d.value); setPage(1); }}
+                  >
+                    {d.label}
+                  </button>
+                ))}
               </div>
+            </div>
+
+            <div className="lms-explore-sidebar-section">
+              <h3>Focus Area</h3>
+              <div className="lms-filter-list">
+                <button
+                  className={`lms-filter-item ${focusArea === "" ? "lms-filter-item-active" : ""}`}
+                  onClick={() => { setFocusArea(""); setPage(1); }}
+                >
+                  All Areas
+                </button>
+                {FOCUS_AREAS.map((fa) => (
+                  <button
+                    key={fa}
+                    className={`lms-filter-item ${focusArea === fa ? "lms-filter-item-active" : ""}`}
+                    onClick={() => { setFocusArea(focusArea === fa ? "" : fa); setPage(1); }}
+                  >
+                    {fa}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </aside>
+
+          <div className="lms-explore-main">
+            {loading ? (
+              <div style={{ textAlign: "center", padding: "4rem 0", color: "var(--text-secondary)" }}>
+                Loading courses...
+              </div>
+            ) : courses.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "4rem 0" }}>
+                <p style={{ color: "var(--text-secondary)", fontSize: "1.1rem", marginBottom: "1rem" }}>
+                  No courses found{search ? ` for "${search}"` : ""}.
+                </p>
+                <Link href="/" className="btn-primary" style={{ textDecoration: "none" }}>
+                  Generate Your First Course
+                </Link>
+              </div>
+            ) : (
+              <>
+                <div className="explore-grid">
+                  {courses.map((course) => (
+                    <CourseCard key={course.id} course={course} />
+                  ))}
+                </div>
+
+                {totalPages > 1 && (
+                  <div className="explore-pagination">
+                    <button className="btn-secondary" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+                      Previous
+                    </button>
+                    <span style={{ color: "var(--text-secondary)", fontSize: "0.9rem" }}>
+                      Page {page} of {totalPages}
+                    </span>
+                    <button className="btn-secondary" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
+                      Next
+                    </button>
+                  </div>
+                )}
+              </>
             )}
-          </>
-        )}
+          </div>
+        </div>
 
         <div className="explore-cta-section">
-          <h2 style={{ fontSize: "1.4rem", fontWeight: 700, marginBottom: "0.5rem" }}>
-            Don't see your repo?
+          <h2 style={{ fontFamily: "var(--font-heading)", fontSize: "1.4rem", fontWeight: 700, marginBottom: "0.5rem" }}>
+            Don&#39;t see your repo?
           </h2>
           <p style={{ color: "var(--text-secondary)", marginBottom: "1rem" }}>
             Generate a course for any GitHub repository in minutes.

@@ -23,6 +23,13 @@ CodeLens AI — a SaaS platform where users paste a GitHub URL and receive an AI
 - **Fonts**: Bricolage Grotesque (headings), DM Sans (body), JetBrains Mono (code)
 - **Colors**: `#FAF9F6` (bg), `#E85D30` (accent/orange), `#1A7F64` (teal), `#2C2C2A` (text), `#1E1E2E` (code bg)
 - **CSS**: Custom properties defined in `artifacts/codelens-web/src/app/globals.css`
+- **LMS CSS classes**: `lms-*` prefixed classes for redesigned pages (hero, steps, course cards, pricing grid, tabs, explore layout, etc.)
+- **Navbar**: `navbar-lms` class — 60px sticky, "Explore Courses" as primary link, professional LMS look
+- **Footer**: `footer-lms` class — 4-column grid (Brand, Product, Resources, Legal) with social links
+- **Home page**: Hero with gradient eyebrow, social proof stats, "How It Works" 3-step section, featured courses grid
+- **Dashboard**: Tabbed layout (My Courses / Assigned) with `lms-tabs` component (ARIA tablist), XP widget
+- **Explore**: Sidebar filter panel (audience/depth/focus area) + language category chips + mobile select fallback
+- **Pricing**: Persona cards ("Best for"), feature comparison table, enterprise CTA section
 
 ## V2 Course Format
 

@@ -219,57 +219,35 @@ function HomeInner() {
   return (
     <>
       <main style={{ minHeight: "100vh" }}>
-        <section
-          className="hero-bg"
-          style={{
-            padding: "5.5rem 1.5rem 4.5rem",
-            textAlign: "center",
-            maxWidth: 800,
-            margin: "0 auto",
-          }}
-        >
-          <div
-            style={{
-              display: "inline-block",
-              padding: "0.25rem 0.75rem",
-              background: "var(--accent-light)",
-              color: "var(--accent)",
-              borderRadius: "var(--radius-full)",
-              fontSize: "0.8rem",
-              fontWeight: 600,
-              marginBottom: "1.5rem",
-            }}
-          >
-            Powered by Gemini AI
+        <section className="lms-hero">
+          <div className="lms-eyebrow">
+            AI-Powered Learning Platform
           </div>
 
-          <h1
-            style={{
-              fontFamily: "var(--font-heading)",
-              fontSize: "clamp(2rem, 5vw, 3.25rem)",
-              fontWeight: 700,
-              lineHeight: 1.15,
-              marginBottom: "1rem",
-              color: "var(--text-primary)",
-            }}
-          >
-            Turn Any Codebase Into an
-            <br />
-            <span style={{ color: "var(--accent)" }}>Interactive Course</span>
+          <h1>
+            Turn Any Codebase Into an{" "}
+            <span>Interactive Course</span>
           </h1>
 
-          <p
-            style={{
-              color: "var(--text-secondary)",
-              fontSize: "1.125rem",
-              maxWidth: 520,
-              margin: "0 auto 2.5rem",
-              lineHeight: 1.6,
-            }}
-          >
-            Paste a GitHub URL and get a beautiful, AI-generated course that
-            teaches how the code works. Supports public and private repos.
+          <p className="lms-hero-sub">
+            Paste a GitHub URL and get a structured, AI-generated course with
+            knowledge graphs, flashcards, and quizzes. Public and private repos.
           </p>
+
+          <div className="lms-social-proof">
+            <div className="lms-social-proof-stat">
+              <strong>{featuredCourses.length > 0 ? `${featuredCourses.length}+` : "50+"}</strong>
+              <span>Courses Created</span>
+            </div>
+            <div className="lms-social-proof-stat">
+              <strong>3 min</strong>
+              <span>Avg Generation</span>
+            </div>
+            <div className="lms-social-proof-stat">
+              <strong>100%</strong>
+              <span>Free to Start</span>
+            </div>
+          </div>
 
           {isAuthenticated && (
             <div
@@ -693,240 +671,130 @@ function HomeInner() {
           </button>
         </section>
 
-        <section
-          style={{
-            padding: "4rem 1.5rem 5rem",
-            background: "var(--bg-secondary)",
-          }}
-        >
-          <div style={{ maxWidth: 1100, margin: "0 auto" }}>
-            <h2
-              style={{
-                fontFamily: "var(--font-heading)",
-                fontSize: "1.75rem",
-                fontWeight: 700,
-                textAlign: "center",
-                marginBottom: "0.5rem",
-              }}
-            >
-              {featuredCourses.length > 0 ? "Featured Courses" : "See What's Possible"}
-            </h2>
-            <p
-              style={{
-                textAlign: "center",
-                color: "var(--text-secondary)",
-                marginBottom: "2.5rem",
-                fontSize: "1rem",
-              }}
-            >
-              {featuredCourses.length > 0
-                ? "Popular AI-generated courses from the community"
-                : "Pre-built courses from popular open-source projects"}
-            </p>
-
-            {featuredCourses.length > 0 ? (
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
-                  gap: "1.25rem",
-                }}
-              >
-                {featuredCourses.map((fc) => {
-                  const languages = fc.techStack?.languages || [];
-                  return (
-                    <Link
-                      key={fc.id}
-                      href={`/explore/${fc.ownerName}/${fc.repoName}`}
-                      className="card"
-                      style={{
-                        background: "white",
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: "0.625rem",
-                        textDecoration: "none",
-                        color: "inherit",
-                        transition: "transform 0.2s, box-shadow 0.2s",
-                      }}
-                    >
-                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                        <img
-                          src={`https://github.com/${fc.ownerName}.png?size=32`}
-                          alt=""
-                          width={24}
-                          height={24}
-                          style={{ borderRadius: "var(--radius-full)", flexShrink: 0 }}
-                          onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-                        />
-                        <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.85rem", fontWeight: 600 }}>
-                          {fc.ownerName}/{fc.repoName}
-                        </span>
-                      </div>
-                      {fc.oneLiner && (
-                        <p style={{ fontSize: "0.8rem", color: "var(--text-secondary)", lineHeight: 1.5, margin: 0, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
-                          {fc.oneLiner}
-                        </p>
-                      )}
-                      <div style={{ display: "flex", gap: "0.3rem", flexWrap: "wrap" }}>
-                        {languages.slice(0, 3).map((lang) => (
-                          <span key={lang} className="badge" style={{ background: "var(--teal-light)", color: "var(--teal)" }}>{lang}</span>
-                        ))}
-                        {fc.difficulty && (
-                          <span className="badge" style={{ background: fc.difficulty === "Advanced" ? "#FFF0EE" : "#FFF8E1", color: fc.difficulty === "Advanced" ? "var(--accent)" : "var(--warning)" }}>
-                            {fc.difficulty}
-                          </span>
-                        )}
-                      </div>
-                      <div style={{ display: "flex", gap: "0.75rem", fontSize: "0.75rem", color: "var(--text-tertiary)", marginTop: "auto" }}>
-                        {fc.stars != null && fc.stars > 0 && (
-                          <span>&#9733; {fc.stars >= 1000 ? `${(fc.stars / 1000).toFixed(1)}k` : fc.stars}</span>
-                        )}
-                        {fc.moduleCount && <span>{fc.moduleCount} modules</span>}
-                        {fc.estimatedMinutes && <span>~{fc.estimatedMinutes} min</span>}
-                        {fc.viewCount > 0 && <span>{fc.viewCount} views</span>}
-                        {fc.updatedAt && (
-                          <span>{(() => {
-                            const days = Math.floor((Date.now() - new Date(fc.updatedAt).getTime()) / (1000 * 60 * 60 * 24));
-                            return days === 0 ? "Today" : days === 1 ? "Yesterday" : `${days}d ago`;
-                          })()}</span>
-                        )}
-                      </div>
-                    </Link>
-                  );
-                })}
-              </div>
-            ) : (
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-                  gap: "1.25rem",
-                }}
-              >
-                {demoCourses.map((demo) => {
-                  const isAvailable = !!demo.shareToken;
-                  const [demoOwner, demoRepo] = demo.repo.split("/");
-                  const demoUrl = demoOwner && demoRepo ? `/explore/${demoOwner}/${demoRepo}` : "#";
-                  return (
-                    <div
-                      key={demo.repo}
-                      className="card"
-                      style={{
-                        background: "white",
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: "0.75rem",
-                        opacity: isAvailable ? 1 : 0.65,
-                        cursor: isAvailable ? "pointer" : "default",
-                        transition: "opacity 0.2s, transform 0.2s",
-                      }}
-                      onClick={() => {
-                        if (isAvailable)
-                          window.location.href = demoUrl;
-                      }}
-                    >
-                      <code
-                        style={{
-                          fontSize: "0.8rem",
-                          background: "var(--bg-secondary)",
-                          padding: "0.2rem 0.5rem",
-                          borderRadius: "var(--radius-sm)",
-                          color: "var(--text-primary)",
-                          fontWeight: 500,
-                          alignSelf: "flex-start",
-                        }}
-                      >
-                        {demo.repo}
-                      </code>
-                      <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", lineHeight: 1.5 }}>
-                        {demo.desc}
-                      </p>
-                      <div style={{ display: "flex", gap: "0.375rem", flexWrap: "wrap" }}>
-                        {demo.techs.map((t) => (
-                          <span key={t} className="badge" style={{ background: "var(--teal-light)", color: "var(--teal)" }}>{t}</span>
-                        ))}
-                        <span className="badge" style={{ background: demo.difficulty === "Advanced" ? "#FFF0EE" : "#FFF8E1", color: demo.difficulty === "Advanced" ? "var(--accent)" : "var(--warning)" }}>
-                          {demo.difficulty}
-                        </span>
-                        <span className="badge" style={{ background: "var(--bg-secondary)", color: "var(--text-secondary)" }}>
-                          {demo.time}
-                        </span>
-                      </div>
-                      {isAvailable ? (
-                        <Link
-                          href={demoUrl}
-                          className="btn-secondary"
-                          style={{ textAlign: "center", textDecoration: "none", fontSize: "0.8rem", padding: "0.5rem" }}
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          View Course {"\u2192"}
-                        </Link>
-                      ) : (
-                        <div style={{ padding: "0.5rem", background: "var(--bg-secondary)", borderRadius: "var(--radius-sm)", textAlign: "center", fontSize: "0.8rem", color: "var(--text-tertiary)", fontWeight: 500 }}>
-                          Coming soon
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            <div style={{ textAlign: "center", marginTop: "2rem" }}>
-              <Link
-                href="/explore"
-                className="btn-secondary"
-                style={{ textDecoration: "none", fontSize: "0.9rem", padding: "0.625rem 1.5rem" }}
-              >
-                Browse All Courses {"\u2192"}
-              </Link>
+        <section className="lms-how-it-works">
+          <h2>How It Works</h2>
+          <p>Three steps to go from codebase to interactive course</p>
+          <div className="lms-steps">
+            <div className="lms-step">
+              <div className="lms-step-num">1</div>
+              <h3>Paste a GitHub URL</h3>
+              <p>Drop in any public or private repository link. We support repos of all sizes.</p>
+            </div>
+            <div className="lms-step">
+              <div className="lms-step-num">2</div>
+              <h3>AI Generates Your Course</h3>
+              <p>Our AI analyzes every file, builds a knowledge graph, and creates structured modules.</p>
+            </div>
+            <div className="lms-step">
+              <div className="lms-step-num">3</div>
+              <h3>Learn Interactively</h3>
+              <p>Navigate the knowledge graph, test yourself with flashcards and quizzes, and earn XP.</p>
             </div>
           </div>
         </section>
 
-        <footer
-          style={{
-            padding: "2rem 1.5rem",
-            textAlign: "center",
-            borderTop: "1px solid var(--border-color)",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "center",
-              gap: "1.5rem",
-              marginBottom: "0.75rem",
-            }}
-          >
-            <Link
-              href="/explore"
-              style={{
-                color: "var(--text-secondary)",
-                textDecoration: "none",
-                fontSize: "0.8rem",
-              }}
-            >
-              Explore Courses
-            </Link>
-            <Link
-              href="/pricing"
-              style={{
-                color: "var(--text-secondary)",
-                textDecoration: "none",
-                fontSize: "0.8rem",
-              }}
-            >
-              Pricing
+        <section className="lms-featured">
+          <h2>{featuredCourses.length > 0 ? "Featured Courses" : "See What's Possible"}</h2>
+          <p>
+            {featuredCourses.length > 0
+              ? "Popular AI-generated courses from the community"
+              : "Pre-built courses from popular open-source projects"}
+          </p>
+
+          <div className="lms-course-grid">
+            {featuredCourses.length > 0 ? (
+              featuredCourses.map((fc) => {
+                const languages = fc.techStack?.languages || [];
+                return (
+                  <Link
+                    key={fc.id}
+                    href={`/explore/${fc.ownerName}/${fc.repoName}`}
+                    className="lms-course-card"
+                  >
+                    <div className="lms-course-card-header">
+                      <img
+                        src={`https://github.com/${fc.ownerName}.png?size=32`}
+                        alt=""
+                        width={24}
+                        height={24}
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                      />
+                      <span className="lms-course-card-repo">
+                        {fc.ownerName}/{fc.repoName}
+                      </span>
+                    </div>
+                    {fc.oneLiner && (
+                      <p className="lms-course-card-desc">{fc.oneLiner}</p>
+                    )}
+                    <div className="lms-course-card-badges">
+                      {languages.slice(0, 3).map((lang) => (
+                        <span key={lang} className="badge" style={{ background: "var(--teal-light)", color: "var(--teal)" }}>{lang}</span>
+                      ))}
+                      {fc.difficulty && (
+                        <span className="badge" style={{ background: fc.difficulty === "Advanced" ? "#FFF0EE" : "#FFF8E1", color: fc.difficulty === "Advanced" ? "var(--accent)" : "var(--warning)" }}>
+                          {fc.difficulty}
+                        </span>
+                      )}
+                    </div>
+                    <div className="lms-course-card-meta">
+                      {fc.stars != null && fc.stars > 0 && (
+                        <span>&#9733; {fc.stars >= 1000 ? `${(fc.stars / 1000).toFixed(1)}k` : fc.stars}</span>
+                      )}
+                      {fc.moduleCount && <span>{fc.moduleCount} modules</span>}
+                      {fc.estimatedMinutes && <span>~{fc.estimatedMinutes} min</span>}
+                      {fc.viewCount > 0 && <span>{fc.viewCount} views</span>}
+                    </div>
+                  </Link>
+                );
+              })
+            ) : (
+              demoCourses.map((demo) => {
+                const isAvailable = !!demo.shareToken;
+                const [demoOwner, demoRepo] = demo.repo.split("/");
+                const demoUrl = demoOwner && demoRepo ? `/explore/${demoOwner}/${demoRepo}` : "#";
+                return (
+                  <div
+                    key={demo.repo}
+                    className="lms-course-card"
+                    style={{
+                      opacity: isAvailable ? 1 : 0.65,
+                      cursor: isAvailable ? "pointer" : "default",
+                    }}
+                    onClick={() => { if (isAvailable) window.location.href = demoUrl; }}
+                  >
+                    <code style={{ fontSize: "0.8rem", background: "var(--bg-secondary)", padding: "0.2rem 0.5rem", borderRadius: "var(--radius-sm)", fontWeight: 500, alignSelf: "flex-start" }}>
+                      {demo.repo}
+                    </code>
+                    <p className="lms-course-card-desc">{demo.desc}</p>
+                    <div className="lms-course-card-badges">
+                      {demo.techs.map((t) => (
+                        <span key={t} className="badge" style={{ background: "var(--teal-light)", color: "var(--teal)" }}>{t}</span>
+                      ))}
+                      <span className="badge" style={{ background: demo.difficulty === "Advanced" ? "#FFF0EE" : "#FFF8E1", color: demo.difficulty === "Advanced" ? "var(--accent)" : "var(--warning)" }}>
+                        {demo.difficulty}
+                      </span>
+                    </div>
+                    {isAvailable ? (
+                      <Link href={demoUrl} className="btn-secondary" style={{ textAlign: "center", textDecoration: "none", fontSize: "0.8rem", padding: "0.5rem", marginTop: "auto" }} onClick={(e) => e.stopPropagation()}>
+                        View Course &#8594;
+                      </Link>
+                    ) : (
+                      <div style={{ padding: "0.5rem", background: "var(--bg-secondary)", borderRadius: "var(--radius-sm)", textAlign: "center", fontSize: "0.8rem", color: "var(--text-tertiary)", fontWeight: 500, marginTop: "auto" }}>
+                        Coming soon
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          <div style={{ textAlign: "center", marginTop: "2rem" }}>
+            <Link href="/explore" className="btn-secondary" style={{ textDecoration: "none", fontSize: "0.9rem", padding: "0.625rem 1.5rem" }}>
+              Browse All Courses &#8594;
             </Link>
           </div>
-          <p style={{ color: "var(--text-tertiary)", fontSize: "0.8rem" }}>
-            <span style={{ color: "var(--accent)", fontWeight: 600 }}>
-              {"\u25C9"} CodeLens AI
-            </span>{" "}
-            &mdash; Powered by Gemini AI
-          </p>
-        </footer>
+        </section>
       </main>
 
       {showWizard && (

@@ -13,47 +13,47 @@ export function Footer() {
   ) return null;
 
   return (
-    <footer className="global-footer">
-      <div className="footer-inner">
-        <div className="footer-brand">
-          <Link href="/" className="footer-logo">
-            <span style={{ color: "var(--accent)" }}>◉</span> CodeLens AI
+    <footer className="footer-lms">
+      <div className="footer-lms-inner">
+        <div className="footer-lms-brand">
+          <Link href="/">
+            <span style={{ color: "var(--accent)" }}>&#9673;</span> CodeLens AI
           </Link>
-          <p className="footer-tagline">
-            Turn any GitHub repository into an AI-powered interactive course.
+          <p>
+            Transform any GitHub repository into a structured, interactive learning experience powered by AI.
           </p>
         </div>
 
-        <div className="footer-links">
-          <div className="footer-col">
-            <span className="footer-col-title">Product</span>
-            <Link href="/explore" className="footer-link">Explore Courses</Link>
-            <Link href="/pricing" className="footer-link">Pricing</Link>
-            <a
-              href="https://github.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="footer-link"
-            >
-              GitHub ↗
-            </a>
-          </div>
-          <div className="footer-col">
-            <span className="footer-col-title">Legal</span>
-            <Link href="/terms" className="footer-link">Terms of Service</Link>
-            <Link href="/privacy" className="footer-link">Privacy Policy</Link>
-          </div>
+        <div className="footer-lms-col">
+          <h4>Product</h4>
+          <Link href="/explore">Explore Courses</Link>
+          <Link href="/pricing">Pricing</Link>
+          <Link href="/dashboard">Dashboard</Link>
+        </div>
+
+        <div className="footer-lms-col">
+          <h4>Resources</h4>
+          <a href="https://github.com" target="_blank" rel="noopener noreferrer">
+            GitHub
+          </a>
+          <Link href="/">Generate Course</Link>
+        </div>
+
+        <div className="footer-lms-col">
+          <h4>Legal</h4>
+          <Link href="/terms">Terms of Service</Link>
+          <Link href="/privacy">Privacy Policy</Link>
         </div>
       </div>
 
-      <div className="footer-bottom">
-        <span>© {new Date().getFullYear()} CodeLens AI</span>
-        <div className="footer-social">
+      <div className="footer-lms-bottom">
+        <span>&copy; {new Date().getFullYear()} CodeLens AI. All rights reserved.</span>
+        <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
           <a
             href="https://github.com"
             target="_blank"
             rel="noopener noreferrer"
-            className="footer-social-link"
+            style={{ color: "var(--text-tertiary)", transition: "color 0.15s" }}
             aria-label="GitHub"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
@@ -64,7 +64,7 @@ export function Footer() {
             href="https://twitter.com"
             target="_blank"
             rel="noopener noreferrer"
-            className="footer-social-link"
+            style={{ color: "var(--text-tertiary)", transition: "color 0.15s" }}
             aria-label="X (Twitter)"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">

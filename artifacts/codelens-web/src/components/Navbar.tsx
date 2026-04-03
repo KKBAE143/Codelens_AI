@@ -106,30 +106,18 @@ export function Navbar() {
   if (pathname.startsWith("/course/") || pathname.startsWith("/share/") || pathname.match(/^\/explore\/[^/]+\/[^/]+$/)) return null;
 
   const navLinks = [
-    ...(mounted && isAuthenticated ? [{ href: "/dashboard", label: "Dashboard" }] : []),
-    { href: "/explore", label: "Explore" },
-    { href: "/pricing", label: "Pricing" },
+    { href: "/explore", label: "Explore Courses", primary: true },
+    ...(mounted && isAuthenticated ? [{ href: "/dashboard", label: "My Learning", primary: false }] : []),
+    { href: "/pricing", label: "Pricing", primary: false },
   ];
 
   return (
     <>
-      <nav className="navbar-nav" style={{
-        position: "sticky",
-        top: 0,
-        zIndex: 100,
-        background: "var(--navbar-bg)",
-        backdropFilter: "blur(12px)",
-        borderBottom: "1px solid var(--border-color)",
-        padding: "0 1.5rem",
-        height: "56px",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-      }}>
+      <nav className="navbar-lms">
         <div style={{ display: "flex", alignItems: "center", gap: "2rem" }}>
           <Link href="/" style={{
             fontFamily: "var(--font-heading)",
-            fontSize: "1.25rem",
+            fontSize: "1.2rem",
             fontWeight: 700,
             color: "var(--text-primary)",
             textDecoration: "none",
@@ -137,14 +125,15 @@ export function Navbar() {
             alignItems: "center",
             gap: "0.375rem",
           }}>
-            <span style={{ color: "var(--accent)" }}>◉</span> <span className="hide-on-mobile">CodeLens AI</span>
+            <span style={{ color: "var(--accent)", fontSize: "1.3rem" }}>&#9673;</span>
+            <span className="hide-on-mobile">CodeLens AI</span>
           </Link>
-          {navLinks.map(({ href, label }) => (
+          {navLinks.map(({ href, label, primary }) => (
             <Link key={href} href={href} className="hide-on-mobile" style={{
-              fontSize: "0.9rem",
+              fontSize: "0.88rem",
               color: pathname === href || pathname.startsWith(href + "/") ? "var(--accent)" : "var(--text-secondary)",
               textDecoration: "none",
-              fontWeight: pathname === href || pathname.startsWith(href + "/") ? 600 : 400,
+              fontWeight: pathname === href || pathname.startsWith(href + "/") ? 600 : primary ? 500 : 400,
               transition: "color 0.15s",
             }}>
               {label}
@@ -173,11 +162,11 @@ export function Navbar() {
               <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
                 {user?.avatarUrl && (
                   <img src={user.avatarUrl} alt="" style={{
-                    width: 28, height: 28, borderRadius: "50%",
+                    width: 30, height: 30, borderRadius: "50%",
                     border: "2px solid var(--border-color)",
                   }} />
                 )}
-                <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+                <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)", fontWeight: 500 }}>
                   {user?.displayName}
                 </span>
               </div>
@@ -186,8 +175,8 @@ export function Navbar() {
               </button>
             </div>
           ) : (
-            <button className="btn-primary hide-on-mobile" onClick={login} style={{ padding: "0.5rem 1rem", fontSize: "0.85rem" }}>
-              Sign in
+            <button className="btn-primary hide-on-mobile" onClick={login} style={{ padding: "0.5rem 1.15rem", fontSize: "0.85rem" }}>
+              Sign in with GitHub
             </button>
           )}
 
@@ -218,7 +207,7 @@ export function Navbar() {
           >
             <div className="nav-drawer-header">
               <Link href="/" className="nav-drawer-logo" onClick={() => setDrawerOpen(false)}>
-                <span style={{ color: "var(--accent)" }}>◉</span> CodeLens AI
+                <span style={{ color: "var(--accent)" }}>&#9673;</span> CodeLens AI
               </Link>
               <button
                 className="nav-drawer-close"

@@ -334,6 +334,12 @@ function Dashboard() {
     }
   };
 
+  const [activeTab, setActiveTab] = useState<"courses" | "assigned" | "team">("courses");
+
+  useEffect(() => {
+    if (myAssignments.length > 0 && courses.length === 0) setActiveTab("assigned");
+  }, [myAssignments.length, courses.length]);
+
   const timeAgo = (dateStr: string) => {
     const diff = Date.now() - new Date(dateStr).getTime();
     const days = Math.floor(diff / 86400000);
@@ -359,102 +365,52 @@ function Dashboard() {
   }
 
   return (
-    <main style={{ maxWidth: 900, margin: "0 auto", padding: "2.5rem 1.5rem" }}>
+    <main style={{ maxWidth: 960, margin: "0 auto", padding: "2.5rem 1.5rem" }}>
       {user && <BillingSection user={user} />}
 
       <EmailPreferenceToggle />
 
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: "2rem",
-        }}
-      >
+      <div className="lms-dash-header">
         <div>
-          <h1
-            style={{
-              fontFamily: "var(--font-heading)",
-              fontSize: "1.75rem",
-              fontWeight: 700,
-              marginBottom: "0.25rem",
-            }}
-          >
-            Your Courses
-          </h1>
-          <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem" }}>
+          <h1>My Learning</h1>
+          <p>
             {courses.length} course{courses.length !== 1 ? "s" : ""} generated
+            {myAssignments.length > 0 && ` · ${myAssignments.length} assigned`}
           </p>
         </div>
-        <div style={{ display: "flex", gap: "0.5rem" }}>
-          <Link
-            href="/org/new"
-            className="btn-secondary"
-            style={{ textDecoration: "none" }}
-          >
+        <div className="lms-dash-actions">
+          <Link href="/org/new" className="btn-secondary" style={{ textDecoration: "none" }}>
             Create Team
           </Link>
-          <Link
-            href="/"
-            className="btn-primary"
-            style={{ textDecoration: "none" }}
-          >
+          <Link href="/" className="btn-primary" style={{ textDecoration: "none" }}>
             + New Course
           </Link>
         </div>
       </div>
 
       {invitations.length > 0 && (
-        <div
-          style={{
-            marginBottom: "1.5rem",
-            display: "flex",
-            flexDirection: "column",
-            gap: "0.5rem",
-          }}
-        >
+        <div style={{ marginBottom: "1.5rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
           {invitations.map(
-            (inv: {
-              id: string;
-              orgName: string;
-              invitedByName: string;
-              orgSlug: string;
-            }) => (
+            (inv: { id: string; orgName: string; invitedByName: string; orgSlug: string }) => (
               <div
                 key={inv.id}
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  padding: "0.75rem 1rem",
-                  background: "#F0F4FF",
-                  border: "1px solid #D6DEFF",
-                  borderRadius: "var(--radius-md)",
-                  flexWrap: "wrap",
-                  gap: "0.5rem",
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                  padding: "0.75rem 1rem", background: "#F0F4FF", border: "1px solid #D6DEFF",
+                  borderRadius: "var(--radius-md)", flexWrap: "wrap", gap: "0.5rem",
                 }}
               >
                 <span style={{ fontSize: "0.85rem" }}>
-                  <strong>{inv.orgName}</strong> has invited you to join their
-                  team
+                  <strong>{inv.orgName}</strong> has invited you to join their team
                   {inv.invitedByName && (
-                    <span style={{ color: "var(--text-tertiary)" }}>
-                      {" "}
-                      (by {inv.invitedByName})
-                    </span>
+                    <span style={{ color: "var(--text-tertiary)" }}> (by {inv.invitedByName})</span>
                   )}
                 </span>
                 <div style={{ display: "flex", gap: "0.375rem" }}>
                   <button
                     className="btn-primary"
                     style={{ padding: "0.375rem 0.75rem", fontSize: "0.8rem" }}
-                    onClick={() =>
-                      invitationMutation.mutate({
-                        invitationId: inv.id,
-                        action: "accept",
-                      })
-                    }
+                    onClick={() => invitationMutation.mutate({ invitationId: inv.id, action: "accept" })}
                     disabled={invitationMutation.isPending}
                   >
                     Accept
@@ -462,12 +418,7 @@ function Dashboard() {
                   <button
                     className="btn-ghost"
                     style={{ padding: "0.375rem 0.75rem", fontSize: "0.8rem" }}
-                    onClick={() =>
-                      invitationMutation.mutate({
-                        invitationId: inv.id,
-                        action: "decline",
-                      })
-                    }
+                    onClick={() => invitationMutation.mutate({ invitationId: inv.id, action: "decline" })}
                     disabled={invitationMutation.isPending}
                   >
                     Decline
@@ -479,18 +430,33 @@ function Dashboard() {
         </div>
       )}
 
-      {myAssignments.length > 0 && (
-        <div style={{ marginBottom: "2rem" }}>
-          <h2
-            style={{
-              fontFamily: "var(--font-heading)",
-              fontSize: "1.1rem",
-              fontWeight: 600,
-              marginBottom: "0.75rem",
-            }}
+      <div className="lms-tabs" role="tablist" aria-label="Dashboard sections">
+        <button
+          role="tab"
+          aria-selected={activeTab === "courses"}
+          aria-controls="panel-courses"
+          className={`lms-tab ${activeTab === "courses" ? "lms-tab-active" : ""}`}
+          onClick={() => setActiveTab("courses")}
+        >
+          My Courses
+          <span className="lms-tab-badge">{courses.length}</span>
+        </button>
+        {myAssignments.length > 0 && (
+          <button
+            role="tab"
+            aria-selected={activeTab === "assigned"}
+            aria-controls="panel-assigned"
+            className={`lms-tab ${activeTab === "assigned" ? "lms-tab-active" : ""}`}
+            onClick={() => setActiveTab("assigned")}
           >
-            Assigned to You
-          </h2>
+            Assigned
+            <span className="lms-tab-badge">{myAssignments.length}</span>
+          </button>
+        )}
+      </div>
+
+      {activeTab === "assigned" && myAssignments.length > 0 && (
+        <div style={{ marginBottom: "2rem" }}>
           <div
             style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}
           >
@@ -582,20 +548,10 @@ function Dashboard() {
         </div>
       )}
 
-      {isLoading ? (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: "1rem",
-          }}
-        >
+      {activeTab === "courses" && (isLoading ? (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
           {[1, 2, 3, 4].map((i) => (
-            <div
-              key={i}
-              className="skeleton"
-              style={{ height: 160, borderRadius: "var(--radius-md)" }}
-            />
+            <div key={i} className="skeleton" style={{ height: 160, borderRadius: "var(--radius-md)" }} />
           ))}
         </div>
       ) : isError ? (
@@ -1014,7 +970,7 @@ function Dashboard() {
             );
           })}
         </div>
-      )}
+      ))}
 
       {generatingCourseId && (
         <GenerationModal
