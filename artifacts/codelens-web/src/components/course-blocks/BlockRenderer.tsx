@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import type { V2Block } from "@/lib/course-types";
+import type { V2Block, V2ModuleSummaryBlock } from "@/lib/course-types";
 import { ErrorBoundary, BlockErrorFallback } from "@/components/ErrorBoundary";
 import { TextBlock } from "./TextBlock";
 import { CodeBlock } from "./CodeBlock";
@@ -114,8 +114,7 @@ function BlockContent({ block, githubUrl, exerciseContext, courseId, moduleTitle
   const isAdvancedBlock = block.type === "architecture-card" || block.type === "mermaid" ||
     (block.type === "code" && block.content && block.content.split("\n").length > 20);
 
-  const blockAny = block as Record<string, unknown>;
-  if (blockAny.beginnerOnly && !beginnerMode) {
+  if ("beginnerOnly" in block && (block as { beginnerOnly?: boolean }).beginnerOnly && !beginnerMode) {
     return null;
   }
 
@@ -167,7 +166,7 @@ function InnerBlockContent({ block, githubUrl, exerciseContext }: { block: V2Blo
     case "command-card":
       return <CommandCardBlock block={block} />;
     case "module-summary": {
-      const summaryBlock = block as unknown as { title?: string; bullets?: string[]; content?: string };
+      const summaryBlock = block as V2ModuleSummaryBlock;
       const bulletItems = summaryBlock.bullets ?? [];
       return (
         <div className="v2-module-summary-card">
@@ -179,9 +178,14 @@ function InnerBlockContent({ block, githubUrl, exerciseContext }: { block: V2Blo
             {summaryBlock.title ?? "What You Learned"}
           </div>
           <ul className="v2-module-summary-list">
-            {bulletItems.map((b, i) => (
-              <li key={i} className="v2-module-summary-bullet" dangerouslySetInnerHTML={{ __html: b.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>") }} />
-            ))}
+            {bulletItems.map((b, i) => {
+              const parts = b.split(/\*\*([^*]+)\*\*/g);
+              return (
+                <li key={i} className="v2-module-summary-bullet">
+                  {parts.map((part, pi) => pi % 2 === 1 ? <strong key={pi}>{part}</strong> : part)}
+                </li>
+              );
+            })}
           </ul>
         </div>
       );

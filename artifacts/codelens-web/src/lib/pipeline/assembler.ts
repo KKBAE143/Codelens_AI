@@ -210,7 +210,7 @@ export async function assembleV2Course(
   relationships: Relationship[],
   abstractions: Abstraction[],
   config: PipelineConfig,
-): string {
+): Promise<string> {
   const abstractionModuleIndex = new Map(
     chapters
       .filter((chapter) => chapter.abstractionRef)

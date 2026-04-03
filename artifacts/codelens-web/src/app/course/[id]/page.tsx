@@ -251,47 +251,6 @@ function V2ModuleContent({
         ))}
       </div>
 
-      {(() => {
-        const bullets: string[] = [];
-        if (mod.learningObjective) {
-          bullets.push(mod.learningObjective);
-        }
-        if (mod.title && mod.title !== "Overview & Architecture") {
-          bullets.push(`How ${mod.title} fits into the codebase architecture`);
-        }
-        const quizTerms: string[] = [];
-        for (const block of mod.blocks) {
-          if (block.type === "quiz" && block.question) {
-            const keywords = block.question.match(/\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b/g);
-            if (keywords) {
-              for (const kw of keywords) {
-                if (kw.length > 3 && !quizTerms.includes(kw) && quizTerms.length < 3) {
-                  quizTerms.push(kw);
-                }
-              }
-            }
-          }
-        }
-        if (quizTerms.length > 0) {
-          bullets.push(`Key concepts: ${quizTerms.join(", ")}`);
-        }
-        if (bullets.length < 1) return null;
-        return (
-          <div className="v2-module-summary-card">
-            <div className="v2-module-summary-title">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                <polyline points="22 4 12 14.01 9 11.01" />
-              </svg>
-              What You Learned
-            </div>
-            <ul className="v2-module-summary-list">
-              {bullets.map((t, i) => <li key={i}>{t}</li>)}
-            </ul>
-          </div>
-        );
-      })()}
-
       <footer className="v2-module-footer">
         <button
           className="v2-nav-btn"

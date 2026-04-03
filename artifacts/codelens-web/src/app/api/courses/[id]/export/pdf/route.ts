@@ -99,23 +99,22 @@ function renderBlock(block: V2Block): string {
   }
 }
 
-function renderModuleSummary(block: Record<string, unknown>): string {
-  const bullets = Array.isArray(block.bullets) ? block.bullets as string[] : [];
-  if (bullets.length === 0) return "";
-  const title = typeof block.title === "string" ? block.title : "What You Learned";
-  return `<div class="module-summary"><div class="module-summary-title">${escapeHtml(title)}</div><ul>${bullets.map((t) => `<li>${escapeHtml(t.replace(/\*\*([^*]+)\*\*/g, "$1"))}</li>`).join("")}</ul></div>`;
+function renderModuleSummary(block: { title: string; bullets: string[]; content: string }): string {
+  if (block.bullets.length === 0) return "";
+  return `<div class="module-summary"><div class="module-summary-title">${escapeHtml(block.title)}</div><ul>${block.bullets.map((t) => `<li>${escapeHtml(t.replace(/\*\*([^*]+)\*\*/g, "$1"))}</li>`).join("")}</ul></div>`;
 }
 
 function renderModule(mod: V2Module, index: number): string {
-  const filteredBlocks = mod.blocks.filter((b) => {
-    const bAny = b as Record<string, unknown>;
-    return !bAny.beginnerOnly;
-  });
+  const filteredBlocks = mod.blocks.filter((b) =>
+    !("beginnerOnly" in b && (b as { beginnerOnly?: boolean }).beginnerOnly)
+  );
 
-  const regularBlocks = filteredBlocks.filter((b) => (b as Record<string, unknown>).type !== "module-summary");
-  const summaryBlock = filteredBlocks.find((b) => (b as Record<string, unknown>).type === "module-summary");
+  const regularBlocks = filteredBlocks.filter((b) => b.type !== "module-summary");
+  const summaryBlock = filteredBlocks.find((b) => b.type === "module-summary");
 
-  const summaryHtml = summaryBlock ? renderModuleSummary(summaryBlock as Record<string, unknown>) : "";
+  const summaryHtml = summaryBlock && summaryBlock.type === "module-summary"
+    ? renderModuleSummary({ title: summaryBlock.title, bullets: summaryBlock.bullets, content: summaryBlock.content })
+    : "";
 
   return `
     <section class="module">
