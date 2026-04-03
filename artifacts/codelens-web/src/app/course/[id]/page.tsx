@@ -132,6 +132,16 @@ function V2ModuleSidebar({
 }) {
   return (
     <nav className="v2-module-nav" aria-label="Course modules">
+      <div className="v2-module-nav-overview">
+        <div>
+          <div className="v2-module-nav-kicker">Course roadmap</div>
+          <div className="v2-module-nav-heading">Track progress, jump between modules, and revisit completed lessons.</div>
+        </div>
+        <div className="v2-module-nav-overview-stats">
+          <span>{completedModules.length}/{modules.length} done</span>
+        </div>
+      </div>
+      <div className="v2-module-nav-list">
       {modules.map((mod, i) => {
         const isActive = i === activeIndex;
         const isCompleted = completedModules.includes(i);
@@ -147,7 +157,10 @@ function V2ModuleSidebar({
             aria-current={isActive ? "step" : undefined}
             aria-label={`Module ${i + 1}: ${mod.title}${isCompleted ? " (completed)" : ""}${quizScore !== undefined ? `, quiz score ${quizScore}%` : ""}`}
           >
-            <ProgressRing percent={isCompleted ? 100 : isActive ? 50 : 0} size={24} stroke={2.5} />
+            <div className="v2-module-nav-marker-wrap">
+              <ProgressRing percent={isCompleted ? 100 : isActive ? 50 : 0} size={24} stroke={2.5} />
+              {i < modules.length - 1 && <span className="v2-module-nav-connector" aria-hidden="true" />}
+            </div>
             <div className="v2-module-nav-text">
               <span className="v2-module-nav-label">Module {i + 1}</span>
               <span className="v2-module-nav-title">{mod.title}</span>
@@ -155,7 +168,7 @@ function V2ModuleSidebar({
                 <span className="v2-module-nav-time">~{mod.estimatedMinutes} min</span>
               )}
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "0.25rem", marginLeft: "auto", flexShrink: 0 }}>
+            <div className="v2-module-nav-actions">
               {quizScore !== undefined && (
                 <span
                   className="v2-mastery-badge"
@@ -170,10 +183,14 @@ function V2ModuleSidebar({
                   <polyline points="20 6 9 17 4 12" />
                 </svg>
               )}
+              <span className={`v2-module-nav-state ${isActive ? "is-active" : isCompleted ? "is-complete" : ""}`}>
+                {isActive ? "Current" : isCompleted ? "Done" : "Open"}
+              </span>
             </div>
           </button>
         );
       })}
+      </div>
     </nav>
   );
 }
@@ -976,27 +993,30 @@ export default function CourseViewer() {
           <div style={{ flex: 1, display: "flex", overflow: "hidden", position: "relative" }}>
             {showSidebar && (
               <aside className="v2-sidebar course-sidebar">
-                <div className="v2-sidebar-header">
-                  <h3 className="v2-sidebar-title">Modules</h3>
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <div className="v2-sidebar-header v2-sidebar-header-course">
+                  <div className="v2-sidebar-course-hero">
+                    <div>
+                      <div className="v2-module-nav-kicker">Learning workspace</div>
+                      <h3 className="v2-sidebar-title">{course.repoName}</h3>
+                      <p className="v2-sidebar-summary">Track your progress, review key concepts, and jump to any module without losing context.</p>
+                    </div>
+                    <div className="v2-sidebar-progress-card v2-sidebar-progress-card-compact">
+                      <div className="v2-sidebar-progress-head">
+                        <span>Progress</span>
+                        <span>{progress}%</span>
+                      </div>
+                      <div className="v2-sidebar-progress-bar">
+                        <div style={{ height: "100%", width: `${progress}%`, background: progress >= 100 ? "var(--teal)" : "var(--accent)", borderRadius: 999, transition: "width 0.4s ease" }} />
+                      </div>
+                      <div className="v2-sidebar-progress-caption">{completedModules.length} of {totalModules} modules completed</div>
+                    </div>
+                  </div>
+
+                  <div className="v2-sidebar-toolbar">
                     <button
                       onClick={() => setShowFlashcards(true)}
                       title="Review flashcards"
-                      style={{
-                        background: flashcardDueCount > 0 ? "var(--accent-light)" : "transparent",
-                        border: flashcardDueCount > 0 ? "1px solid var(--accent)" : "1px solid var(--border-color)",
-                        borderRadius: "var(--radius-sm)",
-                        padding: "0.25rem 0.5rem",
-                        cursor: "pointer",
-                        color: flashcardDueCount > 0 ? "var(--accent)" : "var(--text-secondary)",
-                        fontSize: "0.75rem",
-                        fontFamily: "var(--font-body)",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "0.3rem",
-                        fontWeight: flashcardDueCount > 0 ? 600 : 400,
-                        transition: "all 0.15s",
-                      }}
+                      className={`v2-sidebar-tool-btn ${flashcardDueCount > 0 ? "has-notice" : ""}`}
                     >
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <rect x="2" y="3" width="20" height="14" rx="2" />
@@ -1024,6 +1044,32 @@ export default function CourseViewer() {
                 />
 
                 <div className="v2-sidebar-info">
+                  <div className="v2-sidebar-section v2-sidebar-section-card">
+                    <span className="v2-sidebar-label">Quick actions</span>
+                    <div className="v2-share-row">
+                      <button onClick={handleCopyShare} className="v2-share-btn">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                        </svg>
+                        Copy Share Link
+                      </button>
+                      <a
+                        href={course.githubUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="v2-share-btn"
+                        style={{ textDecoration: "none" }}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M15 3h6v6" />
+                          <path d="M10 14 21 3" />
+                          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                        </svg>
+                        Open GitHub
+                      </a>
+                    </div>
+                  </div>
                   {v2Data.languages.length > 0 && (
                     <div className="v2-sidebar-section">
                       <span className="v2-sidebar-label">Languages</span>
@@ -1051,7 +1097,7 @@ export default function CourseViewer() {
                     </div>
                   )}
                   {user && course.createdBy === user.id && (
-                    <div className="v2-sidebar-section">
+                    <div className="v2-sidebar-section v2-sidebar-section-card">
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                         <div>
                           <div style={{ fontSize: "0.8rem", fontWeight: 500 }}>Auto-update</div>
@@ -1078,15 +1124,6 @@ export default function CourseViewer() {
                       </div>
                     </div>
                   )}
-                  <a
-                    href={course.githubUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="btn-secondary"
-                    style={{ width: "100%", justifyContent: "center", textDecoration: "none", fontSize: "0.8rem", marginTop: "0.5rem" }}
-                  >
-                    View on GitHub ↗
-                  </a>
                 </div>
               </aside>
             )}

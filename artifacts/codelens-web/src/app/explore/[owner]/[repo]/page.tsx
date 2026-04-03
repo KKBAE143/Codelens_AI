@@ -93,6 +93,16 @@ function V2Sidebar({
 }) {
   return (
     <nav className="v2-module-nav" aria-label="Course modules">
+      <div className="v2-module-nav-overview">
+        <div>
+          <div className="v2-module-nav-kicker">Course roadmap</div>
+          <div className="v2-module-nav-heading">Follow the modules in order or jump to a concept you need.</div>
+        </div>
+        <div className="v2-module-nav-overview-stats">
+          <span>{completedModules.length}/{modules.length} done</span>
+        </div>
+      </div>
+      <div className="v2-module-nav-list">
       {modules.map((mod, i) => {
         const isActive = i === activeIndex;
         const isCompleted = completedModules.includes(i);
@@ -103,14 +113,22 @@ function V2Sidebar({
             onClick={() => onSelect(i)}
             aria-current={isActive ? "step" : undefined}
           >
-            <ProgressRing percent={isCompleted ? 100 : isActive ? 50 : 0} />
+            <div className="v2-module-nav-marker-wrap">
+              <ProgressRing percent={isCompleted ? 100 : isActive ? 50 : 0} />
+              {i < modules.length - 1 && <span className="v2-module-nav-connector" aria-hidden="true" />}
+            </div>
             <div className="v2-module-nav-text">
               <span className="v2-module-nav-label">Module {i + 1}</span>
               <span className="v2-module-nav-title">{mod.title}</span>
+              <span className="v2-module-nav-time">{mod.estimatedMinutes ? `~${mod.estimatedMinutes} min` : "Guided lesson"}</span>
             </div>
+            <span className={`v2-module-nav-state ${isActive ? "is-active" : isCompleted ? "is-complete" : ""}`}>
+              {isActive ? "Current" : isCompleted ? "Done" : "Open"}
+            </span>
           </button>
         );
       })}
+      </div>
     </nav>
   );
 }
@@ -208,7 +226,12 @@ function ShareButtons({ course }: { course: PublicCourse }) {
   };
 
   return (
-    <div className="v2-share-row">
+    <div className="v2-share-panel">
+      <div className="v2-share-panel-head">
+        <span className="v2-share-panel-kicker">Share course</span>
+        <p>Send this learning path to teammates or save it for later.</p>
+      </div>
+      <div className="v2-share-row">
       <button onClick={handleCopy} className="v2-share-btn">
         {copied ? (
           <>
@@ -250,6 +273,7 @@ function ShareButtons({ course }: { course: PublicCourse }) {
         </svg>
         LinkedIn
       </a>
+      </div>
     </div>
   );
 }
@@ -466,17 +490,18 @@ export default function PublicCourseViewer() {
 
       <div style={{ flex: 1, display: "flex", overflow: "hidden", position: "relative" }}>
       <div className={`v2-sidebar ${showSidebar ? "" : "v2-sidebar-collapsed"}`}>
-        <div className="v2-sidebar-header" style={{ display: "flex", flexDirection: "column", gap: "0.25rem", paddingBottom: "0.5rem" }}>
-          <Link href="/explore" style={{ color: "var(--text-secondary)", textDecoration: "none", fontSize: "0.85rem", display: "flex", alignItems: "center", gap: "0.25rem", marginBottom: "0.5rem", width: "max-content", padding: "0.25rem 0.5rem", borderRadius: "var(--radius-sm)", backgroundColor: "var(--bg-secondary)" }}>
+        <div className="v2-sidebar-header v2-sidebar-header-public">
+          <Link href="/explore" className="v2-sidebar-backlink">
             &larr; Explore
           </Link>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap", wordBreak: "break-word" }}>
+          <div className="v2-sidebar-repo-card">
+          <div className="v2-sidebar-repo-row">
             <img
               src={`https://github.com/${course.ownerName}.png?size=32`}
               alt={course.ownerName}
-              width={24}
-              height={24}
-              style={{ borderRadius: "var(--radius-full)" }}
+              width={36}
+              height={36}
+              className="v2-sidebar-avatar"
               onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
             />
             <a
@@ -484,49 +509,56 @@ export default function PublicCourseViewer() {
               target="_blank"
               rel="noopener noreferrer"
               className="v2-repo-link"
-              style={{ fontSize: "1rem", lineHeight: 1.2 }}
             >
-              <span className="opacity-70">{course.ownerName}/</span>
-              <br className="md:hidden" />
-              <strong className="text-white font-bold">{course.repoName}</strong>
+              <span className="v2-repo-owner">{course.ownerName}/</span>
+              <strong className="v2-repo-name">{course.repoName}</strong>
             </a>
           </div>
+          <div className="v2-sidebar-meta-grid">
+            <div className="v2-sidebar-meta-card">
+              <span className="v2-sidebar-meta-value">{AUDIENCE_LABELS[course.targetAudience] || course.targetAudience}</span>
+              <span className="v2-sidebar-meta-label">Audience</span>
+            </div>
+            <div className="v2-sidebar-meta-card">
+              <span className="v2-sidebar-meta-value">{course.estimatedMinutes ? `~${course.estimatedMinutes}m` : "Self-paced"}</span>
+              <span className="v2-sidebar-meta-label">Duration</span>
+            </div>
+            <div className="v2-sidebar-meta-card">
+              <span className="v2-sidebar-meta-value">{course.viewCount}</span>
+              <span className="v2-sidebar-meta-label">Views</span>
+            </div>
+          </div>
           {course.oneLiner && (
-            <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", margin: "0.5rem 0", lineHeight: "1.4" }}>{course.oneLiner}</p>
+            <p className="v2-sidebar-summary">{course.oneLiner}</p>
           )}
 
-          <div className="v2-sidebar-meta" style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", marginTop: "0.5rem" }}>
+          <div className="v2-sidebar-meta">
             {course.stars != null && course.stars > 0 && (
               <span className="badge" style={{ whiteSpace: "nowrap" }} title="GitHub stars">&#9733; {course.stars >= 1000 ? `${(course.stars / 1000).toFixed(1)}k` : course.stars}</span>
             )}
             {course.difficulty && (
               <span className="badge" style={{ whiteSpace: "nowrap" }}>{course.difficulty}</span>
             )}
-            <span className="badge" style={{ whiteSpace: "nowrap" }}>{AUDIENCE_LABELS[course.targetAudience] || course.targetAudience}</span>
-            {course.estimatedMinutes && (
-              <span className="badge" style={{ whiteSpace: "nowrap" }}>~{course.estimatedMinutes} min</span>
-            )}
-            {course.viewCount > 0 && (
-              <span className="badge" style={{ whiteSpace: "nowrap" }}>{course.viewCount} views</span>
-            )}
           </div>
           {course.updatedAt && (
-            <p style={{ fontSize: "0.75rem", color: "var(--text-tertiary)", margin: "0.5rem 0 0" }}>
+            <p className="v2-sidebar-updated">
               Last generated {formatTimeAgo(course.updatedAt)}
             </p>
           )}
 
-          <div style={{ margin: "0.75rem 0" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.75rem", color: "var(--text-secondary)", marginBottom: "0.25rem" }}>
+          <div className="v2-sidebar-progress-card">
+            <div className="v2-sidebar-progress-head">
               <span>Progress</span>
               <span>{completionPercent}%</span>
             </div>
-            <div style={{ height: 4, background: "var(--bg-tertiary)", borderRadius: 4, overflow: "hidden" }}>
-              <div style={{ height: "100%", width: `${completionPercent}%`, background: completionPercent >= 100 ? "var(--teal)" : "var(--accent)", borderRadius: 4, transition: "width 0.4s ease" }} />
+            <div className="v2-sidebar-progress-bar">
+              <div style={{ height: "100%", width: `${completionPercent}%`, background: completionPercent >= 100 ? "var(--teal)" : "var(--accent)", borderRadius: 999, transition: "width 0.4s ease" }} />
             </div>
+            <div className="v2-sidebar-progress-caption">{completedModules.length} of {totalModules} modules completed</div>
           </div>
 
           <ShareButtons course={course} />
+          </div>
         </div>
 
         <V2Sidebar
