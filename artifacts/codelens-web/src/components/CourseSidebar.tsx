@@ -117,10 +117,13 @@ export function CourseSidebar({
         const hasFlashcards = fcInfo && fcInfo.total > 0;
         const dueCount = fcInfo?.due ?? 0;
         return (
-          <button
+          <div
             key={i}
             className={`v2-module-nav-item ${isActive ? "v2-module-nav-active" : ""} ${isCompleted ? "v2-module-nav-completed" : ""}`}
+            role="button"
+            tabIndex={0}
             onClick={() => onSelect(i)}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(i); } }}
             aria-current={isActive ? "step" : undefined}
             aria-label={`Module ${i + 1}: ${mod.title}${isCompleted ? " (completed)" : ""}${quizScore !== undefined ? `, quiz score ${quizScore}%` : ""}`}
           >
@@ -136,15 +139,13 @@ export function CourseSidebar({
                   <span className="v2-module-nav-time">~{mod.estimatedMinutes} min</span>
                 )}
                 {hasFlashcards && onOpenFlashcards && (
-                  <span
+                  <button
+                    type="button"
                     className={`v2-module-flashcard-chip ${dueCount > 0 ? "has-due" : ""}`}
                     onClick={(e) => {
                       e.stopPropagation();
                       onOpenFlashcards(i);
                     }}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); onOpenFlashcards(i); } }}
                     title={dueCount > 0 ? `${dueCount} due of ${fcInfo.total} flashcards` : `${fcInfo.total} flashcard${fcInfo.total !== 1 ? "s" : ""}`}
                   >
                     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -153,7 +154,7 @@ export function CourseSidebar({
                       <line x1="12" y1="17" x2="12" y2="21" />
                     </svg>
                     {dueCount > 0 ? dueCount : fcInfo.total}
-                  </span>
+                  </button>
                 )}
               </div>
             </div>
@@ -176,7 +177,7 @@ export function CourseSidebar({
                 {isActive ? "Current" : isCompleted ? "Done" : "Open"}
               </span>
             </div>
-          </button>
+          </div>
         );
       })}
       </div>
