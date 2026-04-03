@@ -214,7 +214,7 @@ export async function regenerateCourseDirect(
         orderedChapters, abstractions, relationships, extraction, pipelineConfig, emitter,
       );
 
-      const html = assembleV2Course(chapters, extraction, relationships, abstractions, pipelineConfig);
+      const html = await assembleV2Course(chapters, extraction, relationships, abstractions, pipelineConfig);
       const shareToken = crypto.randomBytes(16).toString("hex");
 
       await db.update(courses).set({
@@ -271,7 +271,7 @@ export async function regenerateCourseDirect(
       }
 
       const allChapters = [...unaffectedChapters, ...rewrittenChapters].sort((a, b) => a.index - b.index);
-      const html = assembleV2Course(allChapters, extraction, relationships, abstractions, pipelineConfig);
+      const html = await assembleV2Course(allChapters, extraction, relationships, abstractions, pipelineConfig);
       const shareToken = crypto.randomBytes(16).toString("hex");
 
       await db.update(courses).set({

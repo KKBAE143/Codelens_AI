@@ -166,6 +166,26 @@ function InnerBlockContent({ block, githubUrl, exerciseContext }: { block: V2Blo
       return <EnvVarCardBlock block={block} />;
     case "command-card":
       return <CommandCardBlock block={block} />;
+    case "module-summary": {
+      const summaryBlock = block as unknown as { title?: string; bullets?: string[]; content?: string };
+      const bulletItems = summaryBlock.bullets ?? [];
+      return (
+        <div className="v2-module-summary-card">
+          <div className="v2-module-summary-title">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+              <polyline points="22 4 12 14.01 9 11.01" />
+            </svg>
+            {summaryBlock.title ?? "What You Learned"}
+          </div>
+          <ul className="v2-module-summary-list">
+            {bulletItems.map((b, i) => (
+              <li key={i} className="v2-module-summary-bullet" dangerouslySetInnerHTML={{ __html: b.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>") }} />
+            ))}
+          </ul>
+        </div>
+      );
+    }
     case "exercise": {
       const doneKey = exerciseContext
         ? `ex-${exerciseContext.courseId}-m${exerciseContext.moduleIndex}-b${exerciseContext.blockIndex}`

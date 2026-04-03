@@ -1,5 +1,6 @@
 import type { RepoExtraction } from "../github";
 import type { ChapterResult, Relationship, Abstraction, PipelineConfig } from "./types";
+import { generateText } from "../llm";
 
 interface ConceptIndexEntry {
   term: string;
@@ -113,13 +114,13 @@ function buildConceptIndex(
     .sort((a, b) => a.term.localeCompare(b.term, undefined, { sensitivity: "base" }));
 }
 
-function buildCodebasePassport(
+async function buildCodebasePassport(
   extraction: RepoExtraction,
   abstractions: Abstraction[],
   relationships: Relationship[],
   chapters: ChapterResult[],
   config: PipelineConfig,
-): Record<string, unknown> {
+): Promise<Record<string, unknown>> {
   const topLanguages = Object.entries(extraction.languageBreakdown)
     .sort(([, a], [, b]) => b - a)
     .slice(0, 5)
@@ -139,9 +140,10 @@ function buildCodebasePassport(
   const avgConnections = abstractions.length > 0
     ? totalRelationships / abstractions.length
     : 0;
+  const fileCount = extraction.totalFilesCatalogued;
   const complexityLevel: "Beginner" | "Intermediate" | "Advanced" =
-    avgConnections < 2 && abstractions.length <= 6 ? "Beginner"
-    : avgConnections < 3.5 && abstractions.length <= 12 ? "Intermediate"
+    fileCount <= 30 && avgConnections < 2 && abstractions.length <= 6 ? "Beginner"
+    : fileCount <= 150 && avgConnections < 3.5 && abstractions.length <= 12 ? "Intermediate"
     : "Advanced";
 
   const archCardPatterns: string[] = [];
@@ -169,10 +171,18 @@ function buildCodebasePassport(
   const testCoverageEstimate = `~${testPct}% files`;
 
   const langList = topLanguages.map((l) => l.language).join(", ");
-  const complexityAdj = complexityLevel === "Beginner" ? "straightforward" : complexityLevel === "Intermediate" ? "moderately complex" : "highly complex";
-  const personalitySummary = `This is a ${complexityAdj} ${langList} project with ${abstractions.length} core abstractions and ${totalRelationships} relationships. ` +
-    `${mainPatterns.length > 0 ? `It relies on ${mainPatterns.join(", ")} patterns to structure its architecture. ` : ""}` +
-    `${testPct > 0 ? `Approximately ${testPct}% of the codebase consists of test files, indicating ${testPct > 15 ? "solid" : testPct > 5 ? "moderate" : "minimal"} testing practices.` : "The project has no detectable test files."}`;
+  let personalitySummary: string;
+  try {
+    const summaryPrompt = `Summarize this codebase in exactly 3 sentences for a developer overview card. Be specific and concrete, not generic.\n\nFacts:\n- Repository: ${extraction.repoName} by ${extraction.owner}\n- Languages: ${langList}\n- ${fileCount} files, ${abstractions.length} core abstractions, ${totalRelationships} relationships\n- Complexity: ${complexityLevel}\n- Patterns detected: ${mainPatterns.length > 0 ? mainPatterns.join(", ") : "none"}\n- Test file ratio: ${testPct}%\n- Core components: ${mostConnected.map((c) => c.name).join(", ")}\n\nReturn exactly 3 sentences, no markdown, no bullets.`;
+    const summaryRes = await generateText({
+      task: "stage4",
+      prompt: summaryPrompt,
+      maxOutputTokens: 200,
+    });
+    personalitySummary = summaryRes.text.trim().replace(/\n+/g, " ");
+  } catch {
+    personalitySummary = `This is a ${complexityLevel.toLowerCase()}-level ${langList} project with ${abstractions.length} core abstractions and ${totalRelationships} relationships. ${mainPatterns.length > 0 ? `It uses ${mainPatterns.join(", ")} patterns. ` : ""}Test file coverage is approximately ${testPct}%.`;
+  }
 
   return {
     repoName: extraction.repoName,
@@ -194,7 +204,7 @@ function buildCodebasePassport(
   };
 }
 
-export function assembleV2Course(
+export async function assembleV2Course(
   chapters: ChapterResult[],
   extraction: RepoExtraction,
   relationships: Relationship[],
@@ -232,7 +242,7 @@ export function assembleV2Course(
   );
 
   const conceptIndex = buildConceptIndex(chapters, abstractions);
-  const codebasePassport = buildCodebasePassport(extraction, abstractions, relationships, chapters, config);
+  const codebasePassport = await buildCodebasePassport(extraction, abstractions, relationships, chapters, config);
 
   const modulesWithSummary = chapters.map((ch) => {
     const blocks = [...(ch.blocks as unknown[])];
@@ -244,20 +254,63 @@ export function assembleV2Course(
       ((lastBlock as Record<string, unknown>).content as string).toLowerCase().includes("summary");
 
     if (!hasEndSummary && blocks.length >= 3) {
-      const keyTopics: string[] = [];
+      const bullets: string[] = [];
+
+      if (ch.learningObjective) {
+        bullets.push(ch.learningObjective);
+      }
+
+      const matchedAbstraction = abstractions.find((a) =>
+        ch.title.toLowerCase().includes(a.name.toLowerCase()) ||
+        a.name.toLowerCase().includes(ch.title.toLowerCase().replace(/module \d+:\s*/i, ""))
+      );
+      if (matchedAbstraction) {
+        bullets.push(`How **${matchedAbstraction.name}** works and its role in the codebase`);
+      }
+
       for (const block of blocks) {
         if (!block || typeof block !== "object") continue;
         const b = block as Record<string, unknown>;
-        if (b.type === "text" && typeof b.content === "string") {
-          const headingMatch = (b.content as string).match(/<h[23][^>]*>([^<]+)<\/h[23]>/);
-          if (headingMatch) keyTopics.push(headingMatch[1]);
+        if (b.type === "quiz" && Array.isArray(b.options)) {
+          const question = typeof b.question === "string" ? b.question : "";
+          const terms = question.match(/`([^`]+)`/g);
+          if (terms) {
+            for (const t of terms) {
+              const clean = t.replace(/`/g, "");
+              if (!bullets.some((bul) => bul.toLowerCase().includes(clean.toLowerCase()))) {
+                bullets.push(`The concept of **${clean}** and how it's used`);
+                if (bullets.length >= 5) break;
+              }
+            }
+          }
+        }
+        if (bullets.length >= 5) break;
+      }
+
+      if (bullets.length < 3) {
+        for (const block of blocks) {
+          if (!block || typeof block !== "object") continue;
+          const b = block as Record<string, unknown>;
+          if (b.type === "text" && typeof b.content === "string") {
+            const headingMatch = (b.content as string).match(/<h[23][^>]*>([^<]+)<\/h[23]>/);
+            if (headingMatch && !bullets.some((bul) => bul.toLowerCase().includes(headingMatch[1].toLowerCase()))) {
+              bullets.push(`Understanding **${headingMatch[1]}**`);
+              if (bullets.length >= 5) break;
+            }
+          }
         }
       }
-      const topicList = keyTopics.slice(0, 4).map((t) => `**${t}**`).join(", ");
+
+      if (bullets.length < 3) {
+        bullets.push(`Core concepts covered in ${ch.title}`);
+      }
+
+      const bulletList = bullets.slice(0, 5).map((b) => `- ${b}`).join("\n");
       blocks.push({
-        type: "callout",
-        variant: "tip",
-        content: `**Module Summary:** This module covered ${topicList || ch.title}. ${ch.learningObjective ? `Key takeaway: ${ch.learningObjective}.` : ""}`,
+        type: "module-summary",
+        title: "What You Learned",
+        bullets: bullets.slice(0, 5),
+        content: `**What You Learned**\n\n${bulletList}`,
       });
     }
 

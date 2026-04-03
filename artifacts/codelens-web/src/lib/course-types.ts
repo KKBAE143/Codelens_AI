@@ -98,6 +98,13 @@ export interface V2ExerciseBlock {
   difficulty?: "easy" | "medium" | "hard";
 }
 
+export interface V2ModuleSummaryBlock {
+  type: "module-summary";
+  title: string;
+  bullets: string[];
+  content: string;
+}
+
 export type V2Block =
   | V2TextBlock
   | V2CodeBlock
@@ -109,7 +116,8 @@ export type V2Block =
   | V2DependencyCardBlock
   | V2EnvVarCardBlock
   | V2CommandCardBlock
-  | V2ExerciseBlock;
+  | V2ExerciseBlock
+  | V2ModuleSummaryBlock;
 
 export interface V2Module {
   index: number;

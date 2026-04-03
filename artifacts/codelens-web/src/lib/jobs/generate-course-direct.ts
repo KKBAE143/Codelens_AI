@@ -411,7 +411,7 @@ export async function generateCourseDirect(courseId: string): Promise<void> {
     await updateProgress(courseId, "polishing", "Assembling final course structure...", 92);
     emitter.emitStageStart("polishing", "Assembling final course...", 4, 5);
 
-    const html = assembleV2Course(chapters, extraction, relationships, abstractions, pipelineConfig);
+    const html = await assembleV2Course(chapters, extraction, relationships, abstractions, pipelineConfig);
 
     await updateProgress(courseId, "polishing", "Finalizing and saving course...", 96);
     emitter.emitStageComplete("polishing", "Course assembled", 4, 5);

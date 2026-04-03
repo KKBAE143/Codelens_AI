@@ -99,42 +99,29 @@ function renderBlock(block: V2Block): string {
   }
 }
 
+function renderModuleSummary(block: Record<string, unknown>): string {
+  const bullets = Array.isArray(block.bullets) ? block.bullets as string[] : [];
+  if (bullets.length === 0) return "";
+  const title = typeof block.title === "string" ? block.title : "What You Learned";
+  return `<div class="module-summary"><div class="module-summary-title">${escapeHtml(title)}</div><ul>${bullets.map((t) => `<li>${escapeHtml(t.replace(/\*\*([^*]+)\*\*/g, "$1"))}</li>`).join("")}</ul></div>`;
+}
+
 function renderModule(mod: V2Module, index: number): string {
-  const bullets: string[] = [];
-  if (mod.learningObjective) {
-    bullets.push(mod.learningObjective);
-  }
-  if (mod.title && mod.title !== "Overview & Architecture") {
-    bullets.push(`How ${mod.title} fits into the codebase architecture`);
-  }
-  const quizTerms: string[] = [];
-  for (const block of mod.blocks) {
-    if (block.type === "quiz" && block.question) {
-      const keywords = block.question.match(/\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b/g);
-      if (keywords) {
-        for (const kw of keywords) {
-          if (kw.length > 3 && !quizTerms.includes(kw) && quizTerms.length < 3) {
-            quizTerms.push(kw);
-          }
-        }
-      }
-    }
-  }
-  if (quizTerms.length > 0) {
-    bullets.push(`Key concepts: ${quizTerms.join(", ")}`);
-  }
+  const filteredBlocks = mod.blocks.filter((b) => {
+    const bAny = b as Record<string, unknown>;
+    return !bAny.beginnerOnly;
+  });
 
-  const summaryHtml = bullets.length > 0
-    ? `<div class="module-summary"><div class="module-summary-title">What You Learned</div><ul>${bullets.map((t) => `<li>${escapeHtml(t)}</li>`).join("")}</ul></div>`
-    : "";
+  const regularBlocks = filteredBlocks.filter((b) => (b as Record<string, unknown>).type !== "module-summary");
+  const summaryBlock = filteredBlocks.find((b) => (b as Record<string, unknown>).type === "module-summary");
 
-  const filteredBlocks = mod.blocks.filter((b) => !(b as Record<string, unknown>).beginnerOnly);
+  const summaryHtml = summaryBlock ? renderModuleSummary(summaryBlock as Record<string, unknown>) : "";
 
   return `
     <section class="module">
       <h2>Module ${index + 1}: ${escapeHtml(mod.title)}</h2>
       ${mod.learningObjective ? `<p class="learning-objective"><strong>Learning Objective:</strong> ${escapeHtml(mod.learningObjective)}</p>` : ""}
-      ${filteredBlocks.map(renderBlock).join("\n")}
+      ${regularBlocks.map(renderBlock).join("\n")}
       ${summaryHtml}
     </section>
   `;

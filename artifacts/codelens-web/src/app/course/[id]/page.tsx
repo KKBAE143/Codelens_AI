@@ -576,18 +576,22 @@ export default function CourseViewer() {
     return parseV2Course(course.html);
   }, [course?.v2Data, course?.html]);
 
-  const safetyWarnings = useMemo(() => {
-    if (!v2Data) return [];
-    const warnings: Array<{ moduleTitle: string; moduleIndex: number; content: string }> = [];
+  const safetyWarningsByModule = useMemo(() => {
+    if (!v2Data) return new Map<number, { moduleTitle: string; moduleIndex: number; warnings: string[] }>();
+    const grouped = new Map<number, { moduleTitle: string; moduleIndex: number; warnings: string[] }>();
     for (const mod of v2Data.modules) {
       for (const block of mod.blocks) {
         if (block.type === "callout" && block.variant === "warning") {
-          warnings.push({ moduleTitle: mod.title, moduleIndex: mod.index, content: block.content });
+          if (!grouped.has(mod.index)) {
+            grouped.set(mod.index, { moduleTitle: mod.title, moduleIndex: mod.index, warnings: [] });
+          }
+          grouped.get(mod.index)!.warnings.push(block.content);
         }
       }
     }
-    return warnings.slice(0, 10);
+    return grouped;
   }, [v2Data]);
+  const hasSafetyWarnings = safetyWarningsByModule.size > 0;
 
   const isV2 = !!v2Data;
 
@@ -1381,7 +1385,7 @@ export default function CourseViewer() {
                   )}
                 </div>
               )}
-              {activeModuleIndex === null && safetyWarnings.length > 0 && (
+              {activeModuleIndex === null && hasSafetyWarnings && (
                 <div className="v2-safety-map">
                   <div className="v2-safety-map-title">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1391,19 +1395,26 @@ export default function CourseViewer() {
                     </svg>
                     AI Safety Map
                   </div>
-                  <ul className="v2-safety-map-list">
-                    {safetyWarnings.map((w, i) => (
-                      <li
-                        key={i}
-                        className="v2-safety-map-item"
-                        style={{ cursor: "pointer" }}
-                        onClick={() => handleModuleSelect(w.moduleIndex)}
-                      >
-                        <div className="v2-safety-map-module">Module {w.moduleIndex + 1}: {w.moduleTitle}</div>
-                        {w.content.replace(/\*\*/g, "").slice(0, 200)}
-                      </li>
+                  <div className="v2-safety-map-grouped">
+                    {Array.from(safetyWarningsByModule.values()).map((group) => (
+                      <div key={group.moduleIndex} className="v2-safety-map-group">
+                        <div
+                          className="v2-safety-map-module"
+                          style={{ cursor: "pointer" }}
+                          onClick={() => handleModuleSelect(group.moduleIndex)}
+                        >
+                          Module {group.moduleIndex + 1}: {group.moduleTitle}
+                        </div>
+                        <ul className="v2-safety-map-list">
+                          {group.warnings.map((w, wi) => (
+                            <li key={wi} className="v2-safety-map-item">
+                              {w.replace(/\*\*/g, "").slice(0, 300)}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
                     ))}
-                  </ul>
+                  </div>
                 </div>
               )}
               {activeModuleIndex === null && v2Data.overviewGraph && (

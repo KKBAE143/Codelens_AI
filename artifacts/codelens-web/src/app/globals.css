@@ -9011,13 +9011,32 @@ details[open] > .beginner-collapsed-summary::before {
   border: 1px solid var(--border-color);
 }
 
+.v2-safety-map-grouped {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.v2-safety-map-group {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.v2-safety-map-group:last-child {
+  border-bottom: none;
+}
+
 .v2-safety-map-module {
   font-size: 0.7rem;
   font-weight: 600;
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  margin-bottom: 0.2rem;
+  margin-bottom: 0.35rem;
+}
+
+.v2-safety-map-module:hover {
+  color: var(--link-color);
 }
 
 .v2-module-summary-card {

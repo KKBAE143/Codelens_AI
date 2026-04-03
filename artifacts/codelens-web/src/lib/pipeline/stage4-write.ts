@@ -226,16 +226,15 @@ function injectBeginnerSummaries(blocks: Array<Record<string, unknown>>): Array<
     result.push(block);
     if (block.type === "text" && typeof block.content === "string") {
       const stripped = (block.content as string).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-      if (stripped.length >= 300) {
-        const sentences = stripped.match(/^(.+?[.!?])\s+(.+?[.!?])/);
-        const summary = sentences ? `${sentences[1]} ${sentences[2]}` : stripped.slice(0, 150) + "...";
-        result.push({
-          type: "callout",
-          variant: "tip",
-          beginnerOnly: true,
-          content: `**In plain terms:** ${summary}`,
-        });
-      }
+      if (stripped.length < 20) continue;
+      const sentences = stripped.match(/^(.+?[.!?])\s+(.+?[.!?])/);
+      const summary = sentences ? `${sentences[1]} ${sentences[2]}` : stripped.slice(0, 150).trim();
+      result.push({
+        type: "callout",
+        variant: "tip",
+        beginnerOnly: true,
+        content: `**In plain terms:** ${summary}`,
+      });
     }
   }
   return result;
@@ -267,15 +266,11 @@ function injectJargonCallouts(blocks: Array<Record<string, unknown>>): Array<Rec
       }
     }
 
-    if (matchedTerms.length > 0) {
-      const glossaryContent = matchedTerms
-        .map((m) => `**${m.term}**: ${m.definition}`)
-        .join("\n\n");
-
+    for (const m of matchedTerms) {
       result.push({
         type: "callout",
         variant: "tip",
-        content: `📖 **Jargon Buster**\n\n${glossaryContent}`,
+        content: `📖 **Jargon Buster — ${m.term}:** ${m.definition}`,
       });
     }
   }
