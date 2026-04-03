@@ -52,14 +52,18 @@ export async function runStage1Abstractions(
           const indices = Array.isArray(item.file_indices)
             ? item.file_indices.map(Number).filter((n) => !isNaN(n))
             : [];
-          const paths = indices
+          const indexPaths = indices
             .filter((idx) => idx < extraction.files.length)
             .map((idx) => extraction.files[idx].path);
+          const explicitPaths = Array.isArray(item.file_paths)
+            ? item.file_paths.map(String).filter(Boolean)
+            : [];
+          const allPaths = [...new Set([...indexPaths, ...explicitPaths])];
           return {
             name: String(item.name || ""),
             description: String(item.description || ""),
             file_indices: indices,
-            file_paths: paths,
+            file_paths: allPaths,
           };
         })
         .filter((a) => a.name && a.description);

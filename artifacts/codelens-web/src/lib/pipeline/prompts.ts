@@ -73,9 +73,11 @@ Return ONLY valid YAML (no markdown fences, no explanation). Format:
 - name: "AbstractionName"
   description: "Plain English description with analogy, ~100 words. Explain what it does, why it exists, and how it relates to the bigger picture."
   file_indices: [0, 3, 7]
+  file_paths: ["src/auth/guard.ts", "src/auth/session.ts"]
 
 Rules:
 - file_indices reference the numbered files in the packed context (File 0, File 1, etc.)
+- file_paths is a list of file paths (from the file tree or repo map) that implement this abstraction. Include paths even if they are outside the numbered files.
 - Each abstraction should map to 1-5 files that implement it
 - Order abstractions from most fundamental (fewest dependencies) to most complex
 - Include infrastructure abstractions (database layer, config, auth) not just business logic

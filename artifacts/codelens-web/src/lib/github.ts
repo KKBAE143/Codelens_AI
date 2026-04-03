@@ -883,8 +883,10 @@ export async function extractRepo(
           const blobData = await blobRes.json();
           if (blobData.content && blobData.encoding === "base64") {
             const rawContent = Buffer.from(blobData.content, "base64").toString("utf-8");
+            const first200Lines = rawContent.split("\n").slice(0, 200).join("\n");
             const sigContent = extractFileSignatures(rawContent, file.path);
-            return { path: file.path, content: sigContent, size: file.size, sha: file.sha } as GitHubFile;
+            const combined = `${first200Lines}\n\n--- Extracted Signatures ---\n${sigContent}`;
+            return { path: file.path, content: combined, size: file.size, sha: file.sha } as GitHubFile;
           }
         } catch { /* skip files that fail */ }
         return null;
@@ -996,8 +998,21 @@ export async function extractRepo(
 
   if (sigEntries.length > 0) {
     fileSignaturesText = `=== File Signatures (${sigEntries.length} additional files) ===\n${sigEntries.join("\n\n")}`;
-    packedContext += `\n\n${fileSignaturesText}`;
-    packedTokenCount = countTokens(packedContext);
+    const sigBudgetForPacked = TOKEN_BUDGET - packedTokenCount;
+    if (sigBudgetForPacked > 500) {
+      const packedSigEntries: string[] = [];
+      let packedSigTokens = 0;
+      for (const entry of sigEntries) {
+        const entryTokens = countTokens(entry);
+        if (packedSigTokens + entryTokens > sigBudgetForPacked) break;
+        packedSigEntries.push(entry);
+        packedSigTokens += entryTokens;
+      }
+      if (packedSigEntries.length > 0) {
+        packedContext += `\n\n=== File Signatures (${packedSigEntries.length}/${sigEntries.length} additional files) ===\n${packedSigEntries.join("\n\n")}`;
+        packedTokenCount = countTokens(packedContext);
+      }
+    }
   }
 
   const sourceFileHashes: Record<string, string> = {};
@@ -1021,6 +1036,39 @@ export async function extractRepo(
     "go.mod", "Cargo.toml", "Gemfile", "composer.json", "pom.xml",
     "build.gradle", "build.gradle.kts", "Makefile",
   ]);
+
+  const setupRelevantNames = new Set([
+    ...manifestFileNames,
+    "dockerfile", "docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml",
+  ]);
+  const envPattern = /^\.env\.(example|sample|local|development|dev|template)$/i;
+
+  const unfetchedSetupFiles = allFiles.filter(f => {
+    const name = (f.path.split("/").pop() || "").toLowerCase();
+    return !fetchedPaths.has(f.path) && (
+      setupRelevantNames.has(name) || manifestFileNames.has(f.path.split("/").pop() || "") || envPattern.test(name)
+    );
+  });
+  if (unfetchedSetupFiles.length > 0) {
+    const setupResults = await Promise.allSettled(
+      unfetchedSetupFiles.map(async (file) => {
+        const res = await githubFetch(
+          `https://api.github.com/repos/${owner}/${repo}/contents/${file.path}?ref=${defaultBranch}`,
+          userToken,
+        );
+        const data = await res.json();
+        if (data.content && data.encoding === "base64") {
+          return { path: file.path, content: Buffer.from(data.content, "base64").toString("utf-8"), size: file.size };
+        }
+        return null;
+      }),
+    );
+    for (const r of setupResults) {
+      if (r.status === "fulfilled" && r.value) {
+        fetchedFiles.push(r.value as GitHubFile);
+      }
+    }
+  }
 
   for (const f of fetchedFiles) {
     const name = f.path.split("/").pop() || "";
