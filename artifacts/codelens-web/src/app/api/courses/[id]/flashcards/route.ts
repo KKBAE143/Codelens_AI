@@ -12,6 +12,7 @@ import {
 } from "@workspace/db/schema";
 import { eq, and, isNull, lte, or, isNull as isNullCol } from "drizzle-orm";
 import { createEmptyCard, fsrs, Rating, type Card } from "ts-fsrs";
+import { awardXp } from "@/lib/xp";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -297,4 +298,33 @@ export async function PUT(
     .returning({ id: flashcards.id });
 
   return NextResponse.json({ success: true, inserted: inserted.length });
+}
+
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  let user;
+  try { user = await requireAuth(); }
+  catch { return NextResponse.json({ error: "Authentication required" }, { status: 401 }); }
+
+  const { id: courseId } = await params;
+  if (!UUID_RE.test(courseId)) {
+    return NextResponse.json({ error: "Invalid course ID" }, { status: 400 });
+  }
+
+  const clientTz = request.headers.get("x-timezone") || "";
+
+  const course = await checkCourseAccess(courseId, user.id);
+  if (!course) return NextResponse.json({ error: "Not found or not authorized" }, { status: 403 });
+
+  let xpResult = null;
+  try {
+    xpResult = await awardXp(user.id, "flashcard_session", courseId, undefined, clientTz || undefined);
+  } catch {}
+
+  return NextResponse.json({
+    success: true,
+    ...(xpResult?.leveledUp ? { leveledUp: true, newLevel: xpResult.newLevel, newLevelName: xpResult.newLevelName } : {}),
+  });
 }

@@ -110,6 +110,8 @@ export async function PATCH(
     return NextResponse.json({ error: "Invalid course ID" }, { status: 400 });
   }
 
+  const clientTz = request.headers.get("x-timezone") || "";
+
   let body;
   try {
     body = await request.json();
@@ -291,14 +293,14 @@ export async function PATCH(
 
     if (isNewModule) {
       try {
-        const r = await awardXp(user.id, "module_read", courseId);
+        const r = await awardXp(user.id, "module_read", courseId, undefined, clientTz || undefined);
         if (r.leveledUp) { leveledUp = true; newLevel = r.newLevel; newLevelName = r.newLevelName; }
         newBadges = [...newBadges, ...r.newBadges];
       } catch {}
     }
     if (percentComplete >= 100 && !existing.completedAt) {
       try {
-        const r = await awardXp(user.id, "course_complete", courseId);
+        const r = await awardXp(user.id, "course_complete", courseId, undefined, clientTz || undefined);
         if (r.leveledUp) { leveledUp = true; newLevel = r.newLevel; newLevelName = r.newLevelName; }
         newBadges = [...newBadges, ...r.newBadges];
       } catch {}
@@ -335,13 +337,13 @@ export async function PATCH(
   let newBadges2: string[] = [];
 
   try {
-    const r = await awardXp(user.id, "module_read", courseId);
+    const r = await awardXp(user.id, "module_read", courseId, undefined, clientTz || undefined);
     if (r.leveledUp) { leveledUp2 = true; newLevel2 = r.newLevel; newLevelName2 = r.newLevelName; }
     newBadges2 = [...newBadges2, ...r.newBadges];
   } catch {}
   if (isCompleted) {
     try {
-      const r = await awardXp(user.id, "course_complete", courseId);
+      const r = await awardXp(user.id, "course_complete", courseId, undefined, clientTz || undefined);
       if (r.leveledUp) { leveledUp2 = true; newLevel2 = r.newLevel; newLevelName2 = r.newLevelName; }
       newBadges2 = [...newBadges2, ...r.newBadges];
     } catch {}

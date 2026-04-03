@@ -656,7 +656,7 @@ export default function CourseViewer() {
       const updated = [...prev, moduleIndex];
       fetch(`/api/courses/${courseId}/progress`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-timezone": Intl.DateTimeFormat().resolvedOptions().timeZone },
         credentials: "include",
         body: JSON.stringify({ moduleIndex, totalModules: moduleCountRef.current }),
       })
@@ -826,6 +826,9 @@ export default function CourseViewer() {
               .then((r) => r.ok ? r.json() : null)
               .then((data) => { if (data) setFlashcardDueCount(data.dueCount ?? 0); })
               .catch(() => {});
+          }}
+          onLevelUp={(level, levelName) => {
+            setLevelUpData({ level, levelName });
           }}
         />
       )}

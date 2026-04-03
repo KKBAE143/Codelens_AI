@@ -75,15 +75,19 @@ export async function awardXp(
   eventType: XpEventType,
   courseId?: string,
   moduleIndex?: number,
+  clientTimezone?: string,
 ): Promise<AwardXpResult> {
   const points = XP_AMOUNTS[eventType];
 
-  const [userRow] = await db
-    .select({ timezone: users.timezone })
-    .from(users)
-    .where(eq(users.id, userId))
-    .limit(1);
-  const tz = userRow?.timezone || "UTC";
+  let tz = clientTimezone || "";
+  if (!tz) {
+    const [userRow] = await db
+      .select({ timezone: users.timezone })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+    tz = userRow?.timezone || "UTC";
+  }
 
   const today = getDateInTimezone(tz);
   const yesterday = getYesterdayInTimezone(tz);
@@ -133,7 +137,8 @@ export async function awardXp(
       .select()
       .from(userStreaks)
       .where(eq(userStreaks.userId, userId))
-      .limit(1);
+      .limit(1)
+      .for("update");
 
     let newStreak: number;
     let streakShieldActive: boolean;

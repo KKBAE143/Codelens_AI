@@ -62,6 +62,8 @@ export async function POST(
   const { id: courseId } = await params;
   if (!UUID_RE.test(courseId)) return NextResponse.json({ error: "Invalid course ID" }, { status: 400 });
 
+  const clientTz = request.headers.get("x-timezone") || "";
+
   const course = await checkCourseAccess(courseId, user.id);
   if (!course) return NextResponse.json({ error: "Not found or not authorized" }, { status: 403 });
 
@@ -98,7 +100,7 @@ export async function POST(
     }).where(eq(moduleQuizScores.id, existing.id));
     let xpResult = null;
     if (finalScore >= 80) {
-      try { xpResult = await awardXp(user.id, "quiz_pass", courseId, moduleIndex); } catch {}
+      try { xpResult = await awardXp(user.id, "quiz_pass", courseId, moduleIndex, clientTz || undefined); } catch {}
     }
     return NextResponse.json({
       success: true, score: finalScore, isHighScore: isNewBest,
@@ -119,7 +121,7 @@ export async function POST(
 
   let xpResult = null;
   if (score >= 80) {
-    try { xpResult = await awardXp(user.id, "quiz_pass", courseId, moduleIndex); } catch {}
+    try { xpResult = await awardXp(user.id, "quiz_pass", courseId, moduleIndex, clientTz || undefined); } catch {}
   }
 
   return NextResponse.json({

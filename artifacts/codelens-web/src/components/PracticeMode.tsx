@@ -74,7 +74,7 @@ export function PracticeMode({ courseId, moduleIndex, moduleTitle, quizBlocks, o
       setScoreSaved(true);
       fetch(`/api/courses/${courseId}/quiz-scores`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-timezone": Intl.DateTimeFormat().resolvedOptions().timeZone },
         credentials: "include",
         body: JSON.stringify({ moduleIndex, questionsTotal: totalQ, questionsCorrect: correct }),
       })

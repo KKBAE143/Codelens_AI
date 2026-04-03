@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface FlashcardData {
   id: string;
@@ -18,6 +19,7 @@ interface FlashcardReviewProps {
   courseId: string;
   moduleIndex?: number | null;
   onClose: () => void;
+  onLevelUp?: (level: number, levelName: string) => void;
 }
 
 const RATINGS = [
@@ -35,7 +37,8 @@ function formatInterval(days: number): string {
   return `${Math.round(days / 365)} years`;
 }
 
-export function FlashcardReview({ courseId, moduleIndex, onClose }: FlashcardReviewProps) {
+export function FlashcardReview({ courseId, moduleIndex, onClose, onLevelUp }: FlashcardReviewProps) {
+  const queryClient = useQueryClient();
   const [cards, setCards] = useState<FlashcardData[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
@@ -109,6 +112,19 @@ export function FlashcardReview({ courseId, moduleIndex, onClose }: FlashcardRev
       const nextIndex = currentIndex + 1;
       if (nextIndex >= cards.length) {
         setSessionComplete(true);
+        fetch(`/api/courses/${courseId}/flashcards`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", "x-timezone": Intl.DateTimeFormat().resolvedOptions().timeZone },
+          credentials: "include",
+        })
+          .then((r) => r.ok ? r.json() : null)
+          .then((data) => {
+            if (data?.leveledUp && onLevelUp) {
+              onLevelUp(data.newLevel, data.newLevelName);
+            }
+            queryClient.invalidateQueries({ queryKey: ["user-stats"] });
+          })
+          .catch(() => {});
       } else {
         setCurrentIndex(nextIndex);
         setIsFlipped(false);
