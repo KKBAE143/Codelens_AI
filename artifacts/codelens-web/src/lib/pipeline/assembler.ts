@@ -8,14 +8,22 @@ export function assembleV2Course(
   abstractions: Abstraction[],
   config: PipelineConfig,
 ): string {
+  const abstractionModuleIndex = new Map(
+    chapters
+      .filter((chapter) => chapter.abstractionRef)
+      .map((chapter) => [chapter.abstractionRef as string, chapter.index]),
+  );
+
   const overviewGraph = {
     nodes: abstractions.map((a, i) => ({
       id: a.name.toLowerCase().replace(/\s+/g, "-"),
       label: a.name,
-      moduleIndex: i + 2,
+      moduleIndex: abstractionModuleIndex.get(a.name) ?? i + 2,
       connections: relationships.filter(
         (r) => r.from === a.name || r.to === a.name,
       ).length,
+      description: a.description,
+      fileCount: a.file_paths?.length ?? a.file_indices.length,
     })),
     edges: relationships.map((r) => ({
       from: r.from.toLowerCase().replace(/\s+/g, "-"),
