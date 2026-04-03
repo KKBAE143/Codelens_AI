@@ -813,6 +813,37 @@ code, pre, .font-mono {
   gap: 0.85rem;
 }
 
+.v2-sidebar-mini-bar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: 14px;
+  background: rgba(255, 253, 249, 0.92);
+  border: 1px solid color-mix(in srgb, var(--border-color) 86%, white);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.04);
+}
+
+.v2-sidebar-mini-title {
+  font-size: 0.77rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.v2-sidebar-mini-progress {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+
 .v2-module-nav-overview {
   display: flex;
   align-items: flex-start;
@@ -923,7 +954,7 @@ code, pre, .font-mono {
 }
 
 .v2-module-nav-title {
-  font-size: 0.9rem;
+  font-size: 0.98rem;
   color: var(--text-primary);
   font-weight: 700;
   line-height: 1.4;
@@ -1040,6 +1071,13 @@ code, pre, .font-mono {
   flex-direction: column;
 }
 
+.v2-sidebar-course-topline {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
 .v2-sidebar-avatar {
   border-radius: 999px;
   flex-shrink: 0;
@@ -1065,27 +1103,36 @@ code, pre, .font-mono {
   line-height: 1.2;
 }
 
-.v2-sidebar-meta-grid {
+.v2-sidebar-chip-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.55rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
   margin-top: 0.85rem;
 }
 
-.v2-sidebar-meta-card {
-  padding: 0.7rem 0.75rem;
-  border-radius: 14px;
-  background: rgba(255,255,255,0.74);
+.v2-sidebar-chip {
+  padding: 0.55rem 0.7rem;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.8);
   border: 1px solid color-mix(in srgb, var(--border-color) 84%, white);
   display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-width: 0;
 }
 
-.v2-sidebar-meta-value {
-  font-size: 0.82rem;
+.v2-sidebar-chip strong {
+  font-size: 0.8rem;
   font-weight: 700;
   color: var(--text-primary);
+  min-width: 0;
+}
+
+.v2-sidebar-chip em {
+  font-style: normal;
+  font-size: 0.7rem;
+  color: var(--text-tertiary);
 }
 
 .v2-sidebar-meta-label,
@@ -1104,6 +1151,17 @@ code, pre, .font-mono {
   flex-wrap: wrap;
   gap: 0.45rem;
   margin-top: 0.75rem;
+}
+
+.v2-sidebar-meta-mutedline {
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.v2-sidebar-meta-mutedline .badge,
+.v2-sidebar-meta-mutedline .v2-sidebar-updated {
+  font-size: 0.72rem;
+  color: var(--text-tertiary);
 }
 
 .v2-sidebar-progress-card {
@@ -1127,6 +1185,65 @@ code, pre, .font-mono {
   background: var(--bg-tertiary);
   border-radius: 999px;
   overflow: hidden;
+}
+
+.v2-share-popover-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.v2-share-icon-btn {
+  width: 38px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--border-color) 84%, white);
+  background: rgba(255,255,255,0.82);
+  color: var(--text-secondary);
+  cursor: pointer;
+  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.04);
+}
+
+.v2-share-icon-btn:hover {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 24%, var(--border-color));
+}
+
+.v2-share-popover {
+  position: absolute;
+  top: calc(100% + 0.45rem);
+  right: 0;
+  min-width: 160px;
+  padding: 0.35rem;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.98);
+  border: 1px solid color-mix(in srgb, var(--border-color) 84%, white);
+  box-shadow: 0 18px 36px rgba(15, 23, 42, 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  z-index: 5;
+}
+
+.v2-share-popover-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 0.6rem 0.7rem;
+  border: none;
+  background: transparent;
+  border-radius: 10px;
+  color: var(--text-primary);
+  text-decoration: none;
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.v2-share-popover-item:hover {
+  background: var(--bg-secondary);
 }
 
 .v2-sidebar-tool-btn {
@@ -3201,9 +3318,12 @@ a.v2-code-filepath:hover {
   .v2-module-nav-overview {
     flex-direction: column;
   }
-  .v2-sidebar-meta-grid,
+  .v2-sidebar-chip-grid,
   .v2-share-row {
     grid-template-columns: 1fr;
+  }
+  .v2-sidebar-course-topline {
+    flex-direction: row;
   }
   .v2-module-nav-actions {
     align-items: flex-start;

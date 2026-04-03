@@ -124,6 +124,8 @@ function V2ModuleSidebar({
   completedModules,
   quizScores,
   showOverview,
+  courseName,
+  progressPercent,
   onSelect,
 }: {
   modules: V2Module[];
@@ -131,10 +133,16 @@ function V2ModuleSidebar({
   completedModules: number[];
   quizScores: Map<number, number>;
   showOverview?: boolean;
+  courseName: string;
+  progressPercent: number;
   onSelect: (i: number | null) => void;
 }) {
   return (
     <nav className="v2-module-nav" aria-label="Course modules">
+      <div className="v2-sidebar-mini-bar">
+        <span className="v2-sidebar-mini-title">{courseName}</span>
+        <span className="v2-sidebar-mini-progress">{progressPercent}%</span>
+      </div>
       <div className="v2-module-nav-overview">
         <div>
           <div className="v2-module-nav-kicker">Course roadmap</div>
@@ -562,6 +570,7 @@ export default function CourseViewer() {
   const [lastSeenVersion, setLastSeenVersion] = useState<number | null>(null);
   const [showWhatsNew, setShowWhatsNew] = useState(false);
   const [showWizard, setShowWizard] = useState(false);
+  const [showShareMenu, setShowShareMenu] = useState(false);
   const [doneExercises, setDoneExercises] = useState<Record<string, boolean>>({});
   const [activeModuleIndex, setActiveModuleIndex] = useState<number | null>(() => {
     if (typeof window !== "undefined") {
@@ -1034,10 +1043,33 @@ export default function CourseViewer() {
               <aside className="v2-sidebar course-sidebar">
                 <div className="v2-sidebar-header v2-sidebar-header-course">
                   <div className="v2-sidebar-course-hero">
+                    <div className="v2-sidebar-course-topline">
                     <div>
                       <div className="v2-module-nav-kicker">Learning workspace</div>
                       <h3 className="v2-sidebar-title">{course.repoName}</h3>
                       <p className="v2-sidebar-summary">Track your progress, review key concepts, and jump to any module without losing context.</p>
+                    </div>
+                    <div className="v2-share-popover-wrap">
+                      <button type="button" className="v2-share-icon-btn" onClick={() => setShowShareMenu((value) => !value)} aria-expanded={showShareMenu} aria-label="Share course">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" /></svg>
+                      </button>
+                      {showShareMenu && (
+                        <div className="v2-share-popover">
+                          <button onClick={() => { handleCopyShare(); setShowShareMenu(false); }} className="v2-share-popover-item">Copy link</button>
+                          {celebrationShareUrl && <a href={`https://twitter.com/intent/tweet?url=${encodeURIComponent(celebrationShareUrl)}`} target="_blank" rel="noopener noreferrer" className="v2-share-popover-item" onClick={() => setShowShareMenu(false)}>Share on X</a>}
+                          {celebrationShareUrl && <a href={`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(celebrationShareUrl)}`} target="_blank" rel="noopener noreferrer" className="v2-share-popover-item" onClick={() => setShowShareMenu(false)}>LinkedIn</a>}
+                        </div>
+                      )}
+                    </div>
+                    </div>
+                    <div className="v2-sidebar-chip-grid">
+                      <span className="v2-sidebar-chip"><strong>{AUDIENCE_LABELS[course.targetAudience] || course.targetAudience}</strong><em>Audience</em></span>
+                      <span className="v2-sidebar-chip"><strong>{course.estimatedMinutes ? `~${course.estimatedMinutes}m` : "Self-paced"}</strong><em>Duration</em></span>
+                      <span className="v2-sidebar-chip"><strong>{totalModules}</strong><em>Modules</em></span>
+                    </div>
+                    <div className="v2-sidebar-meta v2-sidebar-meta-mutedline">
+                      <span className="badge">v{course.version}</span>
+                      <span className="v2-sidebar-updated">Saved to your dashboard</span>
                     </div>
                     <div className="v2-sidebar-progress-card v2-sidebar-progress-card-compact">
                       <div className="v2-sidebar-progress-head">
@@ -1045,9 +1077,9 @@ export default function CourseViewer() {
                         <span>{progress}%</span>
                       </div>
                       <div className="v2-sidebar-progress-bar">
-                        <div style={{ height: "100%", width: `${progress}%`, background: progress >= 100 ? "var(--teal)" : "var(--accent)", borderRadius: 999, transition: "width 0.4s ease" }} />
+                        <div style={{ height: "100%", width: progress === 0 ? 2 : `${progress}%`, background: progress >= 100 ? "var(--teal)" : "var(--accent)", borderRadius: 999, transition: "width 0.4s ease", opacity: progress === 0 ? 0.7 : 1 }} />
                       </div>
-                      <div className="v2-sidebar-progress-caption">{completedModules.length} of {totalModules} modules completed</div>
+                      <div className="v2-sidebar-progress-caption">{completedModules.length === 0 ? `0 of ${totalModules} started` : `${completedModules.length} of ${totalModules} modules completed`}</div>
                     </div>
                   </div>
 
@@ -1079,6 +1111,8 @@ export default function CourseViewer() {
                   activeIndex={activeModuleIndex}
                   completedModules={completedModules}
                   quizScores={quizScores}
+                  courseName={course.repoName}
+                  progressPercent={progress}
                   showOverview={!!v2Data.overviewGraph}
                   onSelect={handleModuleSelect}
                 />
@@ -1086,29 +1120,7 @@ export default function CourseViewer() {
                 <div className="v2-sidebar-info">
                   <div className="v2-sidebar-section v2-sidebar-section-card">
                     <span className="v2-sidebar-label">Quick actions</span>
-                    <div className="v2-share-row">
-                      <button onClick={handleCopyShare} className="v2-share-btn">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                        </svg>
-                        Copy Share Link
-                      </button>
-                      <a
-                        href={course.githubUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="v2-share-btn"
-                        style={{ textDecoration: "none" }}
-                      >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M15 3h6v6" />
-                          <path d="M10 14 21 3" />
-                          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                        </svg>
-                        Open GitHub
-                      </a>
-                    </div>
+                    <a href={course.githubUrl} target="_blank" rel="noopener noreferrer" className="v2-share-btn" style={{ textDecoration: "none" }}>Open GitHub</a>
                   </div>
                   {v2Data.languages.length > 0 && (
                     <div className="v2-sidebar-section">
@@ -1184,6 +1196,8 @@ export default function CourseViewer() {
                     activeIndex={activeModuleIndex}
                     completedModules={completedModules}
                     quizScores={quizScores}
+                    courseName={course.repoName}
+                    progressPercent={progress}
                     showOverview={!!v2Data.overviewGraph}
                     onSelect={handleModuleSelect}
                   />
