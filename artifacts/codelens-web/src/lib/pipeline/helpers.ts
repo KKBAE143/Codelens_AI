@@ -213,15 +213,13 @@ export function normalizeBlock(block: unknown): unknown {
             : undefined,
       };
     case "command-card": {
-      const osVariants: Record<string, { command: string; note?: string }> = {};
+      const osVariants: Record<string, string> = {};
       if (record.osVariants && typeof record.osVariants === "object") {
         for (const [os, variant] of Object.entries(record.osVariants as Record<string, unknown>)) {
-          if (variant && typeof variant === "object" && "command" in (variant as Record<string, unknown>)) {
-            const v = variant as Record<string, unknown>;
-            osVariants[os] = {
-              command: String(v.command || "").trim(),
-              note: typeof v.note === "string" ? v.note : undefined,
-            };
+          if (typeof variant === "string") {
+            osVariants[os] = variant.trim();
+          } else if (variant && typeof variant === "object" && "command" in (variant as Record<string, unknown>)) {
+            osVariants[os] = String((variant as Record<string, unknown>).command || "").trim();
           }
         }
       }
