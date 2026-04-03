@@ -53,19 +53,22 @@ function buildConceptIndex(
     });
   }
 
+  const capitalizedTermPattern = /\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b/g;
+
   for (const ch of chapters) {
-    const chapterText = JSON.stringify(ch.blocks).toLowerCase();
+    const chapterText = JSON.stringify(ch.blocks);
+    const chapterTextLower = chapterText.toLowerCase();
+
     for (const abs of abstractions) {
       const key = abs.name.toLowerCase();
-      if (chapterText.includes(key)) {
+      if (chapterTextLower.includes(key)) {
         const entry = conceptMap.get(key);
         if (entry) entry.indices.add(ch.index);
       }
     }
 
     for (const [term, desc] of Object.entries(TECH_GLOSSARY)) {
-      if (conceptMap.has(term)) continue;
-      if (chapterText.includes(term)) {
+      if (chapterTextLower.includes(term)) {
         const existing = conceptMap.get(term);
         if (existing) {
           existing.indices.add(ch.index);
@@ -76,6 +79,24 @@ function buildConceptIndex(
           });
         }
       }
+    }
+
+    let match: RegExpExecArray | null;
+    while ((match = capitalizedTermPattern.exec(chapterText)) !== null) {
+      const rawTerm = match[1];
+      const key = rawTerm.toLowerCase();
+      if (conceptMap.has(key)) {
+        conceptMap.get(key)!.indices.add(ch.index);
+        continue;
+      }
+      if (key.split(/\s+/).length < 2 || key.length < 6) continue;
+      const skipPrefixes = ["module ", "section ", "chapter ", "block ", "step ", "part ", "figure "];
+      if (skipPrefixes.some((p) => key.startsWith(p))) continue;
+
+      conceptMap.set(key, {
+        indices: new Set<number>([ch.index]),
+        description: `A key concept discussed in the codebase modules.`,
+      });
     }
   }
 

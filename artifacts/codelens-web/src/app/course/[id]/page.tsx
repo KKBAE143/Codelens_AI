@@ -760,8 +760,13 @@ export default function CourseViewer() {
     setMobileMenuOpen(false);
     setPendingConcept(conceptName ?? null);
     setActiveConcept(conceptName ?? null);
-    setJumpedFrom(conceptName ? conceptName : null);
+    if (!conceptName) setJumpedFrom(null);
     mainScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handleGraphModuleSelect = (i: number | null, conceptName?: string) => {
+    handleModuleSelect(i, conceptName);
+    setJumpedFrom(conceptName ?? null);
   };
 
   useEffect(() => {
@@ -1351,14 +1356,14 @@ export default function CourseViewer() {
                     <div id="tabpanel-graph" role="tabpanel" aria-labelledby="tab-graph">
                       <KnowledgeGraph
                         overviewGraph={v2Data.overviewGraph}
-                        onModuleClick={handleModuleSelect}
+                        onModuleClick={handleGraphModuleSelect}
                       />
                     </div>
                   ) : (
                     <div id="tabpanel-diagram" role="tabpanel" aria-labelledby="tab-diagram">
                       <AbstractionMap
                         graph={v2Data.overviewGraph}
-                        onModuleClick={handleModuleSelect}
+                        onModuleClick={handleGraphModuleSelect}
                         modules={v2Data.modules}
                       />
                     </div>
@@ -1366,7 +1371,7 @@ export default function CourseViewer() {
 
                   {v2Data.conceptIndex && v2Data.conceptIndex.length > 0 && (() => {
                     const entries = v2Data.conceptIndex;
-                    const useAlphaGroups = entries.length >= 20;
+                    const useAlphaGroups = entries.length > 20;
 
                     if (useAlphaGroups) {
                       const grouped = new Map<string, typeof entries>();
@@ -1392,15 +1397,12 @@ export default function CourseViewer() {
                                     <div className="v2-concept-index-term">{entry.term}</div>
                                     <div className="v2-concept-index-desc">{entry.description}</div>
                                     <div className="v2-concept-index-modules">
-                                      {entry.moduleIndices.map((mi) => (
-                                        <button
-                                          key={mi}
-                                          className="v2-concept-index-link"
-                                          onClick={() => handleModuleSelect(mi, entry.term)}
-                                        >
-                                          Module {mi + 1}
-                                        </button>
-                                      ))}
+                                      <button
+                                        className="v2-concept-index-link"
+                                        onClick={() => handleModuleSelect(entry.moduleIndices[0], entry.term)}
+                                      >
+                                        Module {entry.moduleIndices[0] + 1}
+                                      </button>
                                     </div>
                                   </div>
                                 ))}
@@ -1420,15 +1422,12 @@ export default function CourseViewer() {
                               <div className="v2-concept-index-term">{entry.term}</div>
                               <div className="v2-concept-index-desc">{entry.description}</div>
                               <div className="v2-concept-index-modules">
-                                {entry.moduleIndices.map((mi) => (
-                                  <button
-                                    key={mi}
-                                    className="v2-concept-index-link"
-                                    onClick={() => handleModuleSelect(mi, entry.term)}
-                                  >
-                                    Module {mi + 1}
-                                  </button>
-                                ))}
+                                <button
+                                  className="v2-concept-index-link"
+                                  onClick={() => handleModuleSelect(entry.moduleIndices[0], entry.term)}
+                                >
+                                  Module {entry.moduleIndices[0] + 1}
+                                </button>
                               </div>
                             </div>
                           ))}
