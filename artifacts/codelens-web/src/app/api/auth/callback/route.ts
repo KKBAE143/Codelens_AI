@@ -138,7 +138,8 @@ export async function GET(request: NextRequest) {
     }
 
     return response;
-  } catch {
+  } catch (err) {
+    console.error("[Auth Callback] Authentication failed:", err);
     const response = NextResponse.redirect(
       new URL("/?error=auth_failed", origin),
     );
