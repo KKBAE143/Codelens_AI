@@ -46,24 +46,20 @@ export async function GET(
   const rows = await db
     .select({
       moduleIndex: flashcards.moduleIndex,
-      dueCount: sql<number>`count(*)::int`,
+      total: sql<number>`count(*)::int`,
+      dueCount: sql<number>`count(*) FILTER (WHERE ${flashcardReviews.id} IS NULL OR ${flashcardReviews.due} <= ${now})::int`,
     })
     .from(flashcards)
     .leftJoin(
       flashcardReviews,
       and(eq(flashcardReviews.flashcardId, flashcards.id), eq(flashcardReviews.userId, user.id))
     )
-    .where(
-      and(
-        eq(flashcards.courseId, courseId),
-        sql`(${flashcardReviews.id} IS NULL OR ${flashcardReviews.due} <= ${now})`
-      )
-    )
+    .where(eq(flashcards.courseId, courseId))
     .groupBy(flashcards.moduleIndex);
 
-  const counts: Record<number, number> = {};
+  const counts: Record<number, { total: number; due: number }> = {};
   for (const row of rows) {
-    counts[row.moduleIndex] = row.dueCount;
+    counts[row.moduleIndex] = { total: row.total, due: row.dueCount };
   }
 
   return NextResponse.json({ counts });

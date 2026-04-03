@@ -4990,6 +4990,35 @@ a.v2-code-filepath:hover {
   opacity: 0.9;
 }
 
+.v2-sidebar-icon-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.5rem 0;
+}
+
+.v2-sidebar-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--border-color) 84%, white);
+  background: rgba(255, 255, 255, 0.82);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+.v2-sidebar-icon-btn:hover {
+  background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(255,247,242,0.94));
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--border-color));
+  color: var(--accent);
+}
+
 .v2-module-nav-meta-row {
   display: flex;
   align-items: center;
@@ -5003,20 +5032,27 @@ a.v2-code-filepath:hover {
   gap: 0.2rem;
   padding: 0.15rem 0.45rem;
   border-radius: 999px;
-  background: rgba(232, 93, 48, 0.08);
-  border: 1px solid rgba(232, 93, 48, 0.18);
-  color: var(--accent);
+  background: rgba(0, 0, 0, 0.04);
+  border: 1px solid var(--border-color);
+  color: var(--text-tertiary);
   font-size: 0.65rem;
   font-weight: 700;
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
   line-height: 1;
   white-space: nowrap;
+}
+
+.v2-module-flashcard-chip.has-due {
+  background: rgba(232, 93, 48, 0.08);
+  border-color: rgba(232, 93, 48, 0.18);
+  color: var(--accent);
 }
 
 .v2-module-flashcard-chip:hover {
   background: rgba(232, 93, 48, 0.15);
   border-color: rgba(232, 93, 48, 0.3);
+  color: var(--accent);
 }
 
 @media (max-width: 640px) {

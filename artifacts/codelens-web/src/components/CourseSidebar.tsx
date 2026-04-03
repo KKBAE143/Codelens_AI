@@ -22,8 +22,13 @@ function ProgressRing({ percent, size = 24, stroke = 2.5 }: { percent: number; s
   );
 }
 
+interface ModuleFlashcardInfo {
+  total: number;
+  due: number;
+}
+
 interface ModuleFlashcardCounts {
-  [moduleIndex: number]: number;
+  [moduleIndex: number]: ModuleFlashcardInfo;
 }
 
 export interface CourseSidebarProps {
@@ -103,7 +108,9 @@ export function CourseSidebar({
         const masteryColor = quizScore !== undefined
           ? quizScore >= 80 ? "var(--teal)" : quizScore >= 60 ? "#F59E0B" : "var(--error)"
           : undefined;
-        const dueCount = flashcardCounts[i] ?? 0;
+        const fcInfo = flashcardCounts[i];
+        const hasFlashcards = fcInfo && fcInfo.total > 0;
+        const dueCount = fcInfo?.due ?? 0;
         return (
           <button
             key={i}
@@ -123,9 +130,9 @@ export function CourseSidebar({
                 {mod.estimatedMinutes && (
                   <span className="v2-module-nav-time">~{mod.estimatedMinutes} min</span>
                 )}
-                {dueCount > 0 && onOpenFlashcards && (
+                {hasFlashcards && onOpenFlashcards && (
                   <span
-                    className="v2-module-flashcard-chip"
+                    className={`v2-module-flashcard-chip ${dueCount > 0 ? "has-due" : ""}`}
                     onClick={(e) => {
                       e.stopPropagation();
                       onOpenFlashcards(i);
@@ -133,14 +140,14 @@ export function CourseSidebar({
                     role="button"
                     tabIndex={0}
                     onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); onOpenFlashcards(i); } }}
-                    title={`${dueCount} flashcard${dueCount !== 1 ? "s" : ""} due for this module`}
+                    title={dueCount > 0 ? `${dueCount} due of ${fcInfo.total} flashcards` : `${fcInfo.total} flashcard${fcInfo.total !== 1 ? "s" : ""}`}
                   >
                     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       <rect x="2" y="3" width="20" height="14" rx="2" />
                       <line x1="8" y1="21" x2="16" y2="21" />
                       <line x1="12" y1="17" x2="12" y2="21" />
                     </svg>
-                    {dueCount}
+                    {dueCount > 0 ? dueCount : fcInfo.total}
                   </span>
                 )}
               </div>
