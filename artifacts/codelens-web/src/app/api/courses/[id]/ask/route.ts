@@ -31,6 +31,7 @@ export async function POST(
       organizationId: courses.organizationId,
       repoName: courses.repoName,
       ownerName: courses.ownerName,
+      html: courses.html,
     })
     .from(courses)
     .where(and(eq(courses.id, courseId), isNull(courses.deletedAt)))
@@ -58,11 +59,27 @@ export async function POST(
     return NextResponse.json({ error: "Question must be 1-500 characters" }, { status: 400 });
   }
 
+  let abstractionContext = "";
+  if (courseRecord.html) {
+    try {
+      const v2Match = courseRecord.html.match(/<!--V2_DATA([\s\S]*?)V2_DATA-->/);
+      if (v2Match) {
+        const parsed = JSON.parse(v2Match[1]);
+        const modules = Array.isArray(parsed?.modules) ? parsed.modules : [];
+        const abstractions = modules.map((m: { title?: string; learningObjective?: string }) =>
+          `- ${m.title || "Untitled"}${m.learningObjective ? `: ${m.learningObjective}` : ""}`
+        ).slice(0, 20).join("\n");
+        if (abstractions) abstractionContext = `\nCourse abstractions/modules:\n${abstractions}`;
+      }
+    } catch {}
+  }
+
   const contextParts = [
     `Repository: ${courseRecord.ownerName}/${courseRecord.repoName}`,
   ];
   if (moduleTitle) contextParts.push(`Current module: ${moduleTitle}`);
   if (blockContent) contextParts.push(`Content the learner is reading:\n${blockContent.slice(0, 1500)}`);
+  if (abstractionContext) contextParts.push(abstractionContext);
 
   const prompt = `You are a helpful coding tutor answering questions about the ${courseRecord.ownerName}/${courseRecord.repoName} codebase.
 
@@ -72,8 +89,9 @@ The learner asks: "${question.trim()}"
 
 Rules:
 - Answer in 2-4 paragraphs maximum. Be concise and direct.
-- Ground your answer in the codebase context provided. Reference specific files or concepts when relevant.
-- If you don't know the specific answer, explain the general concept and suggest where in the codebase to look.
+- Ground your answer in the codebase context provided. Reference specific files, modules, or abstractions when relevant.
+- When referencing course content, cite the specific module name (e.g., "As covered in the 'Authentication Flow' module...").
+- If you don't know the specific answer, explain the general concept and point to which module or file in the codebase would be relevant.
 - Use simple language. Explain technical terms when first used.
 - Include a brief code example only if directly relevant (≤10 lines).
 

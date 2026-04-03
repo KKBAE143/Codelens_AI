@@ -496,7 +496,9 @@ export default function CourseViewer() {
   const [levelUpData, setLevelUpData] = useState<{ level: number; levelName: string } | null>(null);
   const [doneExercises, setDoneExercises] = useState<Record<string, boolean>>({});
   const [showAIPanel, setShowAIPanel] = useState(false);
-  const [beginnerMode, setBeginnerMode] = useState(false);
+  const [beginnerMode, setBeginnerMode] = useState(() => {
+    try { return localStorage.getItem(`beginner-${courseId}`) === "1"; } catch { return false; }
+  });
   const [activeModuleIndex, setActiveModuleIndex] = useState<number | null>(() => {
     if (typeof window !== "undefined") {
       const hash = window.location.hash;
@@ -573,6 +575,13 @@ export default function CourseViewer() {
         }
         if (progressData?.doneExercises && typeof progressData.doneExercises === "object") {
           setDoneExercises(progressData.doneExercises as Record<string, boolean>);
+        }
+        if (progressData?.wizardConfig && typeof progressData.wizardConfig === "object") {
+          const wc = progressData.wizardConfig as Record<string, unknown>;
+          if (typeof wc.beginnerMode === "boolean") {
+            setBeginnerMode(wc.beginnerMode);
+            try { localStorage.setItem(`beginner-${courseId}`, wc.beginnerMode ? "1" : "0"); } catch {}
+          }
         }
         const wizardDoneOnServer = !!progressData?.wizardConfig;
         const wizardDoneLocally = (() => { try { return !!localStorage.getItem(`wizard-${courseId}`); } catch { return false; } })();
@@ -974,7 +983,17 @@ export default function CourseViewer() {
           {isV2 && (
             <button
               className={`v2-topbar-beginner-btn ${beginnerMode ? "v2-topbar-beginner-active" : ""}`}
-              onClick={() => setBeginnerMode(!beginnerMode)}
+              onClick={() => {
+                const next = !beginnerMode;
+                setBeginnerMode(next);
+                try { localStorage.setItem(`beginner-${courseId}`, next ? "1" : "0"); } catch {}
+                fetch(`/api/courses/${courseId}/progress`, {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  credentials: "include",
+                  body: JSON.stringify({ wizardConfig: { beginnerMode: next } }),
+                }).catch(() => {});
+              }}
               title={beginnerMode ? "Switch to full mode" : "Switch to beginner mode"}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1099,7 +1118,7 @@ export default function CourseViewer() {
                           </svg>
                         </button>
                         <a
-                          href={`/api/courses/${courseId}/export`}
+                          href={`/api/courses/${courseId}/export/pdf`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="v2-sidebar-icon-btn"
@@ -1287,6 +1306,31 @@ export default function CourseViewer() {
                         onModuleClick={handleModuleSelect}
                         modules={v2Data.modules}
                       />
+                    </div>
+                  )}
+
+                  {v2Data.conceptIndex && v2Data.conceptIndex.length > 0 && (
+                    <div className="v2-concept-index">
+                      <h3 className="v2-concept-index-title">Concept Index</h3>
+                      <div className="v2-concept-index-grid">
+                        {v2Data.conceptIndex.map((entry) => (
+                          <div key={entry.term} className="v2-concept-index-card">
+                            <div className="v2-concept-index-term">{entry.term}</div>
+                            <div className="v2-concept-index-desc">{entry.description}</div>
+                            <div className="v2-concept-index-modules">
+                              {entry.moduleIndices.map((mi) => (
+                                <button
+                                  key={mi}
+                                  className="v2-concept-index-link"
+                                  onClick={() => handleModuleSelect(mi)}
+                                >
+                                  Module {mi + 1}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>

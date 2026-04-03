@@ -8642,3 +8642,67 @@ details[open] > .beginner-collapsed-summary::before {
 .beginner-collapsed-content {
   padding: 0.75rem;
 }
+
+.v2-concept-index {
+  margin-top: 2rem;
+  padding: 1.5rem;
+}
+
+.v2-concept-index-title {
+  font-family: var(--font-heading);
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  color: var(--text-primary);
+}
+
+.v2-concept-index-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 0.75rem;
+}
+
+.v2-concept-index-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem 1rem;
+}
+
+.v2-concept-index-term {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  margin-bottom: 0.25rem;
+}
+
+.v2-concept-index-desc {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+  margin-bottom: 0.5rem;
+}
+
+.v2-concept-index-modules {
+  display: flex;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+}
+
+.v2-concept-index-link {
+  background: var(--accent-light);
+  color: var(--accent);
+  border: none;
+  padding: 0.15rem 0.4rem;
+  border-radius: var(--radius-full);
+  font-size: 0.7rem;
+  font-family: var(--font-body);
+  cursor: pointer;
+  font-weight: 500;
+  transition: background 0.15s;
+}
+
+.v2-concept-index-link:hover {
+  background: var(--accent);
+  color: white;
+}
