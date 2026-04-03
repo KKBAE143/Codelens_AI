@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { useToast } from "./Toast";
 
 interface GenerationModalProps {
   courseId: string;
@@ -88,6 +89,7 @@ export function GenerationModal({ courseId, onClose }: GenerationModalProps) {
   const terminalHandledRef = useRef(false);
   const sseRetryCountRef = useRef(0);
   const router = useRouter();
+  const { showToast } = useToast();
   const safetyPollRef = useRef<ReturnType<typeof setInterval>>(null);
   const tickRef = useRef<ReturnType<typeof setInterval>>(null);
   const esRef = useRef<EventSource | null>(null);
@@ -137,6 +139,7 @@ export function GenerationModal({ courseId, onClose }: GenerationModalProps) {
       }
 
       if (termStatus === "completed") {
+        showToast("Course generated successfully!", "success");
         sendBrowserNotification(
           "Course Ready!",
           "Your course has been generated and is ready to view.",
@@ -152,13 +155,14 @@ export function GenerationModal({ courseId, onClose }: GenerationModalProps) {
           .catch(() => {});
         setTimeout(() => router.push(`/course/${courseId}`), 1800);
       } else if (termStatus === "failed") {
+        showToast("Course generation failed. Please try again.", "error");
         sendBrowserNotification(
           "Generation Failed",
           "Course generation encountered an error. Please try again.",
         );
       }
     },
-    [courseId, router],
+    [courseId, router, showToast],
   );
 
   const connectSSE = useCallback(() => {
