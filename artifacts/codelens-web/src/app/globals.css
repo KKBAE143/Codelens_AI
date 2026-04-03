@@ -7768,7 +7768,6 @@ a.v2-code-filepath:hover {
 .v2-jump-breadcrumb-concept {
   font-weight: 600;
   color: var(--text-primary);
-  text-transform: capitalize;
 }
 
 .v2-jump-breadcrumb-close {

@@ -7,49 +7,50 @@ interface ConceptIndexEntry {
   description: string;
 }
 
-const TECH_GLOSSARY: Record<string, string> = {
-  "middleware": "Software that acts as a bridge between an application and other services or layers.",
-  "webhook": "An HTTP callback triggered by an event, pushing data to a specified URL in real time.",
-  "rest api": "An architectural style for designing networked applications using stateless HTTP requests.",
-  "graphql": "A query language and runtime for APIs that lets clients request exactly the data they need.",
-  "orm": "Object-Relational Mapping — a technique for querying and manipulating data using an object-oriented paradigm.",
-  "migration": "A versioned change to a database schema, applied and rolled back programmatically.",
-  "jwt": "JSON Web Token — a compact, URL-safe token used for authentication and information exchange.",
-  "oauth": "An open authorization framework that lets third-party services access user data without exposing credentials.",
-  "cors": "Cross-Origin Resource Sharing — a mechanism that allows restricted resources to be requested from another domain.",
-  "csrf": "Cross-Site Request Forgery — an attack that tricks users into performing unintended actions on authenticated sites.",
-  "ssr": "Server-Side Rendering — generating HTML on the server before sending it to the client.",
-  "csr": "Client-Side Rendering — rendering pages in the browser using JavaScript after the initial page load.",
-  "ci/cd": "Continuous Integration / Continuous Deployment — automating build, test, and release pipelines.",
-  "docker": "A platform for building, shipping, and running applications inside lightweight containers.",
-  "kubernetes": "An orchestration system for automating deployment, scaling, and management of containerized applications.",
-  "rate limiting": "Controlling the number of requests a client can make to a service within a given time window.",
-  "caching": "Storing copies of data in a fast-access layer to reduce latency and backend load.",
-  "redis": "An in-memory data store used as a cache, message broker, and key-value database.",
-  "websocket": "A protocol providing full-duplex communication channels over a single TCP connection.",
-  "pub/sub": "Publish/Subscribe — a messaging pattern where senders publish messages to topics and receivers subscribe.",
-  "microservices": "An architecture where an application is composed of small, independently deployable services.",
-  "monorepo": "A repository strategy where multiple projects or packages share one version-controlled codebase.",
-  "dependency injection": "A design pattern where objects receive their dependencies from an external source rather than creating them.",
-  "singleton": "A design pattern that restricts a class to a single instance shared across the application.",
-  "event loop": "A programming construct that waits for and dispatches events or messages in a program.",
-  "concurrency": "The ability of a system to handle multiple tasks in overlapping time periods.",
-  "load balancer": "A device or service that distributes incoming network traffic across multiple servers.",
-  "reverse proxy": "A server that forwards client requests to backend servers and returns the response to the client.",
-  "environment variable": "A dynamic value set outside the code that configures application behavior at runtime.",
-  "idempotent": "An operation that produces the same result no matter how many times it is executed.",
-};
+const TECH_GLOSSARY: Array<{ match: string; display: string; description: string }> = [
+  { match: "middleware", display: "Middleware", description: "Software that acts as a bridge between an application and other services or layers." },
+  { match: "webhook", display: "Webhook", description: "An HTTP callback triggered by an event, pushing data to a specified URL in real time." },
+  { match: "rest api", display: "REST API", description: "An architectural style for designing networked applications using stateless HTTP requests." },
+  { match: "graphql", display: "GraphQL", description: "A query language and runtime for APIs that lets clients request exactly the data they need." },
+  { match: "orm", display: "ORM", description: "Object-Relational Mapping — a technique for querying and manipulating data using an object-oriented paradigm." },
+  { match: "migration", display: "Migration", description: "A versioned change to a database schema, applied and rolled back programmatically." },
+  { match: "jwt", display: "JWT", description: "JSON Web Token — a compact, URL-safe token used for authentication and information exchange." },
+  { match: "oauth", display: "OAuth", description: "An open authorization framework that lets third-party services access user data without exposing credentials." },
+  { match: "cors", display: "CORS", description: "Cross-Origin Resource Sharing — a mechanism that allows restricted resources to be requested from another domain." },
+  { match: "csrf", display: "CSRF", description: "Cross-Site Request Forgery — an attack that tricks users into performing unintended actions on authenticated sites." },
+  { match: "ssr", display: "SSR", description: "Server-Side Rendering — generating HTML on the server before sending it to the client." },
+  { match: "csr", display: "CSR", description: "Client-Side Rendering — rendering pages in the browser using JavaScript after the initial page load." },
+  { match: "ci/cd", display: "CI/CD", description: "Continuous Integration / Continuous Deployment — automating build, test, and release pipelines." },
+  { match: "docker", display: "Docker", description: "A platform for building, shipping, and running applications inside lightweight containers." },
+  { match: "kubernetes", display: "Kubernetes", description: "An orchestration system for automating deployment, scaling, and management of containerized applications." },
+  { match: "rate limiting", display: "Rate Limiting", description: "Controlling the number of requests a client can make to a service within a given time window." },
+  { match: "caching", display: "Caching", description: "Storing copies of data in a fast-access layer to reduce latency and backend load." },
+  { match: "redis", display: "Redis", description: "An in-memory data store used as a cache, message broker, and key-value database." },
+  { match: "websocket", display: "WebSocket", description: "A protocol providing full-duplex communication channels over a single TCP connection." },
+  { match: "pub/sub", display: "Pub/Sub", description: "Publish/Subscribe — a messaging pattern where senders publish messages to topics and receivers subscribe." },
+  { match: "microservices", display: "Microservices", description: "An architecture where an application is composed of small, independently deployable services." },
+  { match: "monorepo", display: "Monorepo", description: "A repository strategy where multiple projects or packages share one version-controlled codebase." },
+  { match: "dependency injection", display: "Dependency Injection", description: "A design pattern where objects receive their dependencies from an external source rather than creating them." },
+  { match: "singleton", display: "Singleton", description: "A design pattern that restricts a class to a single instance shared across the application." },
+  { match: "event loop", display: "Event Loop", description: "A programming construct that waits for and dispatches events or messages in a program." },
+  { match: "concurrency", display: "Concurrency", description: "The ability of a system to handle multiple tasks in overlapping time periods." },
+  { match: "load balancer", display: "Load Balancer", description: "A device or service that distributes incoming network traffic across multiple servers." },
+  { match: "reverse proxy", display: "Reverse Proxy", description: "A server that forwards client requests to backend servers and returns the response to the client." },
+  { match: "environment variable", display: "Environment Variable", description: "A dynamic value set outside the code that configures application behavior at runtime." },
+  { match: "idempotent", display: "Idempotent", description: "An operation that produces the same result no matter how many times it is executed." },
+];
 
 function buildConceptIndex(
   chapters: ChapterResult[],
   abstractions: Abstraction[],
 ): ConceptIndexEntry[] {
-  const conceptMap = new Map<string, { indices: Set<number>; description: string }>();
+  const conceptMap = new Map<string, { indices: Set<number>; description: string; displayName?: string }>();
 
   for (const abs of abstractions) {
     conceptMap.set(abs.name.toLowerCase(), {
       indices: new Set<number>(),
       description: abs.description.slice(0, 120),
+      displayName: abs.name,
     });
   }
 
@@ -67,15 +68,16 @@ function buildConceptIndex(
       }
     }
 
-    for (const [term, desc] of Object.entries(TECH_GLOSSARY)) {
-      if (chapterTextLower.includes(term)) {
-        const existing = conceptMap.get(term);
+    for (const entry of TECH_GLOSSARY) {
+      if (chapterTextLower.includes(entry.match)) {
+        const existing = conceptMap.get(entry.match);
         if (existing) {
           existing.indices.add(ch.index);
         } else {
-          conceptMap.set(term, {
+          conceptMap.set(entry.match, {
             indices: new Set<number>([ch.index]),
-            description: desc,
+            description: entry.description,
+            displayName: entry.display,
           });
         }
       }
@@ -96,18 +98,19 @@ function buildConceptIndex(
       conceptMap.set(key, {
         indices: new Set<number>([ch.index]),
         description: `A key concept discussed in the codebase modules.`,
+        displayName: rawTerm,
       });
     }
   }
 
   return Array.from(conceptMap.entries())
     .filter(([, v]) => v.indices.size > 0)
-    .map(([term, v]) => ({
-      term,
+    .map(([key, v]) => ({
+      term: v.displayName || key,
       moduleIndices: Array.from(v.indices).sort((a, b) => a - b),
       description: v.description,
     }))
-    .sort((a, b) => a.term.localeCompare(b.term));
+    .sort((a, b) => a.term.localeCompare(b.term, undefined, { sensitivity: "base" }));
 }
 
 function buildCodebasePassport(
