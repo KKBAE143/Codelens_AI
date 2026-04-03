@@ -112,12 +112,12 @@ artifacts-monorepo/
 - **Billing section**: Shown at top of dashboard, shows current plan, usage, next billing date, manage subscription button
 - **Upgrade prompt**: `UpgradePrompt` component shown when free user hits rate limit (429 response)
 
-## Database Schema (9 tables)
+## Database Schema (15 tables)
 
 All tables defined in `lib/db/src/schema/`:
 
 1. **users** — GitHub OAuth users + encrypted access tokens + Stripe fields (`stripe_customer_id`, `stripe_subscription_id`) + `email_notifications` boolean
-2. **courses** — Generated courses with status tracking, AI output, share tokens, `stars` (GitHub star count), `view_count` (denormalized from course_views)
+2. **courses** — Generated courses with status tracking, AI output, share tokens, `stars` (GitHub star count), `view_count` (denormalized from course_views), `skill_tags` (JSONB array of extracted skills)
 3. **organizations** — Team/enterprise orgs
 4. **organization_members** — Org membership with roles (unique on org_id+user_id)
 5. **course_assignments** — Team course assignments
@@ -125,6 +125,12 @@ All tables defined in `lib/db/src/schema/`:
 7. **webhook_registrations** — GitHub webhook registrations for auto-regeneration
 8. **sessions** — Session storage (sid, sess JSONB, expire)
 9. **generation_cache** — Generation cache (repo_url, config_hash, course_id, created_at)
+10. **learning_paths** — Structured learning paths within orgs (name, description, org_id, created_by)
+11. **learning_path_courses** — Ordered courses within a learning path (path_id, course_id, position)
+12. **learning_path_assignments** — Learning path assignments to users (path_id, user_id, due_date, completed_at)
+13. **user_skills** — Skills acquired by users from completing courses (user_id, skill, acquired_from_course_id)
+14. **mentor_assignments** — Mentor-learner pairings within orgs (org_id, mentor_user_id, learner_user_id, course_id, path_id)
+15. **org_required_skills** — Skills required by org for gap analysis (org_id, skill, role_label)
 
 Schema push: `pnpm --filter @workspace/db run push` (or `push-force`)
 Functional indexes migration: `lib/db/src/migrations/005-functional-indexes-and-viewcount-backfill.sql`
@@ -230,6 +236,21 @@ All routes in `artifacts/codelens-web/src/app/api/`:
 - `DELETE /api/org/[slug]/assignments/[id]` — Delete assignment (admin+)
 - `GET /api/org/invitations` — List pending invitations for current user
 - `POST /api/org/invitations` — Accept/decline invitation
+- `GET /api/org/[slug]/learning-paths` — List learning paths for org
+- `POST /api/org/[slug]/learning-paths` — Create learning path (admin+)
+- `GET /api/org/[slug]/learning-paths/[pathId]` — Get learning path detail with progress
+- `DELETE /api/org/[slug]/learning-paths/[pathId]` — Delete learning path (admin+)
+- `POST /api/org/[slug]/learning-paths/[pathId]/assign` — Assign path to members (admin+)
+- `GET /api/org/[slug]/skills` — Get skill gap analysis data
+- `POST /api/org/[slug]/skills` — Add required skill (admin+)
+- `DELETE /api/org/[slug]/skills` — Remove required skill (admin+)
+- `GET /api/org/[slug]/mentors` — List mentor pairings
+- `POST /api/org/[slug]/mentors` — Create mentor pairing (admin+)
+- `DELETE /api/org/[slug]/mentors` — Remove mentor pairing (admin+)
+- `GET /api/org/[slug]/export` — Export org data as CSV (admin+)
+- `GET /api/courses/[id]/certificate` — View completion certificate (requires 100% completion)
+- `GET /api/me/learning-paths` — List learning paths assigned to current user
+- `GET /api/me/mentors` — List mentor/learner relationships for current user
 
 ## Environment Variables
 
@@ -270,7 +291,7 @@ Next.js 15 App Router application. Main frontend and API routes for CodeLens AI.
   - `src/app/course/[id]/page.tsx` — full-screen course viewer (iframe, postMessage progress tracking)
   - `src/app/share/[token]/page.tsx` — public shared course viewer (no auth required)
   - `src/app/org/new/page.tsx` — create organization form
-  - `src/app/org/[slug]/page.tsx` — org dashboard (members, courses, assignments, completion tracking)
+  - `src/app/org/[slug]/page.tsx` — org dashboard (members, courses, learning paths, completion tracking, skill gap analysis, mentor pairings, CSV export)
   - `src/app/org/[slug]/settings/page.tsx` — org settings (name, Slack webhook)
 - Components: `src/components/` — Navbar, Toast, GenerationModal, RepoPickerModal, PageTransition, ClientProviders
 - Org helpers: `src/lib/org-helpers.ts` — `requireOrgMembership(slug, userId, minRole?)` RBAC helper

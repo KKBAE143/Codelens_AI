@@ -13,3 +13,7 @@ export * from "./flashcards";
 export * from "./moduleQuizScores";
 export * from "./userXpEvents";
 export * from "./userStreaks";
+export * from "./learningPaths";
+export * from "./userSkills";
+export * from "./mentorAssignments";
+export * from "./orgRequiredSkills";

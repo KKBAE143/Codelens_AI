@@ -979,6 +979,17 @@ export default function CourseViewer() {
                             <div style={{ height: "100%", width: `${progress}%`, background: progress >= 100 ? "var(--teal)" : "var(--accent)", borderRadius: 999, transition: "width 0.4s ease" }} />
                           </div>
                           <div className="v2-sidebar-progress-caption">{completedModules.length} of {totalModules} modules completed</div>
+                          {progress >= 100 && (
+                            <a
+                              href={`/api/courses/${courseId}/certificate`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="btn-primary"
+                              style={{ display: "block", textAlign: "center", textDecoration: "none", marginTop: "0.5rem", fontSize: "0.8rem", padding: "0.375rem 0.75rem" }}
+                            >
+                              View Certificate
+                            </a>
+                          )}
                         </div>
                       </div>
                       <div className="v2-sidebar-icon-toolbar">

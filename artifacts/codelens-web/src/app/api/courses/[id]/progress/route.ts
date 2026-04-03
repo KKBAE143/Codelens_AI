@@ -4,7 +4,7 @@ export const runtime = "nodejs";
 import { NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { db } from "@workspace/db";
-import { courseProgress, courses, courseAssignments, organizations, users, moduleQuizScores } from "@workspace/db/schema";
+import { courseProgress, courses, courseAssignments, organizations, users, moduleQuizScores, userSkills } from "@workspace/db/schema";
 import { eq, and, isNull } from "drizzle-orm";
 import { sendSlackNotification, courseCompletedMessage } from "@/lib/slack";
 import { sendCourseCompletionEmail, isEmailConfigured } from "@/lib/email";
@@ -222,6 +222,7 @@ export async function PATCH(
       repoName: courses.repoName,
       ownerName: courses.ownerName,
       organizationId: courses.organizationId,
+      skillTags: courses.skillTags,
     })
     .from(courses)
     .where(and(eq(courses.id, courseId), isNull(courses.deletedAt)))
@@ -290,6 +291,7 @@ export async function PATCH(
       awardXp(user.id, "course_complete", courseId).catch(() => {});
       triggerSlackCompletion(courseRecord, user).catch(() => {});
       triggerEmailCompletion(courseRecord, user).catch(() => {});
+      recordUserSkills(user.id, courseId, courseRecord.skillTags).catch(() => {});
     }
 
     return NextResponse.json({ success: true, percentComplete, completedModules });
@@ -313,6 +315,7 @@ export async function PATCH(
     awardXp(user.id, "course_complete", courseId).catch(() => {});
     triggerSlackCompletion(courseRecord, user).catch(() => {});
     triggerEmailCompletion(courseRecord, user).catch(() => {});
+    recordUserSkills(user.id, courseId, courseRecord.skillTags).catch(() => {});
   }
 
   return NextResponse.json({ success: true, percentComplete, completedModules });
@@ -378,4 +381,32 @@ async function triggerEmailCompletion(
     courseName,
     courseUrl,
   );
+}
+
+async function recordUserSkills(userId: string, courseId: string, skillTags: string[] | null) {
+  if (!skillTags || skillTags.length === 0) return;
+
+  for (const skill of skillTags) {
+    const normalizedSkill = skill.toLowerCase().trim();
+    if (!normalizedSkill) continue;
+
+    const [existing] = await db
+      .select({ id: userSkills.id })
+      .from(userSkills)
+      .where(
+        and(
+          eq(userSkills.userId, userId),
+          eq(userSkills.skill, normalizedSkill)
+        )
+      )
+      .limit(1);
+
+    if (!existing) {
+      await db.insert(userSkills).values({
+        userId,
+        skill: normalizedSkill,
+        acquiredFromCourseId: courseId,
+      });
+    }
+  }
 }

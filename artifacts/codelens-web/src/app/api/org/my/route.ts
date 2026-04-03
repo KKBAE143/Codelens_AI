@@ -15,10 +15,6 @@ export async function GET() {
     return NextResponse.json({ error: "Authentication required" }, { status: 401 });
   }
 
-  if (user.plan !== "team") {
-    return NextResponse.json({ organizations: [] });
-  }
-
   const myOrgs = await db
     .select({
       slug: organizations.slug,

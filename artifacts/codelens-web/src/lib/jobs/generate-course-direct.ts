@@ -1,5 +1,5 @@
 import { db } from "@workspace/db";
-import { courses, generationCache, users, flashcards } from "@workspace/db/schema";
+import { courses, generationCache, users, flashcards, userSkills } from "@workspace/db/schema";
 import { eq, and, gt, desc } from "drizzle-orm";
 import { extractRepo } from "../github";
 import { registerWebhook } from "../github-webhooks";
@@ -39,6 +39,57 @@ function computeConfigHash(
     customContext,
   });
   return crypto.createHash("sha256").update(payload).digest("hex");
+}
+
+function extractSkillTags(
+  extraction: { languageBreakdown: Record<string, number>; parsedPackageJson?: { dependencies: Array<{ name: string }> } },
+  abstractions: Array<{ name: string }>,
+): string[] {
+  const skills = new Set<string>();
+
+  for (const lang of Object.keys(extraction.languageBreakdown)) {
+    skills.add(lang);
+  }
+
+  const frameworkPatterns: Record<string, string> = {
+    react: "React", "react-dom": "React", next: "Next.js", vue: "Vue",
+    angular: "Angular", svelte: "Svelte", express: "Express", fastify: "Fastify",
+    "hono": "Hono", django: "Django", flask: "Flask", "spring-boot": "Spring Boot",
+    tailwindcss: "Tailwind CSS", prisma: "Prisma", drizzle: "Drizzle ORM",
+    "drizzle-orm": "Drizzle ORM", mongoose: "MongoDB", pg: "PostgreSQL",
+    redis: "Redis", graphql: "GraphQL", "apollo-server": "GraphQL",
+    docker: "Docker", kubernetes: "Kubernetes", terraform: "Terraform",
+    jest: "Jest", vitest: "Vitest", playwright: "Playwright", cypress: "Cypress",
+    stripe: "Stripe", firebase: "Firebase", supabase: "Supabase",
+    "aws-sdk": "AWS", "@aws-sdk/client-s3": "AWS S3",
+    "@tanstack/react-query": "React Query", zustand: "Zustand",
+    "socket.io": "WebSockets", trpc: "tRPC", "@trpc/server": "tRPC",
+  };
+
+  if (extraction.parsedPackageJson) {
+    for (const dep of extraction.parsedPackageJson.dependencies) {
+      const mapped = frameworkPatterns[dep.name];
+      if (mapped) skills.add(mapped);
+    }
+  }
+
+  const architectureKeywords = [
+    "API", "REST", "GraphQL", "WebSocket", "Authentication", "Authorization",
+    "Database", "Cache", "Queue", "Middleware", "Router", "ORM",
+    "State Management", "Testing", "CI/CD", "Microservices",
+  ];
+
+  for (const abs of abstractions) {
+    const name = abs.name.toLowerCase();
+    for (const kw of architectureKeywords) {
+      if (name.includes(kw.toLowerCase())) {
+        skills.add(kw);
+        break;
+      }
+    }
+  }
+
+  return [...skills].slice(0, 20);
 }
 
 async function updateProgress(
@@ -328,12 +379,15 @@ export async function generateCourseDirect(courseId: string): Promise<void> {
     const shareToken = crypto.randomBytes(16).toString("hex");
     const totalMinutes = chapters.reduce((sum, c) => sum + (c.estimatedMinutes || 8), 0);
 
+    const skillTags = extractSkillTags(extraction, abstractions);
+
     await db.update(courses).set({
       html,
       slug,
       shareToken,
       status: "completed",
       estimatedMinutes: totalMinutes,
+      skillTags,
       progress: { stage: "completed", detail: "Course generation complete!", percent: 100 },
       updatedAt: new Date(),
     }).where(eq(courses.id, courseId));

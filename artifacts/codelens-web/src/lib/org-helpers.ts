@@ -1,5 +1,5 @@
 import { db } from "@workspace/db";
-import { organizations, organizationMembers, users } from "@workspace/db/schema";
+import { organizations, organizationMembers } from "@workspace/db/schema";
 import { eq, and } from "drizzle-orm";
 
 export type OrgRole = "owner" | "admin" | "member";
@@ -32,16 +32,6 @@ export async function requireOrgMembership(
   userId: string,
   minRole?: OrgRole
 ) {
-  const [dbUser] = await db
-    .select({ plan: users.plan })
-    .from(users)
-    .where(eq(users.id, userId))
-    .limit(1);
-
-  if (!dbUser || dbUser.plan !== "team") {
-    return { error: "Team features require a Team plan", status: 403 } as const;
-  }
-
   const org = await getOrgBySlug(slug);
   if (!org) return { error: "Organization not found", status: 404 } as const;
 

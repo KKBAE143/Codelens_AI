@@ -57,6 +57,7 @@ export const courses = pgTable("courses", {
     previousVersionId: string;
     detectedAt: string;
   }>(),
+  skillTags: jsonb("skill_tags").$type<string[]>(),
   errorMessage: text("error_message"),
   stars: integer("stars"),
   viewCount: integer("view_count").notNull().default(0),

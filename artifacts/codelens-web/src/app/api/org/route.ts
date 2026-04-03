@@ -34,9 +34,9 @@ export async function POST(request: Request) {
     .where(eq(users.id, user.id))
     .limit(1);
 
-  if (!dbUser || dbUser.plan !== "team") {
+  if (!dbUser || (dbUser.plan !== "team" && dbUser.plan !== "pro")) {
     return NextResponse.json(
-      { error: "Team features require a Team plan. Upgrade to create organizations." },
+      { error: "Creating organizations requires a Pro or Team plan. Upgrade to get started." },
       { status: 403 }
     );
   }

@@ -100,6 +100,78 @@ function DashboardTeamPanel() {
   );
 }
 
+function DashboardLearningPaths() {
+  const [paths, setPaths] = useState<Array<{
+    id: string;
+    name: string;
+    description: string | null;
+    organizationName: string;
+    dueDate: string | null;
+    totalPercent: number;
+    courses: Array<{ courseId: string; repoName: string; ownerName: string; percentComplete: number }>;
+  }>>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/me/learning-paths", { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : { learningPaths: [] }))
+      .then((data) => setPaths(data.learningPaths || []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <div className="skeleton" style={{ height: 80, borderRadius: "var(--radius-md)", marginBottom: "1rem" }} />;
+  if (paths.length === 0) return null;
+
+  return (
+    <div style={{ marginBottom: "0.5rem" }}>
+      <h3 style={{ fontFamily: "var(--font-heading)", fontSize: "1rem", fontWeight: 600, marginBottom: "0.75rem" }}>Learning Paths</h3>
+      <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+        {paths.map((path) => {
+          const isOverdue = path.dueDate && new Date(path.dueDate) < new Date() && path.totalPercent < 100;
+          return (
+            <div key={path.id} className="card" style={{ padding: "1rem", border: isOverdue ? "1px solid var(--error)" : undefined }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+                <div>
+                  <span style={{ fontWeight: 600, fontSize: "0.9rem" }}>{path.name}</span>
+                  <span style={{ fontSize: "0.75rem", color: "var(--text-tertiary)", marginLeft: "0.5rem" }}>from {path.organizationName}</span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  {path.dueDate && (
+                    <span style={{ fontSize: "0.75rem", color: isOverdue ? "var(--error)" : "var(--text-secondary)" }}>
+                      Due {new Date(path.dueDate).toLocaleDateString()}
+                    </span>
+                  )}
+                  <span style={{ fontWeight: 700, fontSize: "0.85rem", color: path.totalPercent >= 100 ? "var(--teal)" : "var(--text-primary)" }}>
+                    {path.totalPercent}%
+                  </span>
+                </div>
+              </div>
+              <div style={{ width: "100%", height: 4, background: "var(--bg-secondary)", borderRadius: 2, marginBottom: "0.5rem" }}>
+                <div style={{ width: `${Math.min(path.totalPercent, 100)}%`, height: "100%", borderRadius: 2, background: path.totalPercent >= 100 ? "var(--teal)" : "var(--accent)", transition: "width 0.3s" }} />
+              </div>
+              <div style={{ display: "flex", gap: "0.25rem", flexWrap: "wrap" }}>
+                {path.courses.map((c, i) => (
+                  <Link key={c.courseId} href={`/course/${c.courseId}`} style={{ textDecoration: "none" }}>
+                    <span className="badge" style={{
+                      background: c.percentComplete >= 100 ? "var(--teal-light)" : c.percentComplete > 0 ? "#FFF8E1" : "var(--bg-secondary)",
+                      color: c.percentComplete >= 100 ? "var(--teal)" : c.percentComplete > 0 ? "var(--warning)" : "var(--text-secondary)",
+                      fontSize: "0.7rem",
+                      cursor: "pointer",
+                    }}>
+                      {i + 1}. {c.ownerName}/{c.repoName} ({c.percentComplete}%)
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 interface ChangesSince {
   summary: string;
   changedFiles: string[];
@@ -562,8 +634,10 @@ function Dashboard() {
         </button>
       </div>
 
-      {activeTab === "assigned" && myAssignments.length > 0 && (
+      {activeTab === "assigned" && (
         <div id="panel-assigned" role="tabpanel" aria-labelledby="tab-assigned" style={{ marginBottom: "2rem" }}>
+          <DashboardLearningPaths />
+          {myAssignments.length > 0 && <h3 style={{ fontFamily: "var(--font-heading)", fontSize: "1rem", fontWeight: 600, margin: "1.5rem 0 0.75rem" }}>Direct Assignments</h3>}
           <div
             style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}
           >

@@ -15,10 +15,6 @@ export async function GET() {
     return NextResponse.json({ error: "Authentication required" }, { status: 401 });
   }
 
-  if (user.plan !== "team") {
-    return NextResponse.json({ invitations: [] });
-  }
-
   const pendingInvitations = await db
     .select({
       id: organizationMembers.id,
@@ -47,10 +43,6 @@ export async function POST(request: Request) {
     user = await requireAuth();
   } catch {
     return NextResponse.json({ error: "Authentication required" }, { status: 401 });
-  }
-
-  if (user.plan !== "team") {
-    return NextResponse.json({ error: "Team plan required to join organizations" }, { status: 403 });
   }
 
   let body;
