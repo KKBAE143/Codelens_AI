@@ -103,7 +103,19 @@ interface MentorData {
   learner: { displayName: string; username: string; avatarUrl: string | null } | null;
 }
 
-type TabKey = "members" | "courses" | "completion" | "paths" | "skills" | "mentors";
+interface LeaderboardEntry {
+  userId: string;
+  displayName: string;
+  username: string;
+  avatarUrl: string | null;
+  weeklyXp: number;
+  totalXp: number;
+  level: number;
+  levelName: string;
+  currentStreak: number;
+}
+
+type TabKey = "members" | "courses" | "completion" | "paths" | "skills" | "mentors" | "leaderboard";
 
 const ROLE_COLORS: Record<string, { bg: string; color: string }> = {
   owner: { bg: "var(--accent-light)", color: "var(--accent)" },
@@ -189,6 +201,15 @@ export default function OrgDashboard() {
       return res.ok ? res.json() : { mentorAssignments: [] };
     },
     enabled: isAuthenticated && !!slug && activeTab === "mentors",
+  });
+
+  const { data: leaderboardData } = useQuery<{ leaderboard: LeaderboardEntry[] }>({
+    queryKey: ["org-leaderboard", slug],
+    queryFn: async () => {
+      const res = await fetch(`/api/org/${slug}/leaderboard`, { credentials: "include" });
+      return res.ok ? res.json() : { leaderboard: [] };
+    },
+    enabled: isAuthenticated && !!slug && activeTab === "leaderboard",
   });
 
   const inviteMutation = useMutation({
@@ -452,6 +473,7 @@ export default function OrgDashboard() {
     { key: "completion", label: "Completion" },
     { key: "skills", label: "Skill Gap" },
     { key: "mentors", label: `Mentors (${mentorsList.length})` },
+    { key: "leaderboard", label: "Leaderboard" },
   ];
 
   return (
@@ -590,6 +612,10 @@ export default function OrgDashboard() {
             if (confirm("Remove this mentor pairing?")) removeMentorMutation.mutate(id);
           }}
         />
+      )}
+
+      {activeTab === "leaderboard" && (
+        <LeaderboardTab entries={leaderboardData?.leaderboard ?? []} />
       )}
 
       {showInviteModal && (
@@ -1125,6 +1151,59 @@ function SkillsTab({ skillsData, isAdmin, newSkill, newSkillRole, onNewSkillChan
               </span>
             ))}
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LeaderboardTab({ entries }: { entries: LeaderboardEntry[] }) {
+  const medals = ["🥇", "🥈", "🥉"];
+  return (
+    <div>
+      <h3 style={{ fontFamily: "var(--font-heading)", fontSize: "1rem", fontWeight: 700, marginBottom: "0.75rem" }}>
+        This Week's XP Rankings
+      </h3>
+      {entries.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "3rem", color: "var(--text-secondary)" }}>
+          No activity this week yet.
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+          {entries.map((entry, idx) => (
+            <div
+              key={entry.userId}
+              className="card"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.75rem",
+                padding: "0.75rem 1rem",
+                borderColor: idx < 3 ? "var(--accent)" : undefined,
+                background: idx === 0 ? "rgba(99,102,241,0.04)" : undefined,
+              }}
+            >
+              <span style={{ fontSize: "1.1rem", width: "2rem", textAlign: "center", fontWeight: 700 }}>
+                {idx < 3 ? medals[idx] : `#${idx + 1}`}
+              </span>
+              <Avatar src={entry.avatarUrl} name={entry.displayName} size={32} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 600, fontSize: "0.85rem" }}>{entry.displayName}</div>
+                <div style={{ fontSize: "0.72rem", color: "var(--text-secondary)" }}>
+                  Lv.{entry.level} {entry.levelName}
+                  {entry.currentStreak > 0 && ` · 🔥${entry.currentStreak}`}
+                </div>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontFamily: "var(--font-heading)", fontWeight: 800, fontSize: "1rem", color: "var(--accent)" }}>
+                  +{entry.weeklyXp}
+                </div>
+                <div style={{ fontSize: "0.68rem", color: "var(--text-secondary)" }}>
+                  {entry.totalXp.toLocaleString()} total
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>

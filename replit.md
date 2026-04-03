@@ -137,6 +137,21 @@ Schema push: `pnpm --filter @workspace/db run push` (or `push-force`)
 Functional indexes migration: `lib/db/src/migrations/005-functional-indexes-and-viewcount-backfill.sql`
 Seed Stripe products: `pnpm --filter @workspace/scripts exec tsx src/seed-products.ts`
 
+## XP & Gamification System
+
+- **XP Events**: module_read (10), quiz_pass (25), flashcard_session (15), course_complete (100) — defined in `xp-constants.ts`
+- **Levels**: 50-level exponential curve (`50 * level^2.2`), each level has a name (e.g., "Apprentice Dev", "Senior Dev", "Grandmaster"). Constants in `xp-constants.ts`
+- **Streaks**: Timezone-aware (uses `users.timezone` column, `Intl.DateTimeFormat` en-CA format). Streak shield auto-activates at 7+ days, forgives one missed day.
+- **Atomic XP**: All XP award + streak update happens in a single DB transaction in `xp.ts` — no race conditions on concurrent calls.
+- **Badges**: 8 milestone badges in `user_badges` table — first_course, streak_7, streak_30, quiz_master, xp_1000, xp_10000, module_50, course_5. Checked/awarded after each XP event.
+- **Quiz idempotency**: `hasQuizXpBeenAwarded()` checks `user_xp_events` for existing quiz_pass with same courseId + moduleIndex before awarding.
+- **Real-time updates**: XpStreakBadge uses React Query (`queryKey: ["user-stats"]`), invalidated after progress PATCH and quiz score POST.
+- **Level-up modal**: `LevelUpModal.tsx` — animated celebration shown when crossing level boundary, auto-dismisses after 4s.
+- **Navbar popover**: XpStreakBadge expands on click to show level, progress bar, today's XP, streak, shield status.
+- **Stats page**: `/profile/stats` — level progress panel, badge shelf (locked/unlocked), 365-day GitHub-style heatmap, XP breakdown by category.
+- **Org leaderboard**: `/api/org/[slug]/leaderboard` — weekly XP rankings with level + streak, rendered as "Leaderboard" tab on org dashboard.
+- **DB tables**: `user_xp_events` (with `module_index` for idempotency), `user_streaks` (with `streak_shield_active`, `streak_shield_used_at`), `user_badges` (unique per user+badge_key)
+
 ## Auth Architecture
 
 - **GitHub OAuth**: Sole sign-in method. Login redirects to GitHub OAuth with scopes `repo,read:org,admin:repo_hook`. Callback exchanges code for access token, fetches user profile, upserts user in DB, stores encrypted GitHub token, creates session.

@@ -9,6 +9,7 @@ export const userXpEvents = pgTable("user_xp_events", {
   eventType: text("event_type", {
     enum: ["module_read", "quiz_pass", "flashcard_session", "course_complete"],
   }).notNull(),
+  moduleIndex: integer("module_index"),
   points: integer("points").notNull().default(0),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (table) => [

@@ -6,7 +6,7 @@ import { requireAuth } from "@/lib/auth";
 import { db } from "@workspace/db";
 import { moduleQuizScores, courses, courseAssignments } from "@workspace/db/schema";
 import { eq, and, isNull } from "drizzle-orm";
-import { awardXp } from "@/lib/xp";
+import { awardXp, hasQuizXpBeenAwarded } from "@/lib/xp";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -96,8 +96,12 @@ export async function POST(
       completedAt: now,
       updatedAt: now,
     }).where(eq(moduleQuizScores.id, existing.id));
-    if (isNewBest && finalScore >= 80) {
-      awardXp(user.id, "quiz_pass", courseId).catch(() => {});
+    if (finalScore >= 80) {
+      hasQuizXpBeenAwarded(user.id, courseId, moduleIndex)
+        .then((already) => {
+          if (!already) awardXp(user.id, "quiz_pass", courseId, moduleIndex);
+        })
+        .catch(() => {});
     }
     return NextResponse.json({ success: true, score: finalScore, isHighScore: isNewBest });
   }
@@ -114,7 +118,7 @@ export async function POST(
   });
 
   if (score >= 80) {
-    awardXp(user.id, "quiz_pass", courseId).catch(() => {});
+    awardXp(user.id, "quiz_pass", courseId, moduleIndex).catch(() => {});
   }
 
   return NextResponse.json({ success: true, score });

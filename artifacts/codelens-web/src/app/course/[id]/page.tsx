@@ -657,10 +657,12 @@ export default function CourseViewer() {
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({ moduleIndex, totalModules: moduleCountRef.current }),
-      }).catch(() => {});
+      })
+        .then(() => queryClient.invalidateQueries({ queryKey: ["user-stats"] }))
+        .catch(() => {});
       return updated;
     });
-  }, [courseId]);
+  }, [courseId, queryClient]);
 
   const handleCopyShare = () => {
     if (!course) return;

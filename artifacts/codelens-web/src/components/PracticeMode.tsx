@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import type { V2QuizBlock } from "@/lib/course-types";
 
 interface PracticeModeProps {
@@ -50,6 +51,7 @@ function XCircle() {
 type Mode = "quiz" | "summary" | "wrong-answers";
 
 export function PracticeMode({ courseId, moduleIndex, moduleTitle, quizBlocks, onClose, onScoreSaved }: PracticeModeProps) {
+  const queryClient = useQueryClient();
   const [mode, setMode] = useState<Mode>("quiz");
   const [questionOrder, setQuestionOrder] = useState<number[]>(() => quizBlocks.map((_, i) => i));
   const [isFullRun, setIsFullRun] = useState(true);
@@ -80,10 +82,11 @@ export function PracticeMode({ courseId, moduleIndex, moduleTitle, quizBlocks, o
           if (data?.score !== undefined && onScoreSaved) {
             onScoreSaved(moduleIndex, data.score);
           }
+          queryClient.invalidateQueries({ queryKey: ["user-stats"] });
         })
         .catch(() => {});
     }
-  }, [mode, scoreSaved, isFullRun, courseId, moduleIndex, totalQ, correct, onScoreSaved]);
+  }, [mode, scoreSaved, isFullRun, courseId, moduleIndex, totalQ, correct, onScoreSaved, queryClient]);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (mode !== "quiz") return;

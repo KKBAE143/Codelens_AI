@@ -5677,6 +5677,309 @@ a.v2-code-filepath:hover {
   color: var(--accent);
 }
 
+.xp-shield-icon {
+  font-size: 0.7rem;
+  margin-left: 0.1rem;
+}
+
+.xp-badge-wrapper {
+  position: relative;
+}
+
+.xp-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 240px;
+  background: var(--bg-primary);
+  border: 1.5px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  padding: 1rem;
+  z-index: 100;
+  animation: xp-popover-in 0.15s ease;
+}
+
+@keyframes xp-popover-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.xp-popover-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.xp-popover-level {
+  font-family: var(--font-heading);
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--accent);
+}
+
+.xp-popover-level-name {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.xp-popover-progress-wrap {
+  margin-bottom: 0.75rem;
+}
+
+.xp-popover-progress-bar {
+  height: 6px;
+  background: var(--bg-tertiary);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 0.3rem;
+}
+
+.xp-popover-progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+
+.xp-popover-progress-text {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+}
+
+.xp-popover-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.xp-popover-stat {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.xp-popover-stat-label {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.xp-popover-stat-value {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* ============================================================
+   Level-Up Modal
+   ============================================================ */
+.level-up-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(4px);
+}
+
+.level-up-modal {
+  position: relative;
+  text-align: center;
+  background: var(--bg-primary);
+  border: 2px solid var(--accent);
+  border-radius: var(--radius-lg);
+  padding: 2.5rem 2rem;
+  max-width: 340px;
+  width: 90%;
+  overflow: hidden;
+}
+
+.level-up-glow {
+  position: absolute;
+  top: -60px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 200px;
+  height: 200px;
+  background: radial-gradient(circle, rgba(99,102,241,0.3), transparent 70%);
+  pointer-events: none;
+}
+
+.level-up-badge {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 1rem;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), #818CF8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 20px rgba(99,102,241,0.4);
+  animation: level-up-pulse 1.5s ease infinite;
+}
+
+@keyframes level-up-pulse {
+  0%, 100% { box-shadow: 0 4px 20px rgba(99,102,241,0.4); }
+  50% { box-shadow: 0 4px 30px rgba(99,102,241,0.6); }
+}
+
+.level-up-badge-number {
+  font-family: var(--font-heading);
+  font-size: 1.5rem;
+  font-weight: 900;
+  color: white;
+}
+
+.level-up-title {
+  font-family: var(--font-heading);
+  font-size: 1.5rem;
+  font-weight: 900;
+  color: var(--accent);
+  margin: 0 0 0.375rem;
+}
+
+.level-up-subtitle {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  margin: 0 0 0.25rem;
+}
+
+.level-up-name {
+  font-family: var(--font-heading);
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 1.25rem;
+}
+
+.level-up-btn {
+  min-width: 120px;
+}
+
+/* ============================================================
+   Badge Shelf
+   ============================================================ */
+.badge-shelf {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.badge-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.75rem;
+  background: var(--bg-secondary);
+  border: 1.5px solid var(--border-color);
+  border-radius: var(--radius-md);
+  min-width: 90px;
+  text-align: center;
+  transition: border-color 0.15s, transform 0.15s;
+}
+
+.badge-item:hover {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+}
+
+.badge-item-icon {
+  font-size: 1.5rem;
+}
+
+.badge-item-name {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.badge-item-date {
+  font-size: 0.6rem;
+  color: var(--text-secondary);
+}
+
+.badge-item-locked {
+  opacity: 0.35;
+  filter: grayscale(1);
+}
+
+/* ============================================================
+   Level Progress Section
+   ============================================================ */
+.level-progress-panel {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  padding: 1.25rem;
+  background: var(--bg-secondary);
+  border: 1.5px solid var(--border-color);
+  border-radius: var(--radius-md);
+  margin-bottom: 2rem;
+}
+
+.level-progress-badge {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), #818CF8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.level-progress-badge-num {
+  font-family: var(--font-heading);
+  font-size: 1.25rem;
+  font-weight: 900;
+  color: white;
+}
+
+.level-progress-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.level-progress-title {
+  font-family: var(--font-heading);
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 0.125rem;
+}
+
+.level-progress-name {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.5rem;
+}
+
+.level-progress-bar {
+  height: 8px;
+  background: var(--bg-tertiary);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 0.25rem;
+}
+
+.level-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), #818CF8);
+  border-radius: 4px;
+  transition: width 0.6s ease;
+}
+
+.level-progress-text {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+}
+
 /* ============================================================
    Profile Stats Page
    ============================================================ */

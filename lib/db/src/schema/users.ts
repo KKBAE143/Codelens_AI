@@ -16,6 +16,7 @@ export const users = pgTable("users", {
   githubConnectedAt: timestamp("github_connected_at"),
   stripeCustomerId: text("stripe_customer_id"),
   stripeSubscriptionId: text("stripe_subscription_id"),
+  timezone: text("timezone").default("UTC"),
   emailNotifications: boolean("email_notifications").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),

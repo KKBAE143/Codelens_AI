@@ -17,3 +17,4 @@ export * from "./learningPaths";
 export * from "./userSkills";
 export * from "./mentorAssignments";
 export * from "./orgRequiredSkills";
+export * from "./userBadges";
