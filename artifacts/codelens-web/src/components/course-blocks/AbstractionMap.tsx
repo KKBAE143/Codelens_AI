@@ -27,7 +27,10 @@ export function AbstractionMap({ graph, onModuleClick, modules = [] }: Abstracti
     () =>
       [...graph.nodes]
         .map((node) => {
-          const matchedModuleIndex = modules.findIndex((module) => {
+          const exactModuleIndex = modules.findIndex(
+            (module) => module.index === node.moduleIndex,
+          );
+          const matchedModuleIndex = exactModuleIndex >= 0 ? exactModuleIndex : modules.findIndex((module) => {
             const moduleTitle = module.title.trim().toLowerCase();
             const nodeLabel = node.label.trim().toLowerCase();
             return moduleTitle === nodeLabel || moduleTitle.includes(nodeLabel) || nodeLabel.includes(moduleTitle);
@@ -35,12 +38,17 @@ export function AbstractionMap({ graph, onModuleClick, modules = [] }: Abstracti
 
           return {
             ...node,
-            moduleIndex: matchedModuleIndex >= 0 ? matchedModuleIndex : node.moduleIndex,
+            moduleIndex: matchedModuleIndex >= 0 ? matchedModuleIndex : Math.max(node.moduleIndex, 0),
             description: node.description || (matchedModuleIndex >= 0 ? modules[matchedModuleIndex]?.learningObjective : undefined),
           };
         })
         .sort((a, b) => a.moduleIndex - b.moduleIndex || a.label.localeCompare(b.label)),
     [graph.nodes, modules],
+  );
+
+  const moduleSerialByNodeId = useMemo(
+    () => new Map(nodes.map((node, index) => [node.id, index + 1])),
+    [nodes],
   );
 
   const nodeMap = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
@@ -88,6 +96,9 @@ export function AbstractionMap({ graph, onModuleClick, modules = [] }: Abstracti
   }, [filteredNodes, selectedNodeId]);
 
   const selectedNode = selectedNodeId ? nodeMap.get(selectedNodeId) ?? null : null;
+  const selectedNodeModuleSerial = selectedNode
+    ? moduleSerialByNodeId.get(selectedNode.id) ?? selectedNode.moduleIndex + 1
+    : null;
 
   const selectedRelationships = useMemo(() => {
     if (!selectedNodeId) return relationships.slice(0, 10);
@@ -153,6 +164,7 @@ export function AbstractionMap({ graph, onModuleClick, modules = [] }: Abstracti
         <div className="v2-abstraction-grid" role="list" aria-label="Abstraction concepts">
           {filteredNodes.map((node) => {
             const isSelected = node.id === selectedNodeId;
+            const moduleSerial = moduleSerialByNodeId.get(node.id) ?? node.moduleIndex + 1;
             return (
               <button
                 key={node.id}
@@ -162,7 +174,7 @@ export function AbstractionMap({ graph, onModuleClick, modules = [] }: Abstracti
                 aria-pressed={isSelected}
               >
                 <span className="v2-abstraction-card-topline">
-                  <span className="v2-abstraction-card-module">Module {node.moduleIndex + 1}</span>
+                  <span className="v2-abstraction-card-module">Module {moduleSerial}</span>
                   <span className="v2-abstraction-card-count">{node.connections} links</span>
                 </span>
                 <span className="v2-abstraction-card-title">{node.label}</span>
@@ -194,7 +206,7 @@ export function AbstractionMap({ graph, onModuleClick, modules = [] }: Abstracti
                   className="v2-abstraction-open-btn"
                   onClick={() => onModuleClick(selectedNode.moduleIndex)}
                 >
-                  Open Module {selectedNode.moduleIndex + 1}
+                  Open Module {selectedNodeModuleSerial}
                 </button>
               </div>
 

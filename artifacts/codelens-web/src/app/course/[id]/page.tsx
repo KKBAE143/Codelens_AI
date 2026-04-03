@@ -13,6 +13,7 @@ import { FlashcardReview, FlashcardDueBanner } from "@/components/FlashcardRevie
 import { PracticeMode } from "@/components/PracticeMode";
 import { CourseWizard } from "@/components/CourseWizard";
 import {
+  normalizeV2CourseData,
   parseV2Course,
   type V2Block,
   type V2CourseData,
@@ -122,13 +123,15 @@ function V2ModuleSidebar({
   activeIndex,
   completedModules,
   quizScores,
+  showOverview,
   onSelect,
 }: {
   modules: V2Module[];
-  activeIndex: number;
+  activeIndex: number | null;
   completedModules: number[];
   quizScores: Map<number, number>;
-  onSelect: (i: number) => void;
+  showOverview?: boolean;
+  onSelect: (i: number | null) => void;
 }) {
   return (
     <nav className="v2-module-nav" aria-label="Course modules">
@@ -142,6 +145,29 @@ function V2ModuleSidebar({
         </div>
       </div>
       <div className="v2-module-nav-list">
+      {showOverview && (
+        <button
+          className={`v2-module-nav-item ${activeIndex === null ? "v2-module-nav-active" : ""}`}
+          onClick={() => onSelect(null)}
+          aria-current={activeIndex === null ? "step" : undefined}
+          aria-label="Overview canvas"
+        >
+          <div className="v2-module-nav-marker-wrap">
+            <ProgressRing percent={activeIndex === null ? 50 : 0} size={24} stroke={2.5} />
+            {modules.length > 0 && <span className="v2-module-nav-connector" aria-hidden="true" />}
+          </div>
+          <div className="v2-module-nav-text">
+            <span className="v2-module-nav-label">Overview</span>
+            <span className="v2-module-nav-title">Knowledge graph & abstraction map</span>
+            <span className="v2-module-nav-time">Separate course canvas</span>
+          </div>
+          <div className="v2-module-nav-actions">
+            <span className={`v2-module-nav-state ${activeIndex === null ? "is-active" : ""}`}>
+              {activeIndex === null ? "Current" : "Open"}
+            </span>
+          </div>
+        </button>
+      )}
       {modules.map((mod, i) => {
         const isActive = i === activeIndex;
         const isCompleted = completedModules.includes(i);
@@ -207,6 +233,7 @@ function V2ModuleContent({
   onPrev,
   onNext,
   onPractice,
+  hasOverview,
   doneExercises,
   onExerciseDone,
 }: {
@@ -221,6 +248,7 @@ function V2ModuleContent({
   onPrev: () => void;
   onNext: () => void;
   onPractice: () => void;
+  hasOverview: boolean;
   doneExercises?: Record<string, boolean>;
   onExerciseDone?: (key: string, done: boolean) => void;
 }) {
@@ -304,7 +332,7 @@ function V2ModuleContent({
         <button
           className="v2-nav-btn"
           onClick={onPrev}
-          disabled={moduleIndex === 0}
+          disabled={moduleIndex === 0 && !hasOverview}
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="15 18 9 12 15 6" />
@@ -535,13 +563,14 @@ export default function CourseViewer() {
   const [showWhatsNew, setShowWhatsNew] = useState(false);
   const [showWizard, setShowWizard] = useState(false);
   const [doneExercises, setDoneExercises] = useState<Record<string, boolean>>({});
-  const [activeModuleIndex, setActiveModuleIndex] = useState(() => {
+  const [activeModuleIndex, setActiveModuleIndex] = useState<number | null>(() => {
     if (typeof window !== "undefined") {
       const hash = window.location.hash;
+      if (hash === "#overview") return null;
       const match = hash.match(/^#module-(\d+)$/);
       if (match) return Math.max(0, parseInt(match[1], 10) - 1);
     }
-    return 0;
+    return null;
   });
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const moduleCountRef = useRef(0);
@@ -565,7 +594,7 @@ export default function CourseViewer() {
   const webhookInfo = data?.webhook ?? null;
 
   const v2Data: V2CourseData | null = useMemo(() => {
-    if (course?.v2Data) return course.v2Data;
+    if (course?.v2Data) return normalizeV2CourseData(course.v2Data);
     if (!course?.html) return null;
     return parseV2Course(course.html);
   }, [course?.v2Data, course?.html]);
@@ -672,16 +701,21 @@ export default function CourseViewer() {
   useEffect(() => {
     if (!v2Data) return;
     const totalMods = v2Data.totalModules;
+    const hasOverview = !!v2Data.overviewGraph;
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) return;
       if (e.key === "j" || e.key === "ArrowDown") {
         e.preventDefault();
-        setActiveModuleIndex((prev) => Math.min(totalMods - 1, prev + 1));
+        setActiveModuleIndex((prev) => prev === null ? 0 : Math.min(totalMods - 1, prev + 1));
         mainScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
       } else if (e.key === "k" || e.key === "ArrowUp") {
         e.preventDefault();
-        setActiveModuleIndex((prev) => Math.max(0, prev - 1));
+        setActiveModuleIndex((prev) => {
+          if (prev === null) return null;
+          if (prev === 0) return hasOverview ? null : 0;
+          return prev - 1;
+        });
         mainScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
       }
     };
@@ -691,9 +725,14 @@ export default function CourseViewer() {
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      window.history.replaceState(null, "", `#module-${activeModuleIndex + 1}`);
+      window.history.replaceState(null, "", activeModuleIndex === null ? "#overview" : `#module-${activeModuleIndex + 1}`);
     }
   }, [activeModuleIndex]);
+
+  useEffect(() => {
+    if (v2Data?.overviewGraph) return;
+    if (activeModuleIndex === null) setActiveModuleIndex(0);
+  }, [activeModuleIndex, v2Data?.overviewGraph]);
 
   const markModuleComplete = useCallback((moduleIndex: number) => {
     setCompletedModules((prev) => {
@@ -761,7 +800,7 @@ export default function CourseViewer() {
     }
   };
 
-  const handleModuleSelect = (i: number) => {
+  const handleModuleSelect = (i: number | null) => {
     setActiveModuleIndex(i);
     setMobileMenuOpen(false);
     mainScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
@@ -1040,6 +1079,7 @@ export default function CourseViewer() {
                   activeIndex={activeModuleIndex}
                   completedModules={completedModules}
                   quizScores={quizScores}
+                  showOverview={!!v2Data.overviewGraph}
                   onSelect={handleModuleSelect}
                 />
 
@@ -1144,6 +1184,7 @@ export default function CourseViewer() {
                     activeIndex={activeModuleIndex}
                     completedModules={completedModules}
                     quizScores={quizScores}
+                    showOverview={!!v2Data.overviewGraph}
                     onSelect={handleModuleSelect}
                   />
                 </aside>
@@ -1152,7 +1193,7 @@ export default function CourseViewer() {
 
             <div ref={mainScrollRef} className="v2-main-scroll">
               <ErrorBoundary>
-              {activeModuleIndex === 0 && v2Data.overviewGraph && (
+              {activeModuleIndex === null && v2Data.overviewGraph && (
                 <div className="v2-overview-section">
                   <div className="v2-overview-tabs" role="tablist" aria-label="Overview visualization tabs">
                     <button
@@ -1222,7 +1263,7 @@ export default function CourseViewer() {
                   )}
                 </div>
               )}
-              {v2Data.modules[activeModuleIndex] && (
+              {activeModuleIndex !== null && v2Data.modules[activeModuleIndex] && (
                 <V2ModuleContent
                   module={v2Data.modules[activeModuleIndex]}
                   moduleIndex={activeModuleIndex}
@@ -1232,9 +1273,10 @@ export default function CourseViewer() {
                   isCompleted={completedModules.includes(activeModuleIndex)}
                   quizScore={quizScores.get(activeModuleIndex)}
                   onComplete={() => markModuleComplete(activeModuleIndex)}
-                  onPrev={() => handleModuleSelect(Math.max(0, activeModuleIndex - 1))}
+                  onPrev={() => handleModuleSelect(activeModuleIndex === 0 ? (v2Data.overviewGraph ? null : 0) : activeModuleIndex - 1)}
                   onNext={() => handleModuleSelect(Math.min(v2Data.totalModules - 1, activeModuleIndex + 1))}
                   onPractice={() => setPracticeModuleIndex(activeModuleIndex)}
+                  hasOverview={!!v2Data.overviewGraph}
                 />
               )}
               </ErrorBoundary>

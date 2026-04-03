@@ -150,6 +150,18 @@ export interface V2CourseData {
   modules: V2Module[];
 }
 
+export function normalizeV2CourseData(data: V2CourseData): V2CourseData {
+  const modules = [...data.modules].sort(
+    (a, b) => a.index - b.index || a.title.localeCompare(b.title),
+  );
+
+  return {
+    ...data,
+    totalModules: modules.length,
+    modules,
+  };
+}
+
 export const V2_PREFIX = "__codelens_v2__";
 
 export function isV2Course(html: string): boolean {
@@ -177,7 +189,7 @@ export function parseV2Course(html: string): V2CourseData | null {
         return null;
       }
     }
-    return data as V2CourseData;
+    return normalizeV2CourseData(data as V2CourseData);
   } catch {
     return null;
   }
