@@ -1047,7 +1047,7 @@ export async function extractRepo(
     ...manifestFileNames,
     "dockerfile", "docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml",
   ]);
-  const envPattern = /^\.env\.(example|sample|local|development|dev|template)$/i;
+  const envPattern = /^\.env(\..+)?$/i;
 
   const unfetchedSetupFiles = allFiles.filter(f => {
     const name = (f.path.split("/").pop() || "").toLowerCase();
@@ -1081,7 +1081,7 @@ export async function extractRepo(
     if (name === "package.json" && !f.path.includes("node_modules") && !parsedPackageJson) {
       parsedPackageJson = parsePackageJson(f.content);
     }
-    if (/^\.env\.(example|sample|local|development|dev|template)$/i.test(name) || name === ".env.example" || name === ".env.sample") {
+    if (/^\.env(\..+)?$/i.test(name) && !name.endsWith(".enc") && !name.endsWith(".gpg")) {
       if (!parsedEnvExample) {
         parsedEnvExample = parseEnvExample(f.content);
       } else {
