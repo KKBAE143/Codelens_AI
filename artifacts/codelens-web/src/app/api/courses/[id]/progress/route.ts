@@ -284,17 +284,32 @@ export async function PATCH(
       })
       .where(eq(courseProgress.id, existing.id));
 
+    let xpResult = null;
     if (isNewModule) {
-      awardXp(user.id, "module_read", courseId).catch(() => {});
+      try {
+        xpResult = await awardXp(user.id, "module_read", courseId);
+      } catch {}
     }
     if (percentComplete >= 100 && !existing.completedAt) {
-      awardXp(user.id, "course_complete", courseId).catch(() => {});
+      try {
+        xpResult = await awardXp(user.id, "course_complete", courseId);
+      } catch {}
       triggerSlackCompletion(courseRecord, user).catch(() => {});
       triggerEmailCompletion(courseRecord, user).catch(() => {});
       recordUserSkills(user.id, courseId, courseRecord.skillTags).catch(() => {});
     }
 
-    return NextResponse.json({ success: true, percentComplete, completedModules });
+    return NextResponse.json({
+      success: true,
+      percentComplete,
+      completedModules,
+      ...(xpResult ? {
+        leveledUp: xpResult.leveledUp,
+        newLevel: xpResult.newLevel,
+        newLevelName: xpResult.newLevelName,
+        newBadges: xpResult.newBadges,
+      } : {}),
+    });
   }
 
   const completedModules = [moduleIndex];
@@ -310,15 +325,30 @@ export async function PATCH(
     completedAt: isCompleted ? new Date() : null,
   });
 
-  awardXp(user.id, "module_read", courseId).catch(() => {});
+  let xpResult = null;
+  try {
+    xpResult = await awardXp(user.id, "module_read", courseId);
+  } catch {}
   if (isCompleted) {
-    awardXp(user.id, "course_complete", courseId).catch(() => {});
+    try {
+      xpResult = await awardXp(user.id, "course_complete", courseId);
+    } catch {}
     triggerSlackCompletion(courseRecord, user).catch(() => {});
     triggerEmailCompletion(courseRecord, user).catch(() => {});
     recordUserSkills(user.id, courseId, courseRecord.skillTags).catch(() => {});
   }
 
-  return NextResponse.json({ success: true, percentComplete, completedModules });
+  return NextResponse.json({
+    success: true,
+    percentComplete,
+    completedModules,
+    ...(xpResult ? {
+      leveledUp: xpResult.leveledUp,
+      newLevel: xpResult.newLevel,
+      newLevelName: xpResult.newLevelName,
+      newBadges: xpResult.newBadges,
+    } : {}),
+  });
 }
 
 async function triggerSlackCompletion(

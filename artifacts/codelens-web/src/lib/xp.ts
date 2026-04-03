@@ -90,13 +90,44 @@ export async function awardXp(
   const dayBeforeYesterday = getDayBeforeYesterdayInTimezone(tz);
 
   const result = await db.transaction(async (tx) => {
-    await tx.insert(userXpEvents).values({
-      userId,
-      courseId: courseId ?? null,
-      eventType,
-      moduleIndex: moduleIndex ?? null,
-      points,
-    });
+    if (eventType === "quiz_pass" && moduleIndex != null) {
+      const insertResult = await tx.insert(userXpEvents).values({
+        userId,
+        courseId: courseId ?? null,
+        eventType,
+        moduleIndex,
+        points,
+      }).onConflictDoNothing();
+      if (insertResult.rowCount === 0) {
+        const [streakRow] = await tx
+          .select()
+          .from(userStreaks)
+          .where(eq(userStreaks.userId, userId))
+          .limit(1);
+        const [xpSum] = await tx
+          .select({ total: sql<number>`COALESCE(sum(${userXpEvents.points}), 0)::int` })
+          .from(userXpEvents)
+          .where(eq(userXpEvents.userId, userId));
+        return {
+          points: 0,
+          newStreak: streakRow?.currentStreak ?? 0,
+          totalXp: xpSum?.total ?? 0,
+          leveledUp: false,
+          newLevel: getLevelForXp(xpSum?.total ?? 0).level,
+          newLevelName: getLevelForXp(xpSum?.total ?? 0).name,
+          streakShieldActive: streakRow?.streakShieldActive ?? false,
+          newBadges: [] as string[],
+        };
+      }
+    } else {
+      await tx.insert(userXpEvents).values({
+        userId,
+        courseId: courseId ?? null,
+        eventType,
+        moduleIndex: moduleIndex ?? null,
+        points,
+      });
+    }
 
     const [existing] = await tx
       .select()

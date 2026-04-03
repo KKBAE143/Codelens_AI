@@ -4,11 +4,11 @@ export const runtime = "nodejs";
 import { NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { db } from "@workspace/db";
-import { userXpEvents, userStreaks, userBadges } from "@workspace/db/schema";
+import { userXpEvents, userStreaks, userBadges, users } from "@workspace/db/schema";
 import { eq, sql, and, gte } from "drizzle-orm";
 import { getLevelForXp, getXpToNextLevel, getBadgeDefinition } from "@/lib/xp-constants";
 
-function getDateInTimezone(tz: string): string {
+function getTodayStartUtc(tz: string): Date {
   try {
     const formatter = new Intl.DateTimeFormat("en-CA", {
       timeZone: tz,
@@ -16,9 +16,26 @@ function getDateInTimezone(tz: string): string {
       month: "2-digit",
       day: "2-digit",
     });
-    return formatter.format(new Date());
+    const todayStr = formatter.format(new Date());
+    const parts = todayStr.split("-").map(Number);
+    const localMidnight = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+    const offsetMs = getTimezoneOffsetMs(tz);
+    return new Date(localMidnight.getTime() - offsetMs);
   } catch {
-    return new Date().toISOString().split("T")[0];
+    const now = new Date();
+    now.setUTCHours(0, 0, 0, 0);
+    return now;
+  }
+}
+
+function getTimezoneOffsetMs(tz: string): number {
+  try {
+    const now = new Date();
+    const utcStr = now.toLocaleString("en-US", { timeZone: "UTC" });
+    const tzStr = now.toLocaleString("en-US", { timeZone: tz });
+    return new Date(tzStr).getTime() - new Date(utcStr).getTime();
+  } catch {
+    return 0;
   }
 }
 
@@ -30,7 +47,19 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Authentication required" }, { status: 401 });
   }
 
-  const clientTz = request.headers.get("x-timezone") || "UTC";
+  let clientTz = request.headers.get("x-timezone") || "";
+
+  if (!clientTz) {
+    const [userRow] = await db.select({ timezone: users.timezone }).from(users).where(eq(users.id, user.id)).limit(1);
+    clientTz = userRow?.timezone || "UTC";
+  } else {
+    db.update(users)
+      .set({ timezone: clientTz, updatedAt: new Date() })
+      .where(eq(users.id, user.id))
+      .catch(() => {});
+  }
+
+  const todayStart = getTodayStartUtc(clientTz);
 
   const oneYearAgo = new Date();
   oneYearAgo.setDate(oneYearAgo.getDate() - 365);
@@ -45,7 +74,7 @@ export async function GET(request: Request) {
 
     db
       .select({
-        date: sql<string>`to_char(${userXpEvents.createdAt}, 'YYYY-MM-DD')`,
+        createdAt: userXpEvents.createdAt,
         points: userXpEvents.points,
         eventType: userXpEvents.eventType,
       })
@@ -75,7 +104,7 @@ export async function GET(request: Request) {
       .where(
         and(
           eq(userXpEvents.userId, user.id),
-          gte(userXpEvents.createdAt, sql`date_trunc('day', now())`),
+          gte(userXpEvents.createdAt, todayStart),
         ),
       )
       .then((r) => r[0]?.total ?? 0),
@@ -83,10 +112,19 @@ export async function GET(request: Request) {
 
   const totalXp = events.reduce((sum, e) => sum + (e.points ?? 0), 0);
 
+  const dateFormatter = (() => {
+    try {
+      return new Intl.DateTimeFormat("en-CA", { timeZone: clientTz, year: "numeric", month: "2-digit", day: "2-digit" });
+    } catch {
+      return new Intl.DateTimeFormat("en-CA", { timeZone: "UTC", year: "numeric", month: "2-digit", day: "2-digit" });
+    }
+  })();
+
   const activityMap: Record<string, number> = {};
   for (const e of events) {
-    if (e.date) {
-      activityMap[e.date] = (activityMap[e.date] ?? 0) + (e.points ?? 0);
+    if (e.createdAt) {
+      const dateStr = dateFormatter.format(new Date(e.createdAt));
+      activityMap[dateStr] = (activityMap[dateStr] ?? 0) + (e.points ?? 0);
     }
   }
 

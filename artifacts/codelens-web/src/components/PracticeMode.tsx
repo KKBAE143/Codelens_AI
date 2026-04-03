@@ -11,6 +11,7 @@ interface PracticeModeProps {
   quizBlocks: V2QuizBlock[];
   onClose: () => void;
   onScoreSaved?: (moduleIndex: number, score: number) => void;
+  onLevelUp?: (level: number, levelName: string) => void;
 }
 
 interface AnsweredQuestion {
@@ -50,7 +51,7 @@ function XCircle() {
 
 type Mode = "quiz" | "summary" | "wrong-answers";
 
-export function PracticeMode({ courseId, moduleIndex, moduleTitle, quizBlocks, onClose, onScoreSaved }: PracticeModeProps) {
+export function PracticeMode({ courseId, moduleIndex, moduleTitle, quizBlocks, onClose, onScoreSaved, onLevelUp }: PracticeModeProps) {
   const queryClient = useQueryClient();
   const [mode, setMode] = useState<Mode>("quiz");
   const [questionOrder, setQuestionOrder] = useState<number[]>(() => quizBlocks.map((_, i) => i));
@@ -82,11 +83,14 @@ export function PracticeMode({ courseId, moduleIndex, moduleTitle, quizBlocks, o
           if (data?.score !== undefined && onScoreSaved) {
             onScoreSaved(moduleIndex, data.score);
           }
+          if (data?.leveledUp && onLevelUp) {
+            onLevelUp(data.newLevel, data.newLevelName);
+          }
           queryClient.invalidateQueries({ queryKey: ["user-stats"] });
         })
         .catch(() => {});
     }
-  }, [mode, scoreSaved, isFullRun, courseId, moduleIndex, totalQ, correct, onScoreSaved, queryClient]);
+  }, [mode, scoreSaved, isFullRun, courseId, moduleIndex, totalQ, correct, onScoreSaved, onLevelUp, queryClient]);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (mode !== "quiz") return;

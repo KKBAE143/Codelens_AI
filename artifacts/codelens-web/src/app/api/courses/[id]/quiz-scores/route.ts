@@ -6,7 +6,7 @@ import { requireAuth } from "@/lib/auth";
 import { db } from "@workspace/db";
 import { moduleQuizScores, courses, courseAssignments } from "@workspace/db/schema";
 import { eq, and, isNull } from "drizzle-orm";
-import { awardXp, hasQuizXpBeenAwarded } from "@/lib/xp";
+import { awardXp } from "@/lib/xp";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -96,14 +96,14 @@ export async function POST(
       completedAt: now,
       updatedAt: now,
     }).where(eq(moduleQuizScores.id, existing.id));
+    let xpResult = null;
     if (finalScore >= 80) {
-      hasQuizXpBeenAwarded(user.id, courseId, moduleIndex)
-        .then((already) => {
-          if (!already) awardXp(user.id, "quiz_pass", courseId, moduleIndex);
-        })
-        .catch(() => {});
+      try { xpResult = await awardXp(user.id, "quiz_pass", courseId, moduleIndex); } catch {}
     }
-    return NextResponse.json({ success: true, score: finalScore, isHighScore: isNewBest });
+    return NextResponse.json({
+      success: true, score: finalScore, isHighScore: isNewBest,
+      ...(xpResult?.leveledUp ? { leveledUp: true, newLevel: xpResult.newLevel, newLevelName: xpResult.newLevelName } : {}),
+    });
   }
 
   await db.insert(moduleQuizScores).values({
@@ -117,9 +117,13 @@ export async function POST(
     updatedAt: now,
   });
 
+  let xpResult = null;
   if (score >= 80) {
-    awardXp(user.id, "quiz_pass", courseId, moduleIndex).catch(() => {});
+    try { xpResult = await awardXp(user.id, "quiz_pass", courseId, moduleIndex); } catch {}
   }
 
-  return NextResponse.json({ success: true, score });
+  return NextResponse.json({
+    success: true, score,
+    ...(xpResult?.leveledUp ? { leveledUp: true, newLevel: xpResult.newLevel, newLevelName: xpResult.newLevelName } : {}),
+  });
 }

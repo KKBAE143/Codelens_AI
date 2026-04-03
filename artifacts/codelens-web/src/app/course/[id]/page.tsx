@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/components/Toast";
+import { LevelUpModal } from "@/components/LevelUpModal";
 import dynamic from "next/dynamic";
 import { BlockRenderer } from "@/components/course-blocks/BlockRenderer";
 import { AbstractionMap } from "@/components/course-blocks/AbstractionMap";
@@ -476,6 +477,7 @@ export default function CourseViewer() {
   const [lastSeenVersion, setLastSeenVersion] = useState<number | null>(null);
   const [showWhatsNew, setShowWhatsNew] = useState(false);
   const [showWizard, setShowWizard] = useState(false);
+  const [levelUpData, setLevelUpData] = useState<{ level: number; levelName: string } | null>(null);
   const [doneExercises, setDoneExercises] = useState<Record<string, boolean>>({});
   const [activeModuleIndex, setActiveModuleIndex] = useState<number | null>(() => {
     if (typeof window !== "undefined") {
@@ -658,7 +660,13 @@ export default function CourseViewer() {
         credentials: "include",
         body: JSON.stringify({ moduleIndex, totalModules: moduleCountRef.current }),
       })
-        .then(() => queryClient.invalidateQueries({ queryKey: ["user-stats"] }))
+        .then((r) => r.ok ? r.json() : null)
+        .then((data) => {
+          queryClient.invalidateQueries({ queryKey: ["user-stats"] });
+          if (data?.leveledUp) {
+            setLevelUpData({ level: data.newLevel, levelName: data.newLevelName });
+          }
+        })
         .catch(() => {});
       return updated;
     });
@@ -837,6 +845,9 @@ export default function CourseViewer() {
                 next.set(modIdx, Math.max(prev.get(modIdx) ?? 0, score));
                 return next;
               });
+            }}
+            onLevelUp={(level, levelName) => {
+              setLevelUpData({ level, levelName });
             }}
           />
         );
@@ -1296,6 +1307,13 @@ export default function CourseViewer() {
             </aside>
           )}
         </div>
+      )}
+      {levelUpData && (
+        <LevelUpModal
+          level={levelUpData.level}
+          levelName={levelUpData.levelName}
+          onClose={() => setLevelUpData(null)}
+        />
       )}
     </div>
   );
