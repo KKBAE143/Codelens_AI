@@ -1,4 +1,4 @@
-import { generateText, getAccountsForStage, getHealthyAccountCount, sleep, type LlmTask } from "../llm";
+import { generateText, getAccountsForStage, getHealthyAccountCount, getAllAccountHealths, sleep, type LlmTask, type CloudflarePoolAccount } from "../llm";
 import { countTokens, truncateAtFunctionBoundary, getDepthTokenBudget, getDepthContextBudget } from "../token-counter";
 import { v2ChapterSchema } from "../v2-schema";
 import { type RepoExtraction, fetchFileContent } from "../github";
@@ -465,6 +465,41 @@ async function writeOneChapter(
   };
 }
 
+async function waitForHealthyAccounts(task: LlmTask): Promise<number> {
+  let healthyCount = await getHealthyAccountCount(task);
+  if (healthyCount > 0) return healthyCount;
+
+  console.log(`[Pipeline] No healthy accounts for ${task}, waiting with exponential backoff...`);
+  let backoffMs = 5000;
+  const maxTotalWaitMs = 15 * 60 * 1000;
+  let totalWaitedMs = 0;
+
+  while (totalWaitedMs < maxTotalWaitMs) {
+    await sleep(backoffMs);
+    totalWaitedMs += backoffMs;
+    healthyCount = await getHealthyAccountCount(task);
+    if (healthyCount > 0) {
+      console.log(`[Pipeline] ${healthyCount} account(s) recovered after ${Math.round(totalWaitedMs / 1000)}s`);
+      return healthyCount;
+    }
+    backoffMs = Math.min(backoffMs * 2, 120000);
+    console.log(`[Pipeline] Still no healthy accounts, next retry in ${backoffMs / 1000}s (waited ${Math.round(totalWaitedMs / 1000)}s total)`);
+  }
+
+  console.warn(`[Pipeline] No healthy accounts after ${Math.round(maxTotalWaitMs / 60000)}min, proceeding with fallback`);
+  return 1;
+}
+
+async function filterHealthyAccounts(accounts: CloudflarePoolAccount[]): Promise<CloudflarePoolAccount[]> {
+  const allHealths = await getAllAccountHealths();
+  const healthMap = new Map(allHealths.map(h => [h.account.label, h.health]));
+  return accounts.filter(a => {
+    const health = healthMap.get(a.label);
+    if (!health) return true;
+    return health.quarantinedUntil === 0 || Date.now() >= health.quarantinedUntil;
+  });
+}
+
 export async function runStage4WriteChapters(
   chapters: OrderedChapter[],
   abstractions: Abstraction[],
@@ -492,47 +527,22 @@ export async function runStage4WriteChapters(
   const chaptersToWrite = chapters.filter((c) => !completedMap.has(c.index));
 
   const stage4Task: LlmTask = "stage4";
-  let healthyCount = await getHealthyAccountCount(stage4Task);
-  if (healthyCount === 0) {
-    console.log("[Pipeline] No healthy accounts at Stage 4 start, waiting for recovery...");
-    let backoffMs = 5000;
-    for (let attempt = 0; attempt < 10; attempt++) {
-      await sleep(backoffMs);
-      healthyCount = await getHealthyAccountCount(stage4Task);
-      if (healthyCount > 0) break;
-      backoffMs = Math.min(backoffMs * 2, 120000);
-      console.log(`[Pipeline] Still no healthy accounts, backoff ${backoffMs}ms (attempt ${attempt + 2}/10)`);
-    }
-    if (healthyCount === 0) {
-      console.warn("[Pipeline] All accounts still unavailable after extended backoff, proceeding with concurrency=1");
-    }
-  }
-  const concurrency = Math.max(1, Math.min(healthyCount, 8));
-  console.log(`[Pipeline] Stage 4 concurrency: ${concurrency} (${healthyCount} healthy accounts)`);
-
-  const stageAccounts = getAccountsForStage(stage4Task);
   const results: ChapterResult[] = [...completedMap.values()];
 
-  for (let i = 0; i < chaptersToWrite.length; i += concurrency) {
-    const batch = chaptersToWrite.slice(i, i + concurrency);
+  for (let i = 0; i < chaptersToWrite.length; ) {
+    let healthyCount = await waitForHealthyAccounts(stage4Task);
+    const concurrency = Math.max(1, Math.min(healthyCount, 8));
 
-    const currentHealthy = await getHealthyAccountCount(stage4Task);
-    if (currentHealthy === 0) {
-      console.log("[Pipeline] All accounts rate-limited, waiting with backoff...");
-      let backoffMs = 5000;
-      for (let attempt = 0; attempt < 10; attempt++) {
-        await sleep(backoffMs);
-        const recovered = await getHealthyAccountCount(stage4Task);
-        if (recovered > 0) break;
-        backoffMs = Math.min(backoffMs * 2, 120000);
-        console.log(`[Pipeline] Still no healthy accounts, backoff ${backoffMs}ms (attempt ${attempt + 2}/10)`);
-      }
-    }
+    const stageAccounts = getAccountsForStage(stage4Task);
+    const healthyAccounts = await filterHealthyAccounts(stageAccounts);
+
+    const batch = chaptersToWrite.slice(i, i + concurrency);
+    console.log(`[Pipeline] Stage 4 batch: chapters ${i + 1}-${i + batch.length}/${chaptersToWrite.length}, concurrency=${concurrency}, healthy=${healthyCount}`);
 
     const batchResults = await Promise.allSettled(
       batch.map((chapter, batchIdx) => {
-        const assignedAccount = stageAccounts.length > 0
-          ? stageAccounts[batchIdx % stageAccounts.length]
+        const assignedAccount = healthyAccounts.length > 0
+          ? healthyAccounts[batchIdx % healthyAccounts.length]
           : undefined;
         return writeOneChapter(
           chapter,
@@ -546,6 +556,8 @@ export async function runStage4WriteChapters(
         );
       }),
     );
+
+    i += batch.length;
 
     for (let j = 0; j < batchResults.length; j++) {
       const result = batchResults[j];
