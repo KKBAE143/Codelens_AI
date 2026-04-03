@@ -312,9 +312,6 @@ function isCodeFile(path: string): boolean {
 function getDirectoryBonus(path: string): number {
   if (/^(src|lib|app|packages)\//i.test(path)) return 1.2;
   if (/\/(routes|api|services|controllers|handlers|middleware|utils|hooks|components|pages|models)\//i.test(path)) return 1.1;
-  if (/\/(test|tests|spec|specs|__tests__)\//i.test(path)) return 0.9;
-  if (/\/(docs|documentation|examples)\//i.test(path)) return 0.85;
-  if (/\/(scripts|tools|bin)\//i.test(path)) return 0.9;
   return 1.0;
 }
 
@@ -936,9 +933,10 @@ export async function extractRepo(
 
   let fileSignaturesText = "";
   const includedPaths = new Set(topFiles.map(f => f.path));
+  const signatureFilePaths = new Set(signatureFiles.map(f => f.path));
   const remainingFetched = fetchedFiles.filter(f => !includedPaths.has(f.path));
   const sigEntries: string[] = [];
-  for (const f of [...remainingFetched, ...signatureFiles]) {
+  for (const f of remainingFetched) {
     if (includedPaths.has(f.path)) continue;
     includedPaths.add(f.path);
     const sigs = extractFileSignatures(f.content, f.path);
@@ -946,6 +944,12 @@ export async function extractRepo(
     if (sigLines.length > 0) {
       sigEntries.push(`${f.path}:\n  ${sigLines.slice(0, 20).join("\n  ")}`);
     }
+  }
+  for (const f of signatureFiles) {
+    if (includedPaths.has(f.path)) continue;
+    includedPaths.add(f.path);
+    const sizeKB = Math.round(f.size / 1024);
+    sigEntries.push(`${f.path} (${sizeKB}KB, first 200 lines + signatures):\n${f.content}`);
   }
   const unfetchedNonBinary = allFiles.filter(
     f => f.size <= MAX_FILE_SIZE && f.size > 0 && !fetchedPaths.has(f.path) && !isBinaryExtension(f.path) && !includedPaths.has(f.path)

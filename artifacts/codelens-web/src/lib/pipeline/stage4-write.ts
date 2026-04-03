@@ -18,7 +18,6 @@ import type { Abstraction, Relationship, OrderedChapter, ChapterResult, Pipeline
 async function getAbstractionFilesByPageRank(
   abstraction: Abstraction,
   extraction: RepoExtraction,
-  userToken?: string,
 ): Promise<Array<{ path: string; content: string; size: number }>> {
   const allFetched = extraction.allFetchedFiles || [];
   const allFetchedByPath = new Map(allFetched.map(f => [f.path, f]));
@@ -53,7 +52,7 @@ async function getAbstractionFilesByPageRank(
   if (missingPaths.length > 0 && extraction.owner && extraction.repoName) {
     const fetched = await Promise.allSettled(
       missingPaths.map(p =>
-        fetchFileContent(extraction.owner, extraction.repoName, p, extraction.commitSha || extraction.defaultBranch, userToken)
+        fetchFileContent(extraction.owner, extraction.repoName, p, extraction.defaultBranch)
       )
     );
     for (const r of fetched) {
