@@ -135,6 +135,35 @@ function buildCodebasePassport(
     .sort((a, b) => b.connections - a.connections)
     .slice(0, 3);
 
+  const totalRelationships = relationships.length;
+  const avgConnections = abstractions.length > 0
+    ? totalRelationships / abstractions.length
+    : 0;
+  const complexityLevel: "simple" | "moderate" | "complex" | "very-complex" =
+    avgConnections < 1.5 && abstractions.length <= 6 ? "simple"
+    : avgConnections < 2.5 && abstractions.length <= 10 ? "moderate"
+    : avgConnections < 4 ? "complex"
+    : "very-complex";
+
+  const patternKeywords = ["middleware", "plugin", "hook", "event", "observer", "factory", "singleton", "decorator", "adapter", "proxy", "mvc", "mvvm", "rest", "graphql", "pub/sub", "queue", "pipeline", "microservice", "monorepo", "module", "layer"];
+  const allText = chapters.map((ch) => JSON.stringify(ch.blocks)).join(" ").toLowerCase();
+  const mainPatterns = patternKeywords.filter((p) => allText.includes(p)).slice(0, 5);
+
+  const testFiles = extraction.fileTree?.filter((f: string) =>
+    /\.(test|spec)\.(ts|js|tsx|jsx|py)$/.test(f) || f.includes("__tests__") || f.includes("test/")
+  ) ?? [];
+  const testRatio = extraction.totalFilesCatalogued > 0
+    ? testFiles.length / extraction.totalFilesCatalogued
+    : 0;
+  const testCoverageEstimate: "none" | "minimal" | "partial" | "good" =
+    testRatio === 0 ? "none"
+    : testRatio < 0.05 ? "minimal"
+    : testRatio < 0.15 ? "partial"
+    : "good";
+
+  const langList = topLanguages.map((l) => l.language).join(", ");
+  const personalitySummary = `A ${complexityLevel} ${langList} project with ${abstractions.length} core abstractions and ${totalRelationships} relationships${mainPatterns.length > 0 ? `, using ${mainPatterns.join(", ")} patterns` : ""}.`;
+
   return {
     repoName: extraction.repoName,
     owner: extraction.owner,
@@ -148,6 +177,10 @@ function buildCodebasePassport(
     persona: config.audience,
     depth: config.depth,
     coreComponents: mostConnected,
+    complexityLevel,
+    mainPatterns,
+    testCoverageEstimate,
+    personalitySummary,
   };
 }
 

@@ -100,11 +100,29 @@ function renderBlock(block: V2Block): string {
 }
 
 function renderModule(mod: V2Module, index: number): string {
+  const topics: string[] = [];
+  for (const block of mod.blocks) {
+    if (block.type === "text") {
+      const matches = block.content.match(/<h[23][^>]*>([^<]+)<\/h[23]>/g);
+      if (matches) {
+        for (const m of matches) {
+          const inner = m.replace(/<[^>]+>/g, "").trim();
+          if (inner && inner.length > 3 && topics.length < 5) topics.push(inner);
+        }
+      }
+    }
+  }
+
+  const summaryHtml = topics.length >= 2
+    ? `<div class="module-summary"><div class="module-summary-title">What You Learned</div><ul>${topics.map((t) => `<li>${escapeHtml(t)}</li>`).join("")}</ul></div>`
+    : "";
+
   return `
     <section class="module">
       <h2>Module ${index + 1}: ${escapeHtml(mod.title)}</h2>
       ${mod.learningObjective ? `<p class="learning-objective"><strong>Learning Objective:</strong> ${escapeHtml(mod.learningObjective)}</p>` : ""}
       ${mod.blocks.map(renderBlock).join("\n")}
+      ${summaryHtml}
     </section>
   `;
 }
@@ -173,11 +191,24 @@ function buildPdfHtml(
     .print-instructions { font-size: 0.85em; color: #666; margin-bottom: 0.75em; line-height: 1.5; }
     .no-print button { padding: 0.75rem 2rem; background: #16213e; color: white; border: none; border-radius: 8px; font-size: 1rem; cursor: pointer; font-family: inherit; }
     .no-print button:hover { background: #1a2744; }
+    h3 { font-size: 1.1em; margin: 1em 0 0.4em; color: #16213e; }
+    .callout-ai-hint { border-left-color: #6366f1; background: #eef2ff; }
+    .callout-security { border-left-color: #ef4444; background: #fef2f2; }
+    .callout-command { border-left-color: #0ea5e9; background: #f0f9ff; }
+    .callout-first-pr { border-left-color: #22c55e; background: #f0fdf4; }
+    .module-summary { background: #f0fdf4; border: 1px solid #bbf7d0; border-left: 4px solid #22c55e; border-radius: 6px; padding: 0.75em 1em; margin-top: 1em; }
+    .module-summary-title { font-weight: 600; font-size: 0.85em; color: #15803d; margin-bottom: 0.4em; }
+    .module-summary ul { margin: 0.3em 0 0 1.25em; font-size: 0.85em; }
+    .module-summary li { margin: 0.15em 0; }
     @media print {
       body { padding: 0; font-size: 10pt; }
       .module { page-break-inside: avoid; }
       h2 { page-break-after: avoid; }
       .block-code { page-break-inside: avoid; }
+      .block-quiz { page-break-inside: avoid; }
+      .block-exercise { page-break-inside: avoid; }
+      .block-card { page-break-inside: avoid; }
+      .module-summary { page-break-inside: avoid; }
       .no-print { display: none; }
     }
   </style>

@@ -223,11 +223,14 @@ function extractTextFromBlock(block: Record<string, unknown>): string {
 function injectJargonCallouts(blocks: Array<Record<string, unknown>>): Array<Record<string, unknown>> {
   const seenTerms = new Set<string>();
   const result: Array<Record<string, unknown>> = [];
+  const MAX_JARGON_CALLOUTS = 3;
+  let jargonCount = 0;
 
   for (const block of blocks) {
     result.push(block);
 
-    if (block.type === "callout" && String(block.variant ?? "") === "jargon") continue;
+    if (jargonCount >= MAX_JARGON_CALLOUTS) continue;
+    if (block.type === "callout") continue;
 
     const text = extractTextFromBlock(block).toLowerCase();
     if (!text) continue;
@@ -253,9 +256,10 @@ function injectJargonCallouts(blocks: Array<Record<string, unknown>>): Array<Rec
 
       result.push({
         type: "callout",
-        variant: "info",
+        variant: "tip",
         content: `📖 **Jargon Buster**\n\n${glossaryContent}`,
       });
+      jargonCount++;
     }
   }
 

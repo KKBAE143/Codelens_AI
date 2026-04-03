@@ -156,6 +156,10 @@ export interface V2CodebasePassport {
   persona: string;
   depth: string;
   coreComponents: Array<{ name: string; connections: number }>;
+  complexityLevel?: "simple" | "moderate" | "complex" | "very-complex";
+  mainPatterns?: string[];
+  testCoverageEstimate?: "none" | "minimal" | "partial" | "good";
+  personalitySummary?: string;
 }
 
 export interface V2CourseData {

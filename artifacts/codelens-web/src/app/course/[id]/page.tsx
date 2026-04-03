@@ -251,6 +251,36 @@ function V2ModuleContent({
         ))}
       </div>
 
+      {(() => {
+        const topics: string[] = [];
+        for (const block of mod.blocks) {
+          if (block.type === "text") {
+            const match = block.content.match(/<h[23][^>]*>([^<]+)<\/h[23]>/g);
+            if (match) {
+              for (const m of match) {
+                const inner = m.replace(/<[^>]+>/g, "").trim();
+                if (inner && inner.length > 3 && topics.length < 5) topics.push(inner);
+              }
+            }
+          }
+        }
+        if (topics.length < 2) return null;
+        return (
+          <div className="v2-module-summary-card">
+            <div className="v2-module-summary-title">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                <polyline points="22 4 12 14.01 9 11.01" />
+              </svg>
+              What You Learned
+            </div>
+            <ul className="v2-module-summary-list">
+              {topics.map((t, i) => <li key={i}>{t}</li>)}
+            </ul>
+          </div>
+        );
+      })()}
+
       <footer className="v2-module-footer">
         <button
           className="v2-nav-btn"
@@ -534,6 +564,19 @@ export default function CourseViewer() {
     if (!course?.html) return null;
     return parseV2Course(course.html);
   }, [course?.v2Data, course?.html]);
+
+  const safetyWarnings = useMemo(() => {
+    if (!v2Data) return [];
+    const warnings: Array<{ moduleTitle: string; moduleIndex: number; content: string }> = [];
+    for (const mod of v2Data.modules) {
+      for (const block of mod.blocks) {
+        if (block.type === "callout" && block.variant === "warning") {
+          warnings.push({ moduleTitle: mod.title, moduleIndex: mod.index, content: block.content });
+        }
+      }
+    }
+    return warnings.slice(0, 10);
+  }, [v2Data]);
 
   const isV2 = !!v2Data;
 
@@ -1298,6 +1341,58 @@ export default function CourseViewer() {
                       </div>
                     </div>
                   )}
+                  {(v2Data.codebasePassport.complexityLevel || v2Data.codebasePassport.testCoverageEstimate) && (
+                    <div className="v2-passport-extra">
+                      {v2Data.codebasePassport.complexityLevel && (
+                        <span className={`v2-passport-badge v2-passport-badge-${v2Data.codebasePassport.complexityLevel}`}>
+                          {v2Data.codebasePassport.complexityLevel.replace("-", " ")}
+                        </span>
+                      )}
+                      {v2Data.codebasePassport.testCoverageEstimate && (
+                        <span className="v2-passport-badge v2-passport-badge-test">
+                          Tests: {v2Data.codebasePassport.testCoverageEstimate}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  {v2Data.codebasePassport.mainPatterns && v2Data.codebasePassport.mainPatterns.length > 0 && (
+                    <div className="v2-passport-patterns">
+                      <div className="v2-passport-components-label">Detected Patterns</div>
+                      <div className="v2-passport-components-list">
+                        {v2Data.codebasePassport.mainPatterns.map((p) => (
+                          <span key={p} className="v2-passport-pattern-badge">{p}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {v2Data.codebasePassport.personalitySummary && (
+                    <p className="v2-passport-personality">{v2Data.codebasePassport.personalitySummary}</p>
+                  )}
+                </div>
+              )}
+              {activeModuleIndex === null && safetyWarnings.length > 0 && (
+                <div className="v2-safety-map">
+                  <div className="v2-safety-map-title">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                      <line x1="12" y1="9" x2="12" y2="13" />
+                      <line x1="12" y1="17" x2="12.01" y2="17" />
+                    </svg>
+                    AI Safety Map
+                  </div>
+                  <ul className="v2-safety-map-list">
+                    {safetyWarnings.map((w, i) => (
+                      <li
+                        key={i}
+                        className="v2-safety-map-item"
+                        style={{ cursor: "pointer" }}
+                        onClick={() => handleModuleSelect(w.moduleIndex)}
+                      >
+                        <div className="v2-safety-map-module">Module {w.moduleIndex + 1}: {w.moduleTitle}</div>
+                        {w.content.replace(/\*\*/g, "").slice(0, 200)}
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               )}
               {activeModuleIndex === null && v2Data.overviewGraph && (
