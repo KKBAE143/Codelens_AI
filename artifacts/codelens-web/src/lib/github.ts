@@ -984,12 +984,14 @@ export async function extractRepo(
       }
     }
   }
-  const oversizedFiles = allFiles.filter(f => f.size > SIGNATURE_FILE_SIZE && !isBinaryExtension(f.path));
-  for (const f of oversizedFiles) {
-    if (!includedPaths.has(f.path)) {
-      includedPaths.add(f.path);
-      const sizeKB = Math.round(f.size / 1024);
+  for (const f of allFiles) {
+    if (includedPaths.has(f.path) || isBinaryExtension(f.path)) continue;
+    includedPaths.add(f.path);
+    const sizeKB = Math.round(f.size / 1024);
+    if (f.size > SIGNATURE_FILE_SIZE) {
       sigEntries.push(`${f.path}:\n  [oversized file, ${sizeKB}KB — ${inferFileDescription(f.path)}]`);
+    } else {
+      sigEntries.push(`${f.path}:\n  [${sizeKB}KB — ${inferFileDescription(f.path)}]`);
     }
   }
 

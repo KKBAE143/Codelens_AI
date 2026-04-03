@@ -212,7 +212,19 @@ export function normalizeBlock(block: unknown): unknown {
             ? record.whatBreaksWithout
             : undefined,
       };
-    case "command-card":
+    case "command-card": {
+      const osVariants: Record<string, { command: string; note?: string }> = {};
+      if (record.osVariants && typeof record.osVariants === "object") {
+        for (const [os, variant] of Object.entries(record.osVariants as Record<string, unknown>)) {
+          if (variant && typeof variant === "object" && "command" in (variant as Record<string, unknown>)) {
+            const v = variant as Record<string, unknown>;
+            osVariants[os] = {
+              command: String(v.command || "").trim(),
+              note: typeof v.note === "string" ? v.note : undefined,
+            };
+          }
+        }
+      }
       return {
         type: "command-card",
         command: String(record.command || "").trim(),
@@ -224,7 +236,9 @@ export function normalizeBlock(block: unknown): unknown {
         commonErrors: Array.isArray(record.commonErrors)
           ? record.commonErrors
           : undefined,
+        ...(Object.keys(osVariants).length > 0 ? { osVariants } : {}),
       };
+    }
     case "exercise": {
       const exFiles = Array.isArray(record.files)
         ? record.files
