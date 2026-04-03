@@ -7,6 +7,7 @@ import { db } from "@workspace/db";
 import { courses, courseAssignments } from "@workspace/db/schema";
 import { eq, and, isNull } from "drizzle-orm";
 import { generateText } from "@/lib/llm";
+import { parseV2Course } from "@/lib/course-types";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -60,16 +61,33 @@ export async function POST(
   }
 
   let abstractionContext = "";
+  let moduleBlockContent = "";
   if (courseRecord.html) {
     try {
-      const v2Match = courseRecord.html.match(/<!--V2_DATA([\s\S]*?)V2_DATA-->/);
-      if (v2Match) {
-        const parsed = JSON.parse(v2Match[1]);
-        const modules = Array.isArray(parsed?.modules) ? parsed.modules : [];
-        const abstractions = modules.map((m: { title?: string; learningObjective?: string }) =>
+      const v2Data = parseV2Course(courseRecord.html);
+      if (v2Data) {
+        const abstractions = v2Data.modules.map((m) =>
           `- ${m.title || "Untitled"}${m.learningObjective ? `: ${m.learningObjective}` : ""}`
         ).slice(0, 20).join("\n");
-        if (abstractions) abstractionContext = `\nCourse abstractions/modules:\n${abstractions}`;
+        if (abstractions) abstractionContext = `\nCourse modules:\n${abstractions}`;
+
+        if (moduleTitle) {
+          const mod = v2Data.modules.find((m) => m.title === moduleTitle);
+          if (mod) {
+            const textBlocks = mod.blocks
+              .filter((b) => b.type === "text" || b.type === "callout")
+              .map((b) => {
+                if (b.type === "text") return b.content.replace(/<[^>]+>/g, " ").slice(0, 500);
+                if (b.type === "callout") return b.content.slice(0, 300);
+                return "";
+              })
+              .filter(Boolean)
+              .slice(0, 5);
+            if (textBlocks.length) {
+              moduleBlockContent = `\nCurrent module content excerpts:\n${textBlocks.join("\n---\n")}`;
+            }
+          }
+        }
       }
     } catch {}
   }
@@ -80,6 +98,7 @@ export async function POST(
   if (moduleTitle) contextParts.push(`Current module: ${moduleTitle}`);
   if (blockContent) contextParts.push(`Content the learner is reading:\n${blockContent.slice(0, 1500)}`);
   if (abstractionContext) contextParts.push(abstractionContext);
+  if (moduleBlockContent) contextParts.push(moduleBlockContent);
 
   const prompt = `You are a helpful coding tutor answering questions about the ${courseRecord.ownerName}/${courseRecord.repoName} codebase.
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import React, { useState, useCallback, useRef, useEffect } from "react";
 import type { V2Module, V2Block } from "@/lib/course-types";
 
 interface SearchResult {
@@ -38,6 +38,18 @@ function getMatchSnippet(text: string, query: string, maxLen: number = 120): str
   if (start > 0) snippet = "..." + snippet;
   if (end < text.length) snippet = snippet + "...";
   return snippet;
+}
+
+function highlightMatch(text: string, query: string): React.ReactNode {
+  if (!query.trim()) return text;
+  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const parts = text.split(new RegExp(`(${escaped})`, "gi"));
+  if (parts.length <= 1) return text;
+  return parts.map((part, i) =>
+    part.toLowerCase() === query.toLowerCase()
+      ? <mark key={i} className="course-search-highlight">{part}</mark>
+      : part
+  );
 }
 
 interface CourseSearchProps {
@@ -170,7 +182,7 @@ export function CourseSearch({ modules, onNavigate }: CourseSearchProps) {
                       <span className="course-search-result-module">{r.moduleTitle}</span>
                       <span className="course-search-result-type">{r.matchType}</span>
                     </div>
-                    <div className="course-search-result-snippet">{r.snippet}</div>
+                    <div className="course-search-result-snippet">{highlightMatch(r.snippet, query)}</div>
                   </button>
                 ))}
               </div>

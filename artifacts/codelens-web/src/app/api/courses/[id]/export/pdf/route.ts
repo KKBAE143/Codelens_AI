@@ -169,7 +169,8 @@ function buildPdfHtml(
     .toc ol { margin-left: 1.25em; }
     .toc li { margin: 0.2em 0; font-size: 0.9em; }
     .footer { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #e0e0e5; text-align: center; font-size: 0.8em; color: #999; }
-    .no-print { margin: 1rem auto; max-width: 300px; text-align: center; }
+    .no-print { margin: 1rem auto; max-width: 400px; text-align: center; }
+    .print-instructions { font-size: 0.85em; color: #666; margin-bottom: 0.75em; line-height: 1.5; }
     .no-print button { padding: 0.75rem 2rem; background: #16213e; color: white; border: none; border-radius: 8px; font-size: 1rem; cursor: pointer; font-family: inherit; }
     .no-print button:hover { background: #1a2744; }
     @media print {
@@ -183,7 +184,8 @@ function buildPdfHtml(
 </head>
 <body>
   <div class="no-print">
-    <button onclick="window.print()">Save as PDF</button>
+    <p class="print-instructions">Use your browser&rsquo;s &ldquo;Save as PDF&rdquo; option in the print dialog to download this course as a PDF file.</p>
+    <button onclick="window.print()">Print / Save as PDF</button>
   </div>
 
   <div class="cover">

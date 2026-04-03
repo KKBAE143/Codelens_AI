@@ -1240,6 +1240,59 @@ export default function CourseViewer() {
 
             <div ref={mainScrollRef} className="v2-main-scroll">
               <ErrorBoundary>
+              {activeModuleIndex === null && v2Data.codebasePassport && (
+                <div className="v2-passport">
+                  <h3 className="v2-passport-title">Codebase Passport</h3>
+                  <div className="v2-passport-grid">
+                    <div className="v2-passport-stat">
+                      <div className="v2-passport-stat-value">{v2Data.codebasePassport.totalFiles}</div>
+                      <div className="v2-passport-stat-label">Files Scanned</div>
+                    </div>
+                    <div className="v2-passport-stat">
+                      <div className="v2-passport-stat-value">{v2Data.codebasePassport.filesAnalyzed}</div>
+                      <div className="v2-passport-stat-label">Files Analyzed</div>
+                    </div>
+                    <div className="v2-passport-stat">
+                      <div className="v2-passport-stat-value">{v2Data.codebasePassport.abstractionCount}</div>
+                      <div className="v2-passport-stat-label">Abstractions</div>
+                    </div>
+                    <div className="v2-passport-stat">
+                      <div className="v2-passport-stat-value">{v2Data.codebasePassport.relationshipCount}</div>
+                      <div className="v2-passport-stat-label">Relationships</div>
+                    </div>
+                    <div className="v2-passport-stat">
+                      <div className="v2-passport-stat-value">{v2Data.codebasePassport.moduleCount}</div>
+                      <div className="v2-passport-stat-label">Modules</div>
+                    </div>
+                    <div className="v2-passport-stat">
+                      <div className="v2-passport-stat-value">~{v2Data.codebasePassport.estimatedMinutes}m</div>
+                      <div className="v2-passport-stat-label">Est. Time</div>
+                    </div>
+                  </div>
+                  {v2Data.codebasePassport.topLanguages.length > 0 && (
+                    <div className="v2-passport-languages">
+                      {v2Data.codebasePassport.topLanguages.map((lang) => (
+                        <span key={lang.language} className="v2-passport-lang-badge">
+                          {lang.language} ({lang.fileCount})
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {v2Data.codebasePassport.coreComponents.length > 0 && (
+                    <div className="v2-passport-components">
+                      <div className="v2-passport-components-label">Core Components</div>
+                      <div className="v2-passport-components-list">
+                        {v2Data.codebasePassport.coreComponents.slice(0, 8).map((c) => (
+                          <span key={c.name} className="v2-passport-component">
+                            {c.name}
+                            <span className="v2-passport-component-count">{c.connections}</span>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
               {activeModuleIndex === null && v2Data.overviewGraph && (
                 <div className="v2-overview-section">
                   <div className="v2-overview-tabs" role="tablist" aria-label="Overview visualization tabs">
