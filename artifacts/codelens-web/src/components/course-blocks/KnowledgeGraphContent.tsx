@@ -18,7 +18,7 @@ import {
 
 interface KnowledgeGraphContentProps {
   overviewGraph: V2OverviewGraph;
-  onModuleClick: (moduleIndex: number) => void;
+  onModuleClick: (moduleIndex: number, conceptName?: string) => void;
 }
 
 export default function KnowledgeGraphContent({ overviewGraph, onModuleClick }: KnowledgeGraphContentProps) {
@@ -192,7 +192,7 @@ export default function KnowledgeGraphContent({ overviewGraph, onModuleClick }: 
       if (dragStateRef.current?.active) return;
       const attrs = graph.getNodeAttributes(node);
       if (typeof attrs.moduleIndex === "number") {
-        onModuleClick(attrs.moduleIndex);
+        onModuleClick(attrs.moduleIndex, attrs.label);
       }
     });
 

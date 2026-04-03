@@ -5,7 +5,7 @@ import type { V2Module, V2OverviewGraph } from "@/lib/course-types";
 
 interface AbstractionMapProps {
   graph: V2OverviewGraph;
-  onModuleClick: (moduleIndex: number) => void;
+  onModuleClick: (moduleIndex: number, conceptName?: string) => void;
   modules?: V2Module[];
 }
 
@@ -204,9 +204,13 @@ export function AbstractionMap({ graph, onModuleClick, modules = [] }: Abstracti
                 <button
                   type="button"
                   className="v2-abstraction-open-btn"
-                  onClick={() => onModuleClick(selectedNode.moduleIndex)}
+                  onClick={() => onModuleClick(selectedNode.moduleIndex, selectedNode.label)}
                 >
-                  Open Module {selectedNodeModuleSerial}
+                  Open in Course
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: 4 }}>
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                    <polyline points="12 5 19 12 12 19" />
+                  </svg>
                 </button>
               </div>
 
@@ -234,7 +238,7 @@ export function AbstractionMap({ graph, onModuleClick, modules = [] }: Abstracti
                           key={edge.id}
                           type="button"
                           className="v2-abstraction-relationship-item"
-                          onClick={() => otherNode && setSelectedNodeId(otherNode.id)}
+                          onClick={() => otherNode && onModuleClick(otherNode.moduleIndex, otherLabel)}
                         >
                           <span className="v2-abstraction-relationship-target">{otherLabel}</span>
                           <span className="v2-abstraction-relationship-copy">{edge.description}</span>

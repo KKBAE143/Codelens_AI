@@ -2999,6 +2999,9 @@ a.v2-code-filepath:hover {
   cursor: pointer;
   white-space: nowrap;
   box-shadow: 0 14px 28px rgba(232, 93, 48, 0.18);
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
 }
 
 .v2-abstraction-open-btn:hover {
@@ -7697,4 +7700,45 @@ a.v2-code-filepath:hover {
   .navbar-lms {
     padding: 0 1rem;
   }
+}
+
+@keyframes v2-block-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(250, 204, 21, 0.5); background-color: rgba(250, 204, 21, 0.08); }
+  40% { box-shadow: 0 0 0 6px rgba(250, 204, 21, 0.25); background-color: rgba(250, 204, 21, 0.12); }
+  100% { box-shadow: 0 0 0 0 rgba(250, 204, 21, 0); background-color: transparent; }
+}
+
+.v2-block-highlight {
+  animation: v2-block-pulse 2.2s ease-out;
+  border-radius: var(--radius);
+}
+
+.v2-also-covered-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+  padding: 0.55rem 1rem;
+  margin-bottom: 0.75rem;
+  border-radius: var(--radius);
+  background: rgba(99, 102, 241, 0.07);
+  border: 1px solid rgba(99, 102, 241, 0.18);
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+}
+
+.v2-also-covered-link {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.v2-also-covered-link:hover {
+  color: var(--accent-hover, #d4532a);
 }

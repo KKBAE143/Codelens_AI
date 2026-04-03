@@ -266,10 +266,34 @@ export default function PublicCourseViewer() {
     });
   }, [course, isAuthenticated]);
 
-  const handleModuleSelect = (i: number | null) => {
+  const [pendingConcept, setPendingConcept] = useState<string | null>(null);
+
+  const handleModuleSelect = (i: number | null, conceptName?: string) => {
     setActiveModuleIndex(i);
+    setPendingConcept(conceptName ?? null);
     mainScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
   };
+
+  useEffect(() => {
+    if (!pendingConcept || activeModuleIndex === null) return;
+    const concept = pendingConcept;
+    const timer = setTimeout(() => {
+      const blocks = mainScrollRef.current?.querySelectorAll(".v2-block-wrapper");
+      if (!blocks) return;
+      const lowerConcept = concept.toLowerCase();
+      for (const block of Array.from(blocks)) {
+        const text = block.textContent?.toLowerCase() ?? "";
+        if (text.includes(lowerConcept)) {
+          block.scrollIntoView({ behavior: "smooth", block: "center" });
+          block.classList.add("v2-block-highlight");
+          setTimeout(() => block.classList.remove("v2-block-highlight"), 2200);
+          break;
+        }
+      }
+      setPendingConcept(null);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [pendingConcept, activeModuleIndex]);
 
   useEffect(() => {
     if (!v2Data) return;
@@ -577,21 +601,47 @@ export default function PublicCourseViewer() {
         )}
 
         {activeModuleIndex !== null && activeModule && (
-          <V2Content
-            module={activeModule}
-            moduleIndex={activeModuleIndex}
-            totalModules={totalModules}
-            githubUrl={course.githubUrl}
-            isCompleted={completedModules.includes(activeModuleIndex)}
-            onComplete={() => markModuleComplete(activeModuleIndex)}
-            onPrev={() => handleModuleSelect(activeModuleIndex === 0 ? (v2Data.overviewGraph ? null : 0) : activeModuleIndex - 1)}
-            onNext={() => handleModuleSelect(Math.min(totalModules - 1, activeModuleIndex + 1))}
-            hasOverview={!!v2Data.overviewGraph}
-            onFlashcards={isAuthenticated ? () => {
-              setFlashcardModuleIndex(activeModuleIndex);
-              setShowFlashcards(true);
-            } : undefined}
-          />
+          <>
+            {pendingConcept && v2Data.overviewGraph && (() => {
+              const otherModules = v2Data.overviewGraph.nodes
+                .filter(n => n.label.toLowerCase() === pendingConcept.toLowerCase() && n.moduleIndex !== activeModuleIndex)
+                .map(n => n.moduleIndex);
+              const unique = [...new Set(otherModules)];
+              if (unique.length === 0) return null;
+              return (
+                <div className="v2-also-covered-banner">
+                  <span>Also covered in </span>
+                  {unique.map((mi, idx) => (
+                    <span key={mi}>
+                      {idx > 0 && ", "}
+                      <button
+                        type="button"
+                        className="v2-also-covered-link"
+                        onClick={() => handleModuleSelect(mi, pendingConcept)}
+                      >
+                        Module {mi + 1}
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              );
+            })()}
+            <V2Content
+              module={activeModule}
+              moduleIndex={activeModuleIndex}
+              totalModules={totalModules}
+              githubUrl={course.githubUrl}
+              isCompleted={completedModules.includes(activeModuleIndex)}
+              onComplete={() => markModuleComplete(activeModuleIndex)}
+              onPrev={() => handleModuleSelect(activeModuleIndex === 0 ? (v2Data.overviewGraph ? null : 0) : activeModuleIndex - 1)}
+              onNext={() => handleModuleSelect(Math.min(totalModules - 1, activeModuleIndex + 1))}
+              hasOverview={!!v2Data.overviewGraph}
+              onFlashcards={isAuthenticated ? () => {
+                setFlashcardModuleIndex(activeModuleIndex);
+                setShowFlashcards(true);
+              } : undefined}
+            />
+          </>
         )}
 
         <div style={{ textAlign: "center", padding: "2rem 0", borderTop: "1px solid var(--border-color)", marginTop: "2rem" }}>

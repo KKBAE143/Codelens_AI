@@ -5,7 +5,7 @@ import type { V2OverviewGraph } from "@/lib/course-types";
 
 interface KnowledgeGraphProps {
   overviewGraph: V2OverviewGraph;
-  onModuleClick: (moduleIndex: number) => void;
+  onModuleClick: (moduleIndex: number, conceptName?: string) => void;
 }
 
 const KnowledgeGraphContent = dynamic(

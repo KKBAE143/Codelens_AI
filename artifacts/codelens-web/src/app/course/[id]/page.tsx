@@ -724,11 +724,35 @@ export default function CourseViewer() {
     }
   };
 
-  const handleModuleSelect = (i: number | null) => {
+  const [pendingConcept, setPendingConcept] = useState<string | null>(null);
+
+  const handleModuleSelect = (i: number | null, conceptName?: string) => {
     setActiveModuleIndex(i);
     setMobileMenuOpen(false);
+    setPendingConcept(conceptName ?? null);
     mainScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
   };
+
+  useEffect(() => {
+    if (!pendingConcept || activeModuleIndex === null) return;
+    const concept = pendingConcept;
+    const timer = setTimeout(() => {
+      const blocks = mainScrollRef.current?.querySelectorAll(".v2-block-wrapper");
+      if (!blocks) return;
+      const lowerConcept = concept.toLowerCase();
+      for (const block of Array.from(blocks)) {
+        const text = block.textContent?.toLowerCase() ?? "";
+        if (text.includes(lowerConcept)) {
+          block.scrollIntoView({ behavior: "smooth", block: "center" });
+          block.classList.add("v2-block-highlight");
+          setTimeout(() => block.classList.remove("v2-block-highlight"), 2200);
+          break;
+        }
+      }
+      setPendingConcept(null);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [pendingConcept, activeModuleIndex]);
 
   if (isLoading || authLoading) {
     return (
@@ -1195,24 +1219,50 @@ export default function CourseViewer() {
                 </div>
               )}
               {activeModuleIndex !== null && v2Data.modules[activeModuleIndex] && (
-                <V2ModuleContent
-                  module={v2Data.modules[activeModuleIndex]}
-                  moduleIndex={activeModuleIndex}
-                  totalModules={v2Data.totalModules}
-                  githubUrl={v2Data.githubUrl}
-                  courseId={courseId}
-                  isCompleted={completedModules.includes(activeModuleIndex)}
-                  quizScore={quizScores.get(activeModuleIndex)}
-                  onComplete={() => markModuleComplete(activeModuleIndex)}
-                  onPrev={() => handleModuleSelect(activeModuleIndex === 0 ? (v2Data.overviewGraph ? null : 0) : activeModuleIndex - 1)}
-                  onNext={() => handleModuleSelect(Math.min(v2Data.totalModules - 1, activeModuleIndex + 1))}
-                  onPractice={() => setPracticeModuleIndex(activeModuleIndex)}
-                  onFlashcards={() => {
-                    setFlashcardModuleIndex(activeModuleIndex);
-                    setShowFlashcards(true);
-                  }}
-                  hasOverview={!!v2Data.overviewGraph}
-                />
+                <>
+                  {pendingConcept && v2Data.overviewGraph && (() => {
+                    const otherModules = v2Data.overviewGraph.nodes
+                      .filter(n => n.label.toLowerCase() === pendingConcept.toLowerCase() && n.moduleIndex !== activeModuleIndex)
+                      .map(n => n.moduleIndex);
+                    const unique = [...new Set(otherModules)];
+                    if (unique.length === 0) return null;
+                    return (
+                      <div className="v2-also-covered-banner">
+                        <span>Also covered in </span>
+                        {unique.map((mi, idx) => (
+                          <span key={mi}>
+                            {idx > 0 && ", "}
+                            <button
+                              type="button"
+                              className="v2-also-covered-link"
+                              onClick={() => handleModuleSelect(mi, pendingConcept)}
+                            >
+                              Module {mi + 1}
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    );
+                  })()}
+                  <V2ModuleContent
+                    module={v2Data.modules[activeModuleIndex]}
+                    moduleIndex={activeModuleIndex}
+                    totalModules={v2Data.totalModules}
+                    githubUrl={v2Data.githubUrl}
+                    courseId={courseId}
+                    isCompleted={completedModules.includes(activeModuleIndex)}
+                    quizScore={quizScores.get(activeModuleIndex)}
+                    onComplete={() => markModuleComplete(activeModuleIndex)}
+                    onPrev={() => handleModuleSelect(activeModuleIndex === 0 ? (v2Data.overviewGraph ? null : 0) : activeModuleIndex - 1)}
+                    onNext={() => handleModuleSelect(Math.min(v2Data.totalModules - 1, activeModuleIndex + 1))}
+                    onPractice={() => setPracticeModuleIndex(activeModuleIndex)}
+                    onFlashcards={() => {
+                      setFlashcardModuleIndex(activeModuleIndex);
+                      setShowFlashcards(true);
+                    }}
+                    hasOverview={!!v2Data.overviewGraph}
+                  />
+                </>
               )}
               </ErrorBoundary>
             </div>
