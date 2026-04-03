@@ -9,6 +9,97 @@ import { BillingSection } from "@/components/BillingSection";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
+function DashboardXpWidget() {
+  const [stats, setStats] = useState<{ totalXp: number; currentStreak: number; longestStreak: number; lastActiveDate: string | null } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/users/me/stats", { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => { if (data) setStats(data); })
+      .catch(() => {});
+  }, []);
+
+  if (!stats) return null;
+
+  const today = new Date().toISOString().split("T")[0];
+  const isActiveToday = stats.lastActiveDate === today;
+
+  return (
+    <div className="lms-xp-widget" style={{ display: "flex", gap: "1.5rem", padding: "1rem 1.25rem", background: "var(--bg-secondary, #f7f7f5)", borderRadius: "var(--radius-lg)", marginBottom: "1.5rem", flexWrap: "wrap", alignItems: "center" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="var(--accent)" style={{ flexShrink: 0 }}>
+          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+        </svg>
+        <div>
+          <div style={{ fontSize: "1.25rem", fontWeight: 700, lineHeight: 1 }}>{stats.totalXp.toLocaleString()}</div>
+          <div style={{ fontSize: "0.7rem", color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Total XP</div>
+        </div>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+        <span style={{ fontSize: "1.25rem" }}>{isActiveToday ? "🔥" : "💤"}</span>
+        <div>
+          <div style={{ fontSize: "1.25rem", fontWeight: 700, lineHeight: 1 }}>{stats.currentStreak}</div>
+          <div style={{ fontSize: "0.7rem", color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Day Streak</div>
+        </div>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+        <span style={{ fontSize: "1.25rem" }}>🏆</span>
+        <div>
+          <div style={{ fontSize: "1.25rem", fontWeight: 700, lineHeight: 1 }}>{stats.longestStreak}</div>
+          <div style={{ fontSize: "0.7rem", color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Best Streak</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DashboardTeamPanel() {
+  const [orgs, setOrgs] = useState<{ slug: string; name: string }[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/org/my", { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : { organizations: [] }))
+      .then((data) => setOrgs(data.organizations || []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) {
+    return (
+      <div style={{ padding: "2rem 0" }}>
+        <div className="skeleton" style={{ height: 80, borderRadius: "var(--radius-md)" }} />
+      </div>
+    );
+  }
+
+  if (orgs.length === 0) {
+    return (
+      <div style={{ textAlign: "center", padding: "3rem 1rem", color: "var(--text-secondary)" }}>
+        <p style={{ fontSize: "1.1rem", fontWeight: 600, marginBottom: "0.5rem" }}>No teams yet</p>
+        <p style={{ fontSize: "0.85rem", marginBottom: "1rem" }}>Create or join a team to manage courses together, assign learning paths, and track progress.</p>
+        <Link href="/org/new" className="btn-primary" style={{ textDecoration: "none" }}>Create a Team</Link>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", padding: "1rem 0" }}>
+      {orgs.map((org) => (
+        <Link key={org.slug} href={`/org/${org.slug}`} className="card" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "1rem 1.25rem", textDecoration: "none", color: "inherit" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+            <div style={{ width: 36, height: 36, borderRadius: "var(--radius-md)", background: "var(--accent-light)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, color: "var(--accent)", fontSize: "0.9rem" }}>
+              {org.name.charAt(0).toUpperCase()}
+            </div>
+            <span style={{ fontWeight: 600 }}>{org.name}</span>
+          </div>
+          <span style={{ fontSize: "0.8rem", color: "var(--text-tertiary)" }}>Manage →</span>
+        </Link>
+      ))}
+    </div>
+  );
+}
+
 interface ChangesSince {
   summary: string;
   changedFiles: string[];
@@ -370,6 +461,8 @@ function Dashboard() {
 
       <EmailPreferenceToggle />
 
+      <DashboardXpWidget />
+
       <div className="lms-dash-header">
         <div>
           <h1>My Learning</h1>
@@ -453,6 +546,15 @@ function Dashboard() {
             <span className="lms-tab-badge">{myAssignments.length}</span>
           </button>
         )}
+        <button
+          role="tab"
+          aria-selected={activeTab === "team"}
+          aria-controls="panel-team"
+          className={`lms-tab ${activeTab === "team" ? "lms-tab-active" : ""}`}
+          onClick={() => setActiveTab("team")}
+        >
+          My Team
+        </button>
       </div>
 
       {activeTab === "assigned" && myAssignments.length > 0 && (
@@ -546,6 +648,10 @@ function Dashboard() {
             )}
           </div>
         </div>
+      )}
+
+      {activeTab === "team" && (
+        <DashboardTeamPanel />
       )}
 
       {activeTab === "courses" && (isLoading ? (

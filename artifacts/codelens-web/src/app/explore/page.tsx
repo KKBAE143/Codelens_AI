@@ -35,6 +35,10 @@ interface ExploreResponse {
   };
 }
 
+const SKILL_CATEGORIES = [
+  "Backend", "Frontend", "DevOps", "AI/ML", "Security", "Mobile", "Data", "Infrastructure",
+];
+
 const LANGUAGES = [
   "TypeScript", "JavaScript", "Python", "Go", "Rust", "Java", "Ruby", "PHP", "C", "C++", "C#", "Kotlin", "Swift",
 ];
@@ -148,6 +152,7 @@ export default function ExplorePage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [language, setLanguage] = useState("");
+  const [category, setCategory] = useState("");
   const [focusArea, setFocusArea] = useState("");
   const [audience, setAudience] = useState("");
   const [depth, setDepth] = useState("");
@@ -228,15 +233,26 @@ export default function ExplorePage() {
         </div>
 
         <div className="lms-category-chips">
-          {LANGUAGES.map((l) => (
+          {SKILL_CATEGORIES.map((cat) => (
             <button
-              key={l}
-              className={`lms-category-chip ${language === l ? "lms-category-chip-active" : ""}`}
-              onClick={() => { setLanguage(language === l ? "" : l); setPage(1); }}
+              key={cat}
+              className={`lms-category-chip ${category === cat ? "lms-category-chip-active" : ""}`}
+              onClick={() => { setCategory(category === cat ? "" : cat); setFocusArea(category === cat ? "" : cat); setPage(1); }}
             >
-              {l}
+              {cat}
             </button>
           ))}
+          <select
+            value={language}
+            onChange={(e) => { setLanguage(e.target.value); setPage(1); }}
+            className="explore-select"
+            style={{ marginLeft: "auto", minWidth: 120 }}
+          >
+            <option value="">All Languages</option>
+            {LANGUAGES.map((l) => (
+              <option key={l} value={l}>{l}</option>
+            ))}
+          </select>
         </div>
 
         <div className="explore-mobile-filters" style={{ display: "none", gap: "0.5rem", flexWrap: "wrap", marginBottom: "1rem" }}>

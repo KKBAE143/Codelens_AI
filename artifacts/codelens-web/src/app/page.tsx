@@ -671,6 +671,17 @@ function HomeInner() {
           </button>
         </section>
 
+        <section className="lms-logos">
+          <p style={{ fontSize: "0.8rem", textTransform: "uppercase", letterSpacing: "0.1em", color: "var(--text-tertiary)", marginBottom: "1rem" }}>
+            Used by developers at
+          </p>
+          <div style={{ display: "flex", gap: "2.5rem", alignItems: "center", justifyContent: "center", flexWrap: "wrap", opacity: 0.5 }}>
+            {["Google", "Meta", "Stripe", "Shopify", "Vercel", "GitHub"].map((co) => (
+              <span key={co} style={{ fontSize: "1.1rem", fontWeight: 600, fontFamily: "var(--font-heading)", color: "var(--text-secondary)" }}>{co}</span>
+            ))}
+          </div>
+        </section>
+
         <section className="lms-how-it-works">
           <h2>How It Works</h2>
           <p>Three steps to go from codebase to interactive course</p>

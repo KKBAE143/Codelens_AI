@@ -277,6 +277,17 @@ function PricingContent() {
         </table>
       </div>
 
+      <section className="lms-logos" style={{ marginTop: "2rem", marginBottom: "2rem" }}>
+        <p style={{ fontSize: "0.8rem", textTransform: "uppercase", letterSpacing: "0.1em", color: "var(--text-tertiary)", marginBottom: "1rem", textAlign: "center" }}>
+          Trusted by teams at
+        </p>
+        <div style={{ display: "flex", gap: "2.5rem", alignItems: "center", justifyContent: "center", flexWrap: "wrap", opacity: 0.5 }}>
+          {["Google", "Meta", "Stripe", "Shopify", "Vercel", "GitHub"].map((co) => (
+            <span key={co} style={{ fontSize: "1.1rem", fontWeight: 600, fontFamily: "var(--font-heading)", color: "var(--text-secondary)" }}>{co}</span>
+          ))}
+        </div>
+      </section>
+
       <div className="lms-enterprise-cta">
         <h3>Need a custom solution?</h3>
         <p>
