@@ -229,6 +229,68 @@ function getLanguageFromExt(ext: string): string | null {
   return map[ext] || null;
 }
 
+function inferFileDescription(filePath: string): string {
+  const name = filePath.substring(filePath.lastIndexOf("/") + 1).toLowerCase();
+  const dir = filePath.substring(0, filePath.lastIndexOf("/")).toLowerCase();
+  const ext = name.substring(name.lastIndexOf("."));
+
+  if (name === "package.json") return "Node.js package manifest";
+  if (name === "tsconfig.json" || name.startsWith("tsconfig.")) return "TypeScript configuration";
+  if (name === "dockerfile" || name.startsWith("dockerfile.")) return "Docker container definition";
+  if (name === "docker-compose.yml" || name === "docker-compose.yaml") return "Docker Compose service orchestration";
+  if (name === ".gitignore") return "Git ignore rules";
+  if (name === ".env.example" || name === ".env.template") return "Environment variable template";
+  if (name === "makefile" || name === "gnumakefile") return "Build automation (Make)";
+  if (name === "cargo.toml") return "Rust package manifest";
+  if (name === "go.mod") return "Go module definition";
+  if (name === "requirements.txt" || name === "pyproject.toml") return "Python dependency manifest";
+  if (name === "gemfile") return "Ruby dependency manifest";
+  if (name === "build.gradle" || name === "build.gradle.kts") return "Gradle build script";
+  if (name === "pom.xml") return "Maven project descriptor";
+  if (name === "readme.md" || name === "readme.txt" || name === "readme") return "Project documentation";
+  if (name === "license" || name === "license.md") return "License file";
+  if (name === "changelog.md") return "Version changelog";
+
+  if (/\.test\.|\.spec\./.test(name)) return "Test file";
+  if (/\.stories\./.test(name)) return "Storybook stories";
+  if (/\.d\.ts$/.test(name)) return "TypeScript type declarations";
+  if (name.endsWith(".config.js") || name.endsWith(".config.ts") || name.endsWith(".config.mjs")) return "Configuration module";
+  if (name.endsWith(".module.ts") || name.endsWith(".module.js")) return "Module definition";
+
+  if (dir.includes("/migrations") || dir.includes("/migrate")) return "Database migration";
+  if (dir.includes("/test") || dir.includes("/__tests__")) return "Test file";
+  if (dir.includes("/fixtures") || dir.includes("/mocks")) return "Test fixture / mock data";
+  if (dir.includes("/components")) return "UI component";
+  if (dir.includes("/hooks")) return "React hook";
+  if (dir.includes("/api") || dir.includes("/routes")) return "API route handler";
+  if (dir.includes("/middleware")) return "Middleware";
+  if (dir.includes("/models") || dir.includes("/entities")) return "Data model / entity";
+  if (dir.includes("/utils") || dir.includes("/helpers")) return "Utility / helper module";
+  if (dir.includes("/services")) return "Service layer module";
+  if (dir.includes("/controllers")) return "Controller";
+  if (dir.includes("/types") || dir.includes("/interfaces")) return "Type definitions";
+  if (dir.includes("/styles") || dir.includes("/css")) return "Stylesheet";
+  if (dir.includes("/config")) return "Configuration";
+  if (dir.includes("/scripts")) return "Build / automation script";
+  if (dir.includes("/docs")) return "Documentation";
+  if (dir.includes("/pages") || dir.includes("/views")) return "Page / view";
+  if (dir.includes("/lib") || dir.includes("/src/lib")) return "Library module";
+  if (dir.includes("/public") || dir.includes("/static") || dir.includes("/assets")) return "Static asset";
+
+  if (name === "index.ts" || name === "index.js") return "Module entry point";
+  if (ext === ".css" || ext === ".scss" || ext === ".less") return "Stylesheet";
+  if (ext === ".html") return "HTML template";
+  if (ext === ".json") return "JSON data / configuration";
+  if (ext === ".yml" || ext === ".yaml") return "YAML configuration";
+  if (ext === ".md") return "Markdown documentation";
+  if (ext === ".sql") return "SQL script";
+  if (ext === ".sh" || ext === ".bash") return "Shell script";
+  if (ext === ".proto") return "Protocol buffer definition";
+  if (ext === ".graphql" || ext === ".gql") return "GraphQL schema / query";
+
+  return "Source file";
+}
+
 function shouldSkip(path: string): boolean {
   return SKIP_PATTERNS.some((p) => p.test(path));
 }
@@ -827,7 +889,14 @@ export async function extractRepo(
     };
   }).sort((a, b) => b.score - a.score);
 
-  const repoMap = buildRepoMap(fetchedFiles);
+  const fetchedPaths = new Set(fetchedFiles.map(f => f.path));
+  const nonFetchedPaths = allFiles
+    .filter(f => !fetchedPaths.has(f.path))
+    .map(f => f.path);
+  let repoMap = buildRepoMap(fetchedFiles);
+  if (nonFetchedPaths.length > 0) {
+    repoMap += "\n\n=== Files not fetched (path only) ===\n" + nonFetchedPaths.join("\n");
+  }
 
   const topFiles: GitHubFile[] = [];
   let runningTokens = 0;
@@ -853,6 +922,14 @@ export async function extractRepo(
     const sigLines = sigs.split("\n").filter(l => l.startsWith("export ") || l.startsWith("function ") || l.startsWith("class ") || l.startsWith("def ") || l.startsWith("func ") || l.startsWith("pub ") || l.startsWith("type ") || l.startsWith("interface ") || l.match(/^(public|private|protected)/));
     if (sigLines.length > 0) {
       sigEntries.push(`${f.path}:\n  ${sigLines.slice(0, 20).join("\n  ")}`);
+    }
+  }
+  const oversizedFiles = allFiles.filter(f => f.size > SIGNATURE_FILE_SIZE && !isBinaryExtension(f.path));
+  for (const f of oversizedFiles) {
+    if (!includedPaths.has(f.path)) {
+      includedPaths.add(f.path);
+      const sizeKB = Math.round(f.size / 1024);
+      sigEntries.push(`${f.path}:\n  [oversized file, ${sizeKB}KB — ${inferFileDescription(f.path)}]`);
     }
   }
 
@@ -954,7 +1031,8 @@ export async function extractRepo(
       const ext = f.path.substring(f.path.lastIndexOf(".")).toLowerCase();
       const lang = getLanguageFromExt(ext);
       const sizeKB = Math.round(f.size / 1024);
-      return `${f.path} (${sizeKB}KB${lang ? `, ${lang}` : ""})`;
+      const desc = inferFileDescription(f.path);
+      return `${f.path} (${sizeKB}KB${lang ? `, ${lang}` : ""}) — ${desc}`;
     })
     .join("\n");
 

@@ -26,15 +26,17 @@ function getAbstractionFilesByPageRank(
   const includedPaths = new Set(filesFromIndices.map(f => f.path));
 
   const allFetched = extraction.allFetchedFiles || [];
-  if (allFetched.length > extraction.files.length) {
-    const indexedPaths = new Set(
-      abstraction.file_indices
-        .filter((idx) => idx < extraction.files.length)
-        .map((idx) => extraction.files[idx].path)
-    );
+  if (allFetched.length > 0) {
+    const abstractionDirs = new Set<string>();
+    for (const f of filesFromIndices) {
+      const dir = f.path.substring(0, f.path.lastIndexOf("/"));
+      if (dir) abstractionDirs.add(dir);
+    }
+
     for (const f of allFetched) {
-      if (!includedPaths.has(f.path) && !indexedPaths.has(f.path)) continue;
-      if (!includedPaths.has(f.path)) {
+      if (includedPaths.has(f.path)) continue;
+      const fDir = f.path.substring(0, f.path.lastIndexOf("/"));
+      if (fDir && abstractionDirs.has(fDir)) {
         filesFromIndices.push(f);
         includedPaths.add(f.path);
       }
@@ -335,32 +337,11 @@ async function writeOneChapter(
 
   const repoMapSection = `\n\n=== Full Repository Map ===\n${extraction.repoMap}`;
   const fileTreeSection = `\n\n=== Complete File Tree (${extraction.fileTree.length} files) ===\n${extraction.fullFileTreeListing || extraction.fileTree.join("\n")}`;
-  const repoMapAndTree = repoMapSection + fileTreeSection;
-  const repoMapTreeTokens = countTokens(repoMapAndTree);
-
-  if (countTokens(contextData) + repoMapTreeTokens <= contextBudget) {
-    contextData += repoMapAndTree;
-  } else {
-    contextData += repoMapSection;
-    const treeLines = (extraction.fullFileTreeListing || extraction.fileTree.join("\n")).split("\n");
-    const remainingBudget = contextBudget - countTokens(contextData) - 100;
-    if (remainingBudget > 200) {
-      const trimmedTree: string[] = [];
-      let treeToks = 0;
-      for (const line of treeLines) {
-        const lt = countTokens(line);
-        if (treeToks + lt > remainingBudget) break;
-        trimmedTree.push(line);
-        treeToks += lt;
-      }
-      if (trimmedTree.length > 0) {
-        contextData += `\n\n=== File Tree (${trimmedTree.length}/${treeLines.length} files) ===\n${trimmedTree.join("\n")}`;
-      }
-    }
-  }
+  contextData = contextData + repoMapSection + fileTreeSection;
 
   if (extraction.fileSignatures) {
-    const sigBudget = contextBudget - countTokens(contextData);
+    const currentTokens = countTokens(contextData);
+    const sigBudget = Math.max(contextBudget - currentTokens, 0);
     if (sigBudget > 500) {
       const sigLines = extraction.fileSignatures.split("\n");
       const trimmedSig: string[] = [];
