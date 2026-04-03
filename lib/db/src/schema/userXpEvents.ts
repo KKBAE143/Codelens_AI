@@ -1,4 +1,5 @@
-import { pgTable, text, uuid, integer, timestamp, index } from "drizzle-orm/pg-core";
+import { pgTable, text, uuid, integer, timestamp, index, uniqueIndex } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { users } from "./users";
 import { courses } from "./courses";
 
@@ -15,6 +16,9 @@ export const userXpEvents = pgTable("user_xp_events", {
 }, (table) => [
   index("user_xp_events_user_id_idx").on(table.userId),
   index("user_xp_events_created_at_idx").on(table.createdAt),
+  uniqueIndex("user_xp_quiz_pass_unique_idx")
+    .on(table.userId, table.courseId, table.eventType, table.moduleIndex)
+    .where(sql`event_type = 'quiz_pass' AND module_index IS NOT NULL`),
 ]);
 
 export type UserXpEvent = typeof userXpEvents.$inferSelect;

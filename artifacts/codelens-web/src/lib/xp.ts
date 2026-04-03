@@ -311,22 +311,3 @@ async function checkAndAwardBadges(userId: string, totalXp: number, currentStrea
   return awarded;
 }
 
-export async function hasQuizXpBeenAwarded(
-  userId: string,
-  courseId: string,
-  moduleIndex: number,
-): Promise<boolean> {
-  const [existing] = await db
-    .select({ id: userXpEvents.id })
-    .from(userXpEvents)
-    .where(
-      and(
-        eq(userXpEvents.userId, userId),
-        eq(userXpEvents.courseId, courseId),
-        eq(userXpEvents.eventType, "quiz_pass"),
-        eq(userXpEvents.moduleIndex, moduleIndex),
-      ),
-    )
-    .limit(1);
-  return !!existing;
-}

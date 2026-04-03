@@ -284,15 +284,23 @@ export async function PATCH(
       })
       .where(eq(courseProgress.id, existing.id));
 
-    let xpResult = null;
+    let leveledUp = false;
+    let newLevel = 0;
+    let newLevelName = "";
+    let newBadges: string[] = [];
+
     if (isNewModule) {
       try {
-        xpResult = await awardXp(user.id, "module_read", courseId);
+        const r = await awardXp(user.id, "module_read", courseId);
+        if (r.leveledUp) { leveledUp = true; newLevel = r.newLevel; newLevelName = r.newLevelName; }
+        newBadges = [...newBadges, ...r.newBadges];
       } catch {}
     }
     if (percentComplete >= 100 && !existing.completedAt) {
       try {
-        xpResult = await awardXp(user.id, "course_complete", courseId);
+        const r = await awardXp(user.id, "course_complete", courseId);
+        if (r.leveledUp) { leveledUp = true; newLevel = r.newLevel; newLevelName = r.newLevelName; }
+        newBadges = [...newBadges, ...r.newBadges];
       } catch {}
       triggerSlackCompletion(courseRecord, user).catch(() => {});
       triggerEmailCompletion(courseRecord, user).catch(() => {});
@@ -303,12 +311,8 @@ export async function PATCH(
       success: true,
       percentComplete,
       completedModules,
-      ...(xpResult ? {
-        leveledUp: xpResult.leveledUp,
-        newLevel: xpResult.newLevel,
-        newLevelName: xpResult.newLevelName,
-        newBadges: xpResult.newBadges,
-      } : {}),
+      ...(leveledUp ? { leveledUp, newLevel, newLevelName } : {}),
+      ...(newBadges.length > 0 ? { newBadges } : {}),
     });
   }
 
@@ -325,13 +329,21 @@ export async function PATCH(
     completedAt: isCompleted ? new Date() : null,
   });
 
-  let xpResult = null;
+  let leveledUp2 = false;
+  let newLevel2 = 0;
+  let newLevelName2 = "";
+  let newBadges2: string[] = [];
+
   try {
-    xpResult = await awardXp(user.id, "module_read", courseId);
+    const r = await awardXp(user.id, "module_read", courseId);
+    if (r.leveledUp) { leveledUp2 = true; newLevel2 = r.newLevel; newLevelName2 = r.newLevelName; }
+    newBadges2 = [...newBadges2, ...r.newBadges];
   } catch {}
   if (isCompleted) {
     try {
-      xpResult = await awardXp(user.id, "course_complete", courseId);
+      const r = await awardXp(user.id, "course_complete", courseId);
+      if (r.leveledUp) { leveledUp2 = true; newLevel2 = r.newLevel; newLevelName2 = r.newLevelName; }
+      newBadges2 = [...newBadges2, ...r.newBadges];
     } catch {}
     triggerSlackCompletion(courseRecord, user).catch(() => {});
     triggerEmailCompletion(courseRecord, user).catch(() => {});
@@ -342,12 +354,8 @@ export async function PATCH(
     success: true,
     percentComplete,
     completedModules,
-    ...(xpResult ? {
-      leveledUp: xpResult.leveledUp,
-      newLevel: xpResult.newLevel,
-      newLevelName: xpResult.newLevelName,
-      newBadges: xpResult.newBadges,
-    } : {}),
+    ...(leveledUp2 ? { leveledUp: leveledUp2, newLevel: newLevel2, newLevelName: newLevelName2 } : {}),
+    ...(newBadges2.length > 0 ? { newBadges: newBadges2 } : {}),
   });
 }
 

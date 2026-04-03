@@ -144,7 +144,7 @@ Seed Stripe products: `pnpm --filter @workspace/scripts exec tsx src/seed-produc
 - **Streaks**: Timezone-aware (uses `users.timezone` column, `Intl.DateTimeFormat` en-CA format). Streak shield auto-activates at 7+ days, forgives one missed day.
 - **Atomic XP**: All XP award + streak update happens in a single DB transaction in `xp.ts` — no race conditions on concurrent calls.
 - **Badges**: 8 milestone badges in `user_badges` table — first_course, streak_7, streak_30, quiz_master, xp_1000, xp_10000, module_50, course_5. Checked/awarded after each XP event.
-- **Quiz idempotency**: `hasQuizXpBeenAwarded()` checks `user_xp_events` for existing quiz_pass with same courseId + moduleIndex before awarding.
+- **Quiz idempotency**: Partial unique index `user_xp_quiz_pass_unique_idx` on `(user_id, course_id, event_type, module_index) WHERE event_type='quiz_pass'` + `onConflictDoNothing()` in `awardXp()` transaction — race-safe at DB level.
 - **Real-time updates**: XpStreakBadge uses React Query (`queryKey: ["user-stats"]`), invalidated after progress PATCH and quiz score POST.
 - **Level-up modal**: `LevelUpModal.tsx` — animated celebration shown when crossing level boundary, auto-dismisses after 4s.
 - **Navbar popover**: XpStreakBadge expands on click to show level, progress bar, today's XP, streak, shield status.
