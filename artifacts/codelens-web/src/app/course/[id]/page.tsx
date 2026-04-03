@@ -14,6 +14,9 @@ import { FlashcardReview, FlashcardDueBanner } from "@/components/FlashcardRevie
 import { CourseSidebar } from "@/components/CourseSidebar";
 import { PracticeMode } from "@/components/PracticeMode";
 import { CourseWizard } from "@/components/CourseWizard";
+import { CourseAIPanel } from "@/components/CourseAIPanel";
+import { CourseSearch } from "@/components/CourseSearch";
+import { ModuleDiscussion } from "@/components/ModuleDiscussion";
 import {
   normalizeV2CourseData,
   parseV2Course,
@@ -136,6 +139,8 @@ function V2ModuleContent({
   hasOverview,
   doneExercises,
   onExerciseDone,
+  beginnerMode,
+  userId,
 }: {
   module: V2Module;
   moduleIndex: number;
@@ -152,6 +157,8 @@ function V2ModuleContent({
   hasOverview: boolean;
   doneExercises?: Record<string, boolean>;
   onExerciseDone?: (key: string, done: boolean) => void;
+  beginnerMode?: boolean;
+  userId?: string | null;
 }) {
   const quizBlocks = mod.blocks.filter((b): b is V2QuizBlock => b.type === "quiz");
   const quizCount = quizBlocks.length;
@@ -229,6 +236,9 @@ function V2ModuleContent({
             <BlockRenderer
               block={block}
               githubUrl={githubUrl}
+              courseId={courseId}
+              moduleTitle={mod.title}
+              beginnerMode={beginnerMode}
               exerciseContext={block.type === "exercise" ? {
                 courseId,
                 moduleIndex,
@@ -283,6 +293,12 @@ function V2ModuleContent({
           </svg>
         </button>
       </footer>
+
+      <ModuleDiscussion
+        courseId={courseId}
+        moduleIndex={moduleIndex}
+        currentUserId={userId || null}
+      />
     </article>
   );
 }
@@ -479,6 +495,8 @@ export default function CourseViewer() {
   const [showWizard, setShowWizard] = useState(false);
   const [levelUpData, setLevelUpData] = useState<{ level: number; levelName: string } | null>(null);
   const [doneExercises, setDoneExercises] = useState<Record<string, boolean>>({});
+  const [showAIPanel, setShowAIPanel] = useState(false);
+  const [beginnerMode, setBeginnerMode] = useState(false);
   const [activeModuleIndex, setActiveModuleIndex] = useState<number | null>(() => {
     if (typeof window !== "undefined") {
       const hash = window.location.hash;
@@ -927,6 +945,45 @@ export default function CourseViewer() {
           )}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+          {isV2 && v2Data && (
+            <CourseSearch
+              modules={v2Data.modules}
+              onNavigate={(moduleIndex, blockIndex) => {
+                handleModuleSelect(moduleIndex);
+                setTimeout(() => {
+                  const el = document.getElementById(`toc-block-${blockIndex}`);
+                  if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+                }, 300);
+              }}
+            />
+          )}
+          {isV2 && (
+            <button
+              className="v2-topbar-ai-btn"
+              onClick={() => setShowAIPanel(!showAIPanel)}
+              title="Ask AI about this codebase"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
+              <span className="v2-topbar-ai-text">Ask AI</span>
+            </button>
+          )}
+          {isV2 && (
+            <button
+              className={`v2-topbar-beginner-btn ${beginnerMode ? "v2-topbar-beginner-active" : ""}`}
+              onClick={() => setBeginnerMode(!beginnerMode)}
+              title={beginnerMode ? "Switch to full mode" : "Switch to beginner mode"}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+                <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+              </svg>
+              <span className="v2-topbar-beginner-text">{beginnerMode ? "Full" : "Beginner"}</span>
+            </button>
+          )}
           <span className="v2-topbar-audience" style={{ background: "rgba(255,255,255,0.15)", padding: "0.125rem 0.5rem", borderRadius: "var(--radius-full)", color: "rgba(255,255,255,0.7)", fontSize: "0.75rem" }}>
             {AUDIENCE_LABELS[course.targetAudience] || course.targetAudience}
           </span>
@@ -1041,6 +1098,20 @@ export default function CourseViewer() {
                             <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
                           </svg>
                         </button>
+                        <a
+                          href={`/api/courses/${courseId}/export`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="v2-sidebar-icon-btn"
+                          title="Export as printable HTML"
+                          aria-label="Export course"
+                        >
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                            <polyline points="7 10 12 15 17 10" />
+                            <line x1="12" y1="15" x2="12" y2="3" />
+                          </svg>
+                        </a>
                         <a
                           href={course.githubUrl}
                           target="_blank"
@@ -1271,6 +1342,10 @@ export default function CourseViewer() {
                       setShowFlashcards(true);
                     }}
                     hasOverview={!!v2Data.overviewGraph}
+                    doneExercises={doneExercises}
+                    onExerciseDone={(key, done) => setDoneExercises((prev) => ({ ...prev, [key]: done }))}
+                    beginnerMode={beginnerMode}
+                    userId={user?.id}
                   />
                 </>
               )}
@@ -1370,6 +1445,13 @@ export default function CourseViewer() {
             </aside>
           )}
         </div>
+      )}
+      {showAIPanel && isV2 && v2Data && (
+        <CourseAIPanel
+          courseId={courseId}
+          moduleTitle={activeModuleIndex !== null && v2Data.modules[activeModuleIndex] ? v2Data.modules[activeModuleIndex].title : undefined}
+          onClose={() => setShowAIPanel(false)}
+        />
       )}
       {levelUpData && (
         <LevelUpModal

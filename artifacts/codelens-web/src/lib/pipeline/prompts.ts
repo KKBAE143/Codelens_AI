@@ -1,7 +1,18 @@
 import type { TargetAudience } from "../prompts";
 
 const PERSONA_CONTEXT: Record<TargetAudience, string> = {
-  vibe_coder: `The learner is a "vibe coder" who builds with AI tools (Cursor, Bolt, Lovable) without a CS background. They can BUILD but cannot debug or maintain. Focus on: debugging strategies, what breaks and how to fix it, how to steer AI tools, dangerous zones AI frequently messes up.`,
+  vibe_coder: `The learner is a "vibe coder" — someone who builds with AI tools (Cursor, Bolt, Lovable, v0) and can ship features but lacks formal CS training. They can prompt their way to working code but struggle when things break, when AI generates subtly wrong patterns, or when they need to modify generated code they don't fully understand.
+
+TONE & STYLE RULES (mandatory for vibe coder audience):
+- Write like a patient friend who ALSO uses AI tools but knows what's happening under the hood. Never condescend — they're builders, not beginners.
+- For EVERY concept, answer these three questions: (1) "What does this actually DO when the app runs?", (2) "What breaks if I delete/change this?", (3) "How do I tell my AI tool to modify this correctly?"
+- Use "AI steering tips" — concrete prompts or instructions the learner can paste into Cursor/Copilot to work with this part of the code. Example: "To add a new API route, tell Cursor: 'Add a new POST endpoint in routes/ following the pattern in routes/users.ts, including the auth middleware and Zod validation.'"
+- Flag "AI danger zones" — places where AI tools commonly generate wrong or dangerous code (e.g., missing auth checks, SQL injection, race conditions). Use callout[warning] blocks for these.
+- Explain error messages they'll actually see. Don't just say "this validates input" — show what error appears when validation fails and what to fix.
+- Keep paragraphs to 2-3 sentences. Use bullet lists for multi-step processes.
+- Prefer "when you..." and "if you see..." framing over abstract explanations.
+- Include debugging decision trees: "If X happens → check Y. If Y looks fine → check Z."`,
+
   new_engineer: `The learner is a new software engineer joining the team — smart and technically capable, but completely new to this specific codebase. Write as if you are a friendly senior engineer walking them through the code over coffee, not a textbook author.
 
 TONE & STYLE RULES (mandatory):
@@ -10,9 +21,26 @@ TONE & STYLE RULES (mandatory):
 - Write SHORT paragraphs — 3–4 sentences maximum. Break complex ideas into multiple paragraphs rather than one dense block.
 - AVOID jargon walls: never introduce more than two technical terms in a single paragraph without immediately explaining them in plain English.
 - Prefer active, direct sentences: "This function checks if the user is logged in" beats "Authentication verification is performed by this function".
-- Build complexity gradually within each chapter: start simple (what it is, why it exists), then go deeper (how it works, edge cases).`,
-  product_manager: `The learner is a Product Manager. They need to understand WHAT the system does and WHY without reading code. Focus on: business-level component descriptions, user journeys, external integrations, performance characteristics. Minimize code, maximize diagrams.`,
-  security_auditor: `The learner is a Security Auditor. Focus on: authentication flows, authorization boundaries, input validation, API security, secrets management, dependency risks, data exposure, error handling information leaks.`,
+- Build complexity gradually within each chapter: start simple (what it is, why it exists), then go deeper (how it works, edge cases).
+- Include "Day 1 context" — what the engineer will encounter in their first week that relates to this concept.
+- Reference the DECISION behind patterns: "The team chose X over Y because..." not just "X is used here."`,
+
+  product_manager: `The learner is a Product Manager. They need to understand WHAT the system does and WHY without reading code. Focus on: business-level component descriptions, user journeys, external integrations, performance characteristics. Minimize code, maximize diagrams.
+
+TONE & STYLE RULES (mandatory):
+- Translate every technical component into business impact: "This queue system means users see their upload processed within 30 seconds instead of waiting."
+- Use user journey language: "When a customer clicks Buy → this component charges their card → this service sends the confirmation email."
+- For code blocks, show ONLY the 3-5 most important lines with heavy annotation — skip implementation details.
+- Include capacity/scale context where possible: "This can handle ~X requests per second" or "This database table grows by ~Y rows per day."`,
+
+  security_auditor: `The learner is a Security Auditor. Focus on: authentication flows, authorization boundaries, input validation, API security, secrets management, dependency risks, data exposure, error handling information leaks.
+
+TONE & STYLE RULES (mandatory):
+- For each component, identify: trust boundaries, input sources, data sensitivity classification, and failure modes.
+- Flag specific CWE/OWASP categories where applicable.
+- Show exact code paths for auth checks — where they happen, what they verify, what bypasses exist.
+- Include "attack surface" callouts: what an attacker with access to X could do.
+- Rate each component's risk level: low/medium/high/critical with justification.`,
 };
 
 const ANTI_PLACEHOLDER_RULES = `
@@ -22,7 +50,8 @@ ABSOLUTE RULES — VIOLATION MEANS FAILURE:
 - NEVER invent or fabricate code. Every code block must quote EXACTLY from the provided file contents
 - NEVER create empty or trivial mermaid diagrams. Each diagram must show REAL relationships with proper node labels and edge descriptions
 - NEVER write trivial quiz questions like "What does X do?" — questions must test APPLICATION-level understanding with realistic scenarios
-- Every chapter MUST feel like a section from a well-written O'Reilly book, not AI-generated filler`;
+- Every chapter MUST feel like a section from a well-written O'Reilly book, not AI-generated filler
+- NEVER end a section with "In the next chapter..." or "Stay tuned..." — end with a concrete takeaway`;
 
 export function getAbstractionPrompt(
   audience: TargetAudience,
@@ -96,6 +125,12 @@ ${focusStr}
 
 Given the abstractions and their relationship graph, determine the optimal learning order.
 
+ORDERING PRINCIPLES:
+1. PROGRESSIVE DIFFICULTY — start with the simplest, most concrete abstractions (data models, config) and build toward complex orchestrators (API routes, middleware chains, state management).
+2. DEPENDENCY-FIRST — if abstraction B imports from or depends on A, teach A first. Follow the import graph.
+3. CONTINUITY BRIDGING — each chapter should build on concepts from the previous one. In the learningObjective, reference what was covered before: "Building on the database layer from Chapter 3, we now see how the API routes query and mutate data."
+4. CONCRETE-BEFORE-ABSTRACT — teach specific implementations before teaching patterns or frameworks that generalize them.
+
 Rules:
 - Foundational abstractions (few dependencies, imported by many) come first
 - Complex orchestrators (depend on many others) come last
@@ -104,12 +139,13 @@ Rules:
 - Second-to-last is ALWAYS "Dependencies Explained" (you don't need to include it)
 - Last is ALWAYS "Troubleshooting & Common Errors" (you don't need to include it)
 - You only need to order the ABSTRACTION chapters (the mandatory ones are inserted automatically)
+- Each learningObjective MUST reference a connection to the previous chapter when possible
 
 Return ONLY valid YAML (no markdown fences). Format:
 
 - index: 2
   title: "Chapter Title"
-  learningObjective: "After this chapter, the reader will understand..."
+  learningObjective: "Building on [previous concept], the reader will understand..."
   estimatedMinutes: 8
   abstractionRef: "AbstractionName"
   focusAreas: ["auth", "api"]`;
@@ -139,10 +175,20 @@ NEW ENGINEER CHAPTER REQUIREMENTS (in addition to the structure below):
 - Quizzes must be scenario-based: "You're on day 2 and need to add X — which file do you open first?" or "You see error Y in the logs — what does that tell you?".
 - Include a callout[first-pr] with a concrete, safe first contribution the reader could make to this part of the codebase.` : "";
 
+  const vibeCoderExtra = audience === "vibe_coder" ? `
+
+VIBE CODER CHAPTER REQUIREMENTS (in addition to the structure below):
+- The FIRST text block must answer: "What does this part of the code DO when a user interacts with the app?" in plain terms. No abstract descriptions.
+- Include at least ONE callout[ai-hint] block with a concrete AI steering tip — an actual prompt snippet the learner can paste into Cursor/Copilot to modify this part of the code safely.
+- Include at least ONE callout[warning] as an "AI Danger Zone" — a specific place where AI tools commonly generate broken or insecure code, with what to watch for and how to fix it.
+- For each code block, add a caption that explains not just WHAT the code does but WHAT BREAKS if they change it wrong.
+- Quizzes must be debugging-oriented: "You see this error in the console — what caused it and what do you fix?" or "Your AI tool generated this code — what's wrong with it?"
+- Include an exercise that involves TRACING a real data flow: "Start at X, follow the data through Y, and explain what Z returns."` : "";
+
   return `You are writing a single chapter of a codebase tutorial about the "${abstractionName}" abstraction.
 
 ${PERSONA_CONTEXT[audience]}
-${newEngineerExtra}
+${newEngineerExtra}${vibeCoderExtra}
 Abstraction: ${abstractionName}
 Description: ${abstractionDescription}
 
@@ -168,15 +214,22 @@ Available block types:
 10. "command-card": { "type": "command-card", "command": "npm run dev", "when": "when and why to use this", "expectedOutput": "what you see", "commonErrors": [{"error": "msg", "fix": "solution"}] }
 11. "exercise": { "type": "exercise", "title": "Short imperative title (e.g. 'Trace an API Request End-to-End')", "task": "Clear, specific, actionable task — must be achievable by reading the code. NOT 'study the file' but 'find where X calls Y and explain what happens when Z changes'.", "files": [{"path": "src/relevant/file.ts", "githubUrl": null}], "verificationHint": "One sentence: how to know you got it right", "difficulty": "easy"|"medium"|"hard" }
 
-REQUIRED CHAPTER STRUCTURE:
-1. Start with a text block that explains WHAT this abstraction is and WHY it exists — use a real-world analogy, reference specific files, explain the problem it solves. Minimum 3 paragraphs.
-2. Include a file-list block listing all files in this abstraction with specific role descriptions
-3. Include 2-4 code blocks quoting EXACT code from the provided files — show the key functions, data structures, or patterns. Each code block needs a caption explaining the significance.
-4. Include EXACTLY ONE mermaid diagram showing how this abstraction connects to other parts of the system — use the relationship data provided. The diagram must have labeled nodes and edges.
-5. Include 4-5 quiz blocks distributed THROUGHOUT the chapter at concept breakpoints — place each quiz immediately AFTER the concept it tests, NOT all bunched at the end. Each quiz must have a realistic scenario (e.g., "You're debugging X and see error Y in the logs. What's the most likely cause?") with 3-4 options, each with detailed explanations.
-6. Include 1-2 callout blocks with actionable tips, warnings, or first-PR suggestions specific to this abstraction.
-7. Include 1-2 exercise blocks at natural breakpoints after key concepts are introduced. Each exercise should require the reader to actually read the code and find something specific — NOT generic "explore the file" tasks.
-8. End with a text block summarizing key takeaways and how this connects to the next chapter.
+REQUIRED CHAPTER STRUCTURE — follow this 5-part framework:
+
+PART 1 — BIG PICTURE (1-2 blocks):
+Start with a text block that explains WHAT this abstraction is, WHY it exists, and what PROBLEM it solves. Use a real-world analogy. Reference specific files. Minimum 3 paragraphs. Include a file-list block listing all files in this abstraction with specific role descriptions.
+
+PART 2 — LINE-BY-LINE WALKTHROUGH (3-5 blocks):
+Show 2-4 code blocks quoting EXACT code from the provided files — the key functions, data structures, or patterns. Each code block MUST have a caption that explains: (a) what this code does, (b) why it was built this way, (c) what would break if you changed it. Place a quiz block after the first major code concept to check understanding.
+
+PART 3 — HOW IT CONNECTS (2-3 blocks):
+Include ONE mermaid diagram showing how this abstraction connects to other parts of the system. Add a text block explaining the data flow: "When X happens, this component receives Y, transforms it into Z, and passes it to W." Place another quiz here testing the reader's understanding of the connections.
+
+PART 4 — DECISIONS & GOTCHAS (2-3 blocks):
+Include an architecture-card explaining WHY this was built this way (not just what it does). Add 1-2 callout blocks with actionable tips, warnings, AI hints, or first-PR suggestions specific to this abstraction. Include 1-2 more quiz blocks testing application-level understanding.
+
+PART 5 — TRY IT YOURSELF (1-2 blocks):
+Include 1-2 exercise blocks that require the reader to actually trace through the code. End with a text block summarizing the 3 key takeaways from this chapter and how the concepts connect to what comes next.
 
 ${ANTI_PLACEHOLDER_RULES}
 
@@ -261,17 +314,27 @@ Return ONLY a valid JSON object: { "blocks": [ ... ] }`;
 }
 
 export function getFlashcardPrompt(audience: TargetAudience): string {
+  const scenarioGuidance = audience === "vibe_coder"
+    ? `- Frame questions as real debugging/building scenarios: "You're using Cursor and it generated code that calls X — but the app crashes. What's the likely issue?"
+- Include "what breaks" cards: front asks what happens if a specific thing is removed/changed, back explains the cascade.`
+    : audience === "new_engineer"
+      ? `- Frame questions as "Day 1" scenarios: "You need to add a new field to the user model — what files do you need to change?"
+- Include "why was this chosen" cards that test understanding of architectural decisions.`
+      : `- Frame questions around the reader's role and what they'd need to know to do their job effectively.`;
+
   return `You are creating spaced-repetition flashcards for a codebase tutorial chapter.
 
 ${PERSONA_CONTEXT[audience]}
 
-Given the chapter content below (a list of content blocks), generate 4 high-quality flashcards.
+Given the chapter content below (a list of content blocks), generate 4-5 high-quality flashcards.
 
 Rules:
 - Each flashcard tests ONE specific concept, function, pattern, or architectural decision from this chapter
-- Front: a clear question or term. Use "What does X do?", "Why does this codebase use Y?", "When would you Z?". DO NOT use yes/no questions.
-- Back: a clear, complete answer (2-4 sentences). Explain the what AND the why. No placeholder text.
+- Front: a SCENARIO-BASED question or specific technical question. Frame it as a real situation: "You need to...", "You see this error...", "A teammate asks why...". DO NOT use yes/no questions. DO NOT use "What is X?" format.
+- Back: a clear, complete answer (2-4 sentences). Explain the what AND the why. Reference specific files or functions when relevant.
+- hint: a brief nudge (1 short sentence) that points the learner toward the answer without giving it away. Example: "Look at how the middleware chain is ordered." or "Think about what happens before the database query runs."
 - codeSnippet: optional short code example (≤10 lines) that illustrates the concept. Include ONLY if directly relevant and verbatim from the chapter. Omit if not applicable.
+${scenarioGuidance}
 - Cover: key concepts, important functions, architectural decisions, common gotchas — NOT trivia.
 - Avoid duplicating the same concept across cards.
 
@@ -281,6 +344,7 @@ Return ONLY valid JSON (no markdown fences):
     {
       "front": "...",
       "back": "...",
+      "hint": "...",
       "codeSnippet": "..." or null
     }
   ]
@@ -288,20 +352,46 @@ Return ONLY valid JSON (no markdown fences):
 }
 
 export function getOverviewChapterPrompt(audience: TargetAudience): string {
-  return `You are writing the "Overview & Architecture" chapter of a codebase tutorial.
+  return `You are writing the "Overview & Architecture" chapter — think of this as the learner's DAY 1 ORIENTATION to the codebase. By the end, they should have a complete mental map of what this system does and how the pieces fit together.
 
 ${PERSONA_CONTEXT[audience]}
 
-Generate a comprehensive introductory chapter that gives the reader a complete mental model of the system.
+Generate a comprehensive introductory chapter structured as a "Day 1 Orientation."
 
-REQUIRED STRUCTURE (minimum 8 blocks):
-1. A text block (3+ paragraphs) with a thorough summary of what this codebase does, who it's for, and what problem it solves. Use a real-world analogy to explain the architecture.
-2. A mermaid flowchart (graph TD) showing the high-level architecture — main components and how data flows between them. Every node must be labeled with the actual component/module name from the codebase. Edges must describe what data or control flows between components.
-3. A file-list block showing the key directories/files and their specific roles in the architecture
-4. A text block with key statistics: file count, main languages and their percentage, estimated complexity, lines of code
-5. A text block explaining the main data flow — what happens from user input to final output, step by step
-6. A callout[tip] about how to navigate this course effectively based on the reader's goals
-7. A callout[ai-hint] with the single most important thing to understand about this codebase
+REQUIRED STRUCTURE (minimum 10 blocks):
+
+1. WELCOME TEXT (text block, 3+ paragraphs):
+   - First paragraph: ONE sentence stating what this codebase does in plain English, followed by a real-world analogy (e.g., "Think of this as a restaurant — the frontend is the dining room, the API is the kitchen, and the database is the pantry.").
+   - Second paragraph: Who uses this and what problem it solves. Be specific — not "it helps users" but "it allows developers to X by doing Y."
+   - Third paragraph: The 3 most important things to understand about how this codebase is organized.
+
+2. ARCHITECTURE DIAGRAM (mermaid block):
+   - A flowchart (graph TD) showing the high-level architecture. Every node must be labeled with the actual component/module name from the codebase. Edges must describe what data or control flows between components.
+
+3. CODEBASE MAP (file-list block):
+   - Key directories and files with specific role descriptions. Not just "src/" but "src/routes/ — Express route handlers, one file per resource (users, posts, etc.)"
+
+4. BY THE NUMBERS (text block):
+   - File count, main languages with percentages, estimated complexity, key metrics. Present as a quick-scan list, not dense paragraphs.
+
+5. DATA FLOW WALKTHROUGH (text block, 3+ paragraphs):
+   - Pick the MOST COMMON user action and trace it end-to-end: "When a user clicks Login → the frontend sends a POST to /api/auth → the auth middleware checks... → the database query runs... → the response includes..."
+   - Name specific files and functions at each step.
+
+6. SEQUENCE DIAGRAM (mermaid block):
+   - A sequence diagram showing the data flow from step 5, with real component names.
+
+7. KEY DECISIONS (architecture-card block):
+   - The single most important architectural decision in this codebase and why it was made.
+
+8. NAVIGATION TIP (callout[tip]):
+   - How to navigate this course effectively based on the reader's goals.
+
+9. CORE INSIGHT (callout[ai-hint]):
+   - The single most important thing to understand about this codebase — the "aha moment" that makes everything else click.
+
+10. QUIZ (quiz block):
+    - A scenario-based question testing whether the reader grasped the architecture. Something like: "A user reports that X is slow — based on the architecture, which component would you investigate first?"
 
 ${ANTI_PLACEHOLDER_RULES}
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useCallback } from "react";
 import type { V2Block } from "@/lib/course-types";
 import { ErrorBoundary, BlockErrorFallback } from "@/components/ErrorBoundary";
 import { TextBlock } from "./TextBlock";
@@ -28,9 +29,117 @@ interface BlockRendererProps {
   block: V2Block;
   githubUrl?: string;
   exerciseContext?: ExerciseContext;
+  courseId?: string;
+  moduleTitle?: string;
+  beginnerMode?: boolean;
 }
 
-function BlockContent({ block, githubUrl, exerciseContext }: BlockRendererProps) {
+function getBlockTextContent(block: V2Block): string {
+  switch (block.type) {
+    case "text": return block.content.replace(/<[^>]+>/g, " ").slice(0, 2000);
+    case "code": return `${block.caption || ""}\n${block.content}`.slice(0, 2000);
+    case "callout": return block.content.slice(0, 2000);
+    case "quiz": return `${block.question}\n${block.scenario || ""}`.slice(0, 2000);
+    default: return "";
+  }
+}
+
+function ConfusedButton({ block, courseId, moduleTitle }: { block: V2Block; courseId?: string; moduleTitle?: string }) {
+  const [state, setState] = useState<"idle" | "loading" | "done">("idle");
+  const [explanation, setExplanation] = useState<string | null>(null);
+
+  const handleClick = useCallback(async () => {
+    if (!courseId || state === "loading") return;
+    setState("loading");
+
+    try {
+      const res = await fetch(`/api/courses/${courseId}/explain`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          blockContent: getBlockTextContent(block),
+          blockType: block.type,
+          moduleTitle,
+        }),
+      });
+      const data = await res.json();
+      if (data.explanation) {
+        setExplanation(data.explanation);
+        setState("done");
+      } else {
+        setState("idle");
+      }
+    } catch {
+      setState("idle");
+    }
+  }, [block, courseId, moduleTitle, state]);
+
+  if (!courseId) return null;
+
+  return (
+    <div className="confused-wrapper">
+      {state === "idle" && (
+        <button className="confused-btn" onClick={handleClick} title="Get a simpler explanation">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10" />
+            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+            <line x1="12" y1="17" x2="12.01" y2="17" />
+          </svg>
+          I&apos;m Confused
+        </button>
+      )}
+      {state === "loading" && (
+        <div className="confused-loading">Generating simpler explanation...</div>
+      )}
+      {state === "done" && explanation && (
+        <div className="confused-explanation">
+          <div className="confused-explanation-header">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+              <polyline points="22 4 12 14.01 9 11.01" />
+            </svg>
+            Simpler Explanation
+          </div>
+          <div className="confused-explanation-body">{explanation}</div>
+          <button className="confused-dismiss" onClick={() => { setState("idle"); setExplanation(null); }}>Dismiss</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BlockContent({ block, githubUrl, exerciseContext, courseId, moduleTitle, beginnerMode }: BlockRendererProps) {
+  const showConfusedBtn = ["text", "code", "callout"].includes(block.type) && courseId;
+  const isAdvancedBlock = block.type === "architecture-card" || block.type === "mermaid" ||
+    (block.type === "code" && block.content && block.content.split("\n").length > 20);
+
+  if (beginnerMode && isAdvancedBlock) {
+    return (
+      <details className="beginner-collapsed">
+        <summary className="beginner-collapsed-summary">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+          {block.type === "architecture-card" ? "Architecture Details" :
+           block.type === "mermaid" ? "Diagram" : "Detailed Code"} (tap to expand)
+        </summary>
+        <div className="beginner-collapsed-content">
+          <InnerBlockContent block={block} githubUrl={githubUrl} exerciseContext={exerciseContext} />
+        </div>
+      </details>
+    );
+  }
+
+  return (
+    <>
+      <InnerBlockContent block={block} githubUrl={githubUrl} exerciseContext={exerciseContext} />
+      {showConfusedBtn && <ConfusedButton block={block} courseId={courseId} moduleTitle={moduleTitle} />}
+    </>
+  );
+}
+
+function InnerBlockContent({ block, githubUrl, exerciseContext }: { block: V2Block; githubUrl?: string; exerciseContext?: ExerciseContext }) {
   switch (block.type) {
     case "text":
       return <TextBlock block={block} />;
@@ -75,10 +184,10 @@ function BlockContent({ block, githubUrl, exerciseContext }: BlockRendererProps)
   }
 }
 
-export function BlockRenderer({ block, githubUrl, exerciseContext }: BlockRendererProps) {
+export function BlockRenderer({ block, githubUrl, exerciseContext, courseId, moduleTitle, beginnerMode }: BlockRendererProps) {
   return (
     <ErrorBoundary fallback={<BlockErrorFallback />}>
-      <BlockContent block={block} githubUrl={githubUrl} exerciseContext={exerciseContext} />
+      <BlockContent block={block} githubUrl={githubUrl} exerciseContext={exerciseContext} courseId={courseId} moduleTitle={moduleTitle} beginnerMode={beginnerMode} />
     </ErrorBoundary>
   );
 }

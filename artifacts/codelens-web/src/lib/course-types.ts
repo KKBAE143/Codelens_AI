@@ -133,6 +133,27 @@ export interface V2OverviewGraph {
   }>;
 }
 
+export interface V2ConceptIndexEntry {
+  term: string;
+  moduleIndices: number[];
+  description: string;
+}
+
+export interface V2CodebasePassport {
+  repoName: string;
+  owner: string;
+  totalFiles: number;
+  filesAnalyzed: number;
+  topLanguages: Array<{ language: string; fileCount: number }>;
+  abstractionCount: number;
+  relationshipCount: number;
+  moduleCount: number;
+  estimatedMinutes: number;
+  persona: string;
+  depth: string;
+  coreComponents: Array<{ name: string; connections: number }>;
+}
+
 export interface V2CourseData {
   version: 2;
   repoName: string;
@@ -147,6 +168,8 @@ export interface V2CourseData {
   fileCount: number;
   abstractionCount: number;
   overviewGraph?: V2OverviewGraph;
+  conceptIndex?: V2ConceptIndexEntry[];
+  codebasePassport?: V2CodebasePassport;
   modules: V2Module[];
 }
 

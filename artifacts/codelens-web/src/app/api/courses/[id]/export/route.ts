@@ -1,0 +1,265 @@
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
+import { NextResponse } from "next/server";
+import { requireAuth } from "@/lib/auth";
+import { db } from "@workspace/db";
+import { courses } from "@workspace/db/schema";
+import { eq } from "drizzle-orm";
+import {
+  parseV2Course,
+  type V2Block,
+  type V2Module,
+} from "@/lib/course-types";
+
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function sanitizeHtml(html: string): string {
+  return html
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
+    .replace(/\bon\w+\s*=\s*["'][^"']*["']/gi, "")
+    .replace(/\bon\w+\s*=\s*\S+/gi, "")
+    .replace(/javascript\s*:/gi, "");
+}
+
+function renderBlock(block: V2Block): string {
+  switch (block.type) {
+    case "text":
+      return `<div class="block block-text">${sanitizeHtml(block.content)}</div>`;
+    case "code":
+      return `<div class="block block-code">
+        ${block.filePath ? `<div class="code-path">${escapeHtml(block.filePath)}</div>` : ""}
+        <pre><code>${escapeHtml(block.content)}</code></pre>
+        ${block.caption ? `<div class="code-caption">${escapeHtml(block.caption)}</div>` : ""}
+      </div>`;
+    case "callout":
+      return `<div class="block block-callout callout-${escapeHtml(block.variant || "info")}">
+        <div class="callout-content">${sanitizeHtml(block.content)}</div>
+      </div>`;
+    case "quiz":
+      return `<div class="block block-quiz">
+        <div class="quiz-label">Quiz</div>
+        <div class="quiz-question">${escapeHtml(block.question)}</div>
+        ${block.scenario ? `<div class="quiz-scenario">${escapeHtml(block.scenario)}</div>` : ""}
+        <ol class="quiz-options">
+          ${block.options.map((o) => `<li class="${o.correct ? "correct" : ""}">${escapeHtml(o.text)}${o.correct ? " ✓" : ""}</li>`).join("")}
+        </ol>
+      </div>`;
+    case "mermaid":
+      return `<div class="block block-mermaid">
+        <div class="mermaid-label">Diagram</div>
+        <pre class="mermaid-source">${escapeHtml(block.source)}</pre>
+        ${block.caption ? `<div class="mermaid-caption">${escapeHtml(block.caption)}</div>` : ""}
+      </div>`;
+    case "exercise":
+      return `<div class="block block-exercise">
+        <div class="exercise-label">Exercise: ${escapeHtml(block.title)}</div>
+        <div class="exercise-task">${escapeHtml(block.task)}</div>
+        ${block.verificationHint ? `<div class="exercise-hint"><strong>Hint:</strong> ${escapeHtml(block.verificationHint)}</div>` : ""}
+      </div>`;
+    case "file-list":
+      return `<div class="block block-file-list">
+        <div class="file-list-label">Key Files</div>
+        <table class="file-table">
+          <thead><tr><th>File</th><th>Role</th></tr></thead>
+          <tbody>${block.files.map((f) => `<tr><td><code>${escapeHtml(f.path)}</code></td><td>${escapeHtml(f.role)}</td></tr>`).join("")}</tbody>
+        </table>
+      </div>`;
+    case "architecture-card":
+      return `<div class="block block-card">
+        <div class="card-label">Architecture Decision</div>
+        <p><strong>Decision:</strong> ${escapeHtml(block.decision)}</p>
+        <p><strong>Rationale:</strong> ${escapeHtml(block.rationale)}</p>
+        <p><strong>Tradeoffs:</strong> ${escapeHtml(block.tradeoffs)}</p>
+      </div>`;
+    case "dependency-card":
+      return `<div class="block block-card">
+        <div class="card-label">Dependency: ${escapeHtml(block.packageName)}</div>
+        <p>${escapeHtml(block.purpose)}</p>
+      </div>`;
+    case "env-var-card":
+      return `<div class="block block-card">
+        <div class="card-label">Environment Variable: <code>${escapeHtml(block.varName)}</code></div>
+        <p>${escapeHtml(block.purpose)}</p>
+      </div>`;
+    case "command-card":
+      return `<div class="block block-card">
+        <div class="card-label">Command</div>
+        <pre><code>${escapeHtml(block.command)}</code></pre>
+        <p>${escapeHtml(block.when)}</p>
+      </div>`;
+    default:
+      return "";
+  }
+}
+
+function renderModule(mod: V2Module, index: number): string {
+  return `
+    <section class="module">
+      <h2>Module ${index + 1}: ${escapeHtml(mod.title)}</h2>
+      ${mod.learningObjective ? `<p class="learning-objective"><strong>Learning Objective:</strong> ${escapeHtml(mod.learningObjective)}</p>` : ""}
+      ${mod.blocks.map(renderBlock).join("\n")}
+    </section>
+  `;
+}
+
+function buildExportHtml(
+  repoName: string,
+  ownerName: string,
+  modules: V2Module[],
+  languages: string[],
+  frameworks: string[],
+  estimatedMinutes: number,
+): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${escapeHtml(ownerName)}/${escapeHtml(repoName)} — CodeLens AI Course</title>
+  <style>
+    @page { margin: 1in 0.75in; size: letter; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; line-height: 1.6; color: #1a1a2e; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; font-size: 11pt; }
+    h1 { font-size: 1.8em; margin-bottom: 0.25em; color: #16213e; }
+    h2 { font-size: 1.3em; margin: 1.5em 0 0.5em; color: #16213e; border-bottom: 2px solid #e8e8ec; padding-bottom: 0.3em; page-break-after: avoid; }
+    .cover { text-align: center; margin-bottom: 2rem; padding-bottom: 1.5rem; border-bottom: 3px solid #16213e; }
+    .cover .meta { color: #666; font-size: 0.9em; margin-top: 0.5em; }
+    .cover .badges { display: flex; gap: 0.5em; justify-content: center; margin-top: 0.75em; flex-wrap: wrap; }
+    .cover .badge { background: #e8f5e9; color: #2e7d32; padding: 0.15em 0.5em; border-radius: 4px; font-size: 0.8em; }
+    .module { page-break-inside: avoid; margin-bottom: 1.5rem; }
+    .learning-objective { font-style: italic; color: #555; margin-bottom: 1em; font-size: 0.9em; }
+    .block { margin: 0.75em 0; }
+    .block-text { line-height: 1.7; }
+    .block-text p { margin: 0.5em 0; }
+    .block-text ul, .block-text ol { margin: 0.5em 0 0.5em 1.5em; }
+    .block-code { background: #f7f7f9; border: 1px solid #e0e0e5; border-radius: 6px; overflow: hidden; }
+    .code-path { background: #e8e8ec; padding: 0.3em 0.75em; font-size: 0.8em; font-family: monospace; color: #555; }
+    pre { padding: 0.75em; overflow-x: auto; font-size: 0.85em; }
+    code { font-family: "SF Mono", "Fira Code", monospace; }
+    .code-caption { padding: 0.3em 0.75em; font-size: 0.8em; color: #666; border-top: 1px solid #e0e0e5; }
+    .block-callout { padding: 0.75em 1em; border-radius: 6px; border-left: 4px solid #2196f3; background: #e3f2fd; font-size: 0.9em; }
+    .callout-warning { border-left-color: #ff9800; background: #fff3e0; }
+    .callout-tip { border-left-color: #4caf50; background: #e8f5e9; }
+    .callout-danger { border-left-color: #f44336; background: #ffebee; }
+    .block-quiz { background: #f3e5f5; border: 1px solid #ce93d8; border-radius: 6px; padding: 0.75em 1em; }
+    .quiz-label, .exercise-label, .file-list-label, .card-label, .mermaid-label { font-weight: 600; font-size: 0.8em; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.3em; color: #555; }
+    .quiz-question { font-weight: 500; margin-bottom: 0.5em; }
+    .quiz-scenario { font-style: italic; color: #666; margin-bottom: 0.5em; font-size: 0.9em; }
+    .quiz-options { margin: 0.5em 0 0.5em 1.25em; }
+    .quiz-options li { margin: 0.2em 0; }
+    .quiz-options li.correct { font-weight: 600; color: #2e7d32; }
+    .quiz-explanation { margin-top: 0.5em; font-size: 0.85em; color: #555; padding-top: 0.5em; border-top: 1px solid #e0d0e8; }
+    .block-exercise { background: #e8f5e9; border: 1px solid #a5d6a7; border-radius: 6px; padding: 0.75em 1em; }
+    .exercise-hint { margin-top: 0.5em; font-size: 0.85em; color: #555; }
+    .block-card { background: #fff8e1; border: 1px solid #ffe082; border-radius: 6px; padding: 0.75em 1em; }
+    .block-card p { margin: 0.3em 0; font-size: 0.9em; }
+    .file-table { width: 100%; border-collapse: collapse; font-size: 0.85em; margin-top: 0.3em; }
+    .file-table th, .file-table td { text-align: left; padding: 0.3em 0.5em; border-bottom: 1px solid #e0e0e5; }
+    .file-table th { font-weight: 600; color: #555; }
+    .mermaid-source { background: #f0f0f5; font-size: 0.8em; }
+    .mermaid-caption { font-size: 0.8em; color: #666; font-style: italic; }
+    .toc { margin: 1rem 0 2rem; }
+    .toc h2 { font-size: 1.1em; margin-bottom: 0.5em; }
+    .toc ol { margin-left: 1.25em; }
+    .toc li { margin: 0.2em 0; font-size: 0.9em; }
+    .footer { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #e0e0e5; text-align: center; font-size: 0.8em; color: #999; }
+    @media print {
+      body { padding: 0; }
+      .module { page-break-inside: avoid; }
+      h2 { page-break-after: avoid; }
+      .block-code { page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <div class="cover">
+    <h1>${escapeHtml(ownerName)}/${escapeHtml(repoName)}</h1>
+    <div class="meta">Generated by CodeLens AI &mdash; ${new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}</div>
+    <div class="meta">${modules.length} modules &bull; ~${estimatedMinutes} min</div>
+    ${(languages.length || frameworks.length) ? `<div class="badges">${[...languages, ...frameworks].map((t) => `<span class="badge">${escapeHtml(t)}</span>`).join("")}</div>` : ""}
+  </div>
+
+  <div class="toc">
+    <h2>Table of Contents</h2>
+    <ol>
+      ${modules.map((m, i) => `<li>Module ${i + 1}: ${escapeHtml(m.title)}</li>`).join("\n      ")}
+    </ol>
+  </div>
+
+  ${modules.map((m, i) => renderModule(m, i)).join("\n")}
+
+  <div class="footer">
+    <p>This course was generated from <strong>${escapeHtml(ownerName)}/${escapeHtml(repoName)}</strong> using CodeLens AI.</p>
+    <p>Use your browser's Print &rarr; Save as PDF to export this document.</p>
+  </div>
+</body>
+</html>`;
+}
+
+export async function GET(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  let user;
+  try {
+    user = await requireAuth();
+  } catch {
+    return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+  }
+
+  const { id } = await params;
+
+  const [course] = await db
+    .select({
+      id: courses.id,
+      repoName: courses.repoName,
+      ownerName: courses.ownerName,
+      html: courses.html,
+      createdBy: courses.createdBy,
+      isPublic: courses.isPublic,
+    })
+    .from(courses)
+    .where(eq(courses.id, id))
+    .limit(1);
+
+  if (!course) {
+    return NextResponse.json({ error: "Course not found" }, { status: 404 });
+  }
+
+  if (course.createdBy !== user.id && !course.isPublic) {
+    return NextResponse.json({ error: "Access denied" }, { status: 403 });
+  }
+
+  let v2Data;
+  if (course.html) {
+    v2Data = parseV2Course(course.html);
+  }
+
+  if (!v2Data) {
+    return NextResponse.json({ error: "Course data not available for export" }, { status: 400 });
+  }
+
+  const html = buildExportHtml(
+    course.repoName,
+    course.ownerName,
+    v2Data.modules,
+    v2Data.languages,
+    v2Data.frameworks,
+    v2Data.estimatedTotalMinutes,
+  );
+
+  return new NextResponse(html, {
+    status: 200,
+    headers: {
+      "Content-Type": "text/html; charset=utf-8",
+      "Content-Disposition": `inline; filename="${course.ownerName}-${course.repoName}-course.html"`,
+    },
+  });
+}

@@ -447,6 +447,7 @@ export async function generateCourseDirect(courseId: string): Promise<void> {
             moduleIndex: c.moduleIndex,
             front: c.front,
             back: c.back,
+            hint: c.hint || null,
             codeSnippet: c.codeSnippet || null,
           }))
         ).onConflictDoNothing();

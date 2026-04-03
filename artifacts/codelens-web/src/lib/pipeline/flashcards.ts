@@ -8,6 +8,7 @@ interface GeneratedFlashcard {
   moduleIndex: number;
   front: string;
   back: string;
+  hint: string | null;
   codeSnippet: string | null;
 }
 
@@ -72,10 +73,13 @@ export async function generateFlashcardsForChapters(
           const front = String(c.front || "").trim();
           const back = String(c.back || "").trim();
           if (!front || !back || front.length < 10 || back.length < 20) continue;
+          const hint = typeof c.hint === "string" && c.hint.trim()
+            ? c.hint.trim().slice(0, 200)
+            : null;
           const codeSnippet = typeof c.codeSnippet === "string" && c.codeSnippet.trim()
             ? c.codeSnippet.trim().slice(0, 600)
             : null;
-          validCardsForModule.push({ moduleIndex: chapter.index, front, back, codeSnippet });
+          validCardsForModule.push({ moduleIndex: chapter.index, front, back, hint, codeSnippet });
           if (validCardsForModule.length >= 5) break;
         }
 

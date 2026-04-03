@@ -8,6 +8,7 @@ export const flashcards = pgTable("flashcards", {
   moduleIndex: integer("module_index").notNull(),
   front: text("front").notNull(),
   back: text("back").notNull(),
+  hint: text("hint"),
   codeSnippet: text("code_snippet"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });

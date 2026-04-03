@@ -94,6 +94,108 @@ function packAbstractionContext(
   return parts.join("\n");
 }
 
+const JARGON_GLOSSARY: Record<string, string> = {
+  "middleware": "A function that sits between the request and the response, processing or transforming data as it passes through.",
+  "ORM": "Object-Relational Mapping — a tool that lets you interact with your database using your programming language instead of writing raw SQL.",
+  "SSR": "Server-Side Rendering — the server generates the full HTML page before sending it to the browser.",
+  "SSG": "Static Site Generation — pages are pre-built at deploy time, so they load instantly without a server.",
+  "CSR": "Client-Side Rendering — the browser downloads JavaScript and builds the page locally.",
+  "hydration": "The process where the browser takes server-rendered HTML and attaches JavaScript event handlers to make it interactive.",
+  "tree-shaking": "A build optimization that removes unused code from your final bundle to keep it small.",
+  "hot module replacement": "A development feature that updates changed code in the browser without a full page reload.",
+  "HMR": "Hot Module Replacement — updates changed code in the browser without a full page reload.",
+  "webhook": "An HTTP callback that sends data to your app automatically when an event happens in another service.",
+  "JWT": "JSON Web Token — a compact, self-contained token used to securely transmit authentication information.",
+  "CORS": "Cross-Origin Resource Sharing — a security mechanism that controls which websites can make requests to your server.",
+  "API gateway": "A single entry point that routes, rate-limits, and authenticates all incoming API requests.",
+  "pub/sub": "Publish/Subscribe — a messaging pattern where senders broadcast messages without knowing who receives them.",
+  "race condition": "A bug that happens when two operations run at the same time and the result depends on which one finishes first.",
+  "deadlock": "A situation where two processes each wait for the other to release a resource, so neither can proceed.",
+  "idempotent": "An operation that produces the same result no matter how many times you run it.",
+  "singleton": "A design pattern that ensures only one instance of a class exists throughout the application.",
+  "dependency injection": "A pattern where objects receive their dependencies from outside rather than creating them internally.",
+  "memoization": "Caching the result of an expensive function call so repeated calls with the same arguments return instantly.",
+  "debounce": "Delaying execution of a function until a pause in rapid-fire calls (e.g., waiting until the user stops typing).",
+  "throttle": "Limiting how often a function can run (e.g., at most once every 200ms).",
+  "serialization": "Converting an in-memory object into a string or byte format so it can be stored or sent over a network.",
+  "deserialization": "Converting a stored string or byte format back into an in-memory object.",
+  "polymorphism": "The ability of different types to respond to the same method call in their own way.",
+  "abstraction": "Hiding complex implementation details behind a simpler interface.",
+  "encapsulation": "Bundling data and the methods that operate on it together, restricting direct access to internals.",
+  "mutex": "A lock that ensures only one thread or process can access a shared resource at a time.",
+  "CI/CD": "Continuous Integration / Continuous Deployment — automated pipelines that test and deploy your code on every commit.",
+  "container": "A lightweight, isolated environment (like Docker) that packages an app with everything it needs to run.",
+  "orchestration": "Automating the deployment, scaling, and management of multiple containers or services.",
+  "sharding": "Splitting a database across multiple servers so each one handles a subset of the data.",
+  "replication": "Copying data across multiple database servers for redundancy and faster reads.",
+  "caching": "Storing frequently accessed data in fast storage (like RAM) to avoid repeated slow lookups.",
+  "load balancer": "A system that distributes incoming traffic across multiple servers to prevent overload.",
+  "monorepo": "A single repository that contains multiple projects or packages, managed together.",
+  "microservice": "A small, independently deployable service that handles one specific business function.",
+  "event loop": "The mechanism in Node.js (and browsers) that handles asynchronous operations by processing a queue of callbacks.",
+  "closure": "A function that remembers variables from the scope where it was created, even after that scope has ended.",
+  "currying": "Transforming a function with multiple arguments into a chain of functions, each taking one argument.",
+  "decorator": "A pattern (or syntax) that wraps a function or class to extend its behavior without modifying its code.",
+  "GraphQL": "A query language for APIs that lets clients request exactly the data they need, nothing more.",
+  "REST": "Representational State Transfer — an API style using standard HTTP methods (GET, POST, PUT, DELETE) on resources.",
+  "gRPC": "A high-performance RPC framework that uses Protocol Buffers for efficient binary serialization.",
+  "protocol buffer": "A language-neutral binary format for serializing structured data, used by gRPC.",
+  "message queue": "A system (like RabbitMQ or SQS) that stores messages between services so they can communicate asynchronously.",
+  "saga pattern": "A way to manage distributed transactions by breaking them into a sequence of local transactions with compensating actions.",
+  "CQRS": "Command Query Responsibility Segregation — using separate models for reading and writing data.",
+  "eventual consistency": "A model where data across distributed systems will become consistent given enough time, but may be temporarily out of sync.",
+};
+
+function extractTextFromBlock(block: Record<string, unknown>): string {
+  const type = block.type as string;
+  if (type === "text") return String(block.content ?? "").replace(/<[^>]+>/g, " ");
+  if (type === "code") return `${block.caption ?? ""} ${block.content ?? ""}`;
+  if (type === "callout") return String(block.content ?? "");
+  return "";
+}
+
+function injectJargonCallouts(blocks: Array<Record<string, unknown>>): Array<Record<string, unknown>> {
+  const seenTerms = new Set<string>();
+  const result: Array<Record<string, unknown>> = [];
+
+  for (const block of blocks) {
+    result.push(block);
+
+    if (block.type === "callout" && String(block.variant ?? "") === "jargon") continue;
+
+    const text = extractTextFromBlock(block).toLowerCase();
+    if (!text) continue;
+
+    const matchedTerms: Array<{ term: string; definition: string }> = [];
+
+    for (const [term, definition] of Object.entries(JARGON_GLOSSARY)) {
+      const lowerTerm = term.toLowerCase();
+      if (seenTerms.has(lowerTerm)) continue;
+
+      const escaped = lowerTerm.replace(/[.*+?^${}()|[\]\\\/]/g, "\\$&");
+      const regex = new RegExp(`\\b${escaped}\\b`, "i");
+      if (regex.test(text)) {
+        seenTerms.add(lowerTerm);
+        matchedTerms.push({ term, definition });
+      }
+    }
+
+    if (matchedTerms.length > 0) {
+      const glossaryContent = matchedTerms
+        .map((m) => `**${m.term}**: ${m.definition}`)
+        .join("\n\n");
+
+      result.push({
+        type: "callout",
+        variant: "info",
+        content: `📖 **Jargon Buster**\n\n${glossaryContent}`,
+      });
+    }
+  }
+
+  return result;
+}
+
 function getProgressiveBlockRequirements(attempt: number, depth: "quick" | "full" | "deep"): string {
   if (attempt === 1) return "";
 
@@ -265,6 +367,8 @@ async function writeOneChapter(
     }
   }
 
+  const processedBlocks = injectJargonCallouts(blocks as Array<Record<string, unknown>>);
+
   return {
     index: chapter.index,
     title: chapter.title,
@@ -272,7 +376,7 @@ async function writeOneChapter(
     estimatedMinutes: chapter.estimatedMinutes,
     focusAreas: chapter.focusAreas,
     abstractionRef: chapter.abstractionRef,
-    blocks,
+    blocks: processedBlocks,
   };
 }
 

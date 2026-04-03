@@ -8,6 +8,7 @@ interface FlashcardData {
   moduleIndex: number;
   front: string;
   back: string;
+  hint: string | null;
   codeSnippet: string | null;
   reviewId: string | null;
   due: string | null;
@@ -253,6 +254,9 @@ export function FlashcardReview({ courseId, moduleIndex, onClose, onLevelUp }: F
             <div className="flashcard-face flashcard-front">
               <div className="flashcard-face-label">Question</div>
               <p className="flashcard-text">{currentCard.front}</p>
+              {currentCard.hint && (
+                <p className="flashcard-hint-text">💡 {currentCard.hint}</p>
+              )}
               <span className="flashcard-hint">Click to reveal answer · Space</span>
             </div>
             <div className="flashcard-face flashcard-back">
