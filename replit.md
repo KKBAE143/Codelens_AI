@@ -13,9 +13,9 @@ CodeLens AI — a SaaS platform where users paste a GitHub URL and receive an AI
 - **Frontend**: Next.js 15 App Router (React 19, Tailwind CSS 4)
 - **API framework**: Express 5 (legacy api-server, not primary)
 - **Database**: PostgreSQL (Neon DB) + Drizzle ORM
-- **AI**: Cloudflare Workers AI — models: `glm-4.7-flash`, `gpt-oss-20b`, `gpt-oss-120b` (via `llm.ts`)
+- **AI**: Cloudflare Workers AI — models: `glm-4.7-flash`, `gpt-oss-20b`, `gpt-oss-120b` (via `llm.ts`), weighted round-robin account pool with Redis-backed health tracking
 - **Background jobs**: Inngest (optional) or direct async execution
-- **Generation speed**: 6-concurrent chapter writing, simplified-first retry, commit-SHA stage caching, token-bucket backpressure, browser notifications
+- **Generation speed**: Pool-aware concurrent chapter writing (min(healthyAccounts, 8)), simplified-first retry, commit-SHA stage caching, token-bucket backpressure, browser notifications
 - **Auth**: GitHub OAuth (sole sign-in, token encrypted + stored)
 - **Validation**: Zod (`zod/v4`), `drizzle-zod`
 
@@ -113,7 +113,19 @@ artifacts-monorepo/
 - **Billing section**: Shown at top of dashboard, shows current plan, usage, next billing date, manage subscription button
 - **Upgrade prompt**: `UpgradePrompt` component shown when free user hits rate limit (429 response)
 
-## Database Schema (15 tables)
+## AI Account Pool & Load Balancing
+
+- **Pool config**: `CLOUDFLARE_POOL_ACCOUNTS` JSON env var (array of `{ accountId, authToken, label, stages? }` objects), fallback to numbered `CLOUDFLARE_ACCOUNT_ID_N`/`CLOUDFLARE_AUTH_TOKEN_N` pattern (no hard cap)
+- **Weighted round-robin**: Requests distributed proportionally by account weight; lower weight = fewer requests. Weights auto-adjusted based on errors/successes.
+- **Health tracking**: Redis-backed (Upstash) with in-memory fallback. Quarantine on 429 rate-limit (5min TTL) or quota exhaustion (60min TTL). Circuit-breaker pattern restores weight on success.
+- **Per-stage tagging**: Accounts can be tagged with `stages` field to serve specific pipeline stages. `getAccountsForStage(stage)` filters to tagged accounts (all as fallback).
+- **Stage 4 concurrency**: `min(healthyAccountCount, 8)` simultaneous chapters. Per-chapter round-robin account assignment. Exponential backoff (5 attempts) when all accounts rate-limited.
+- **Stats logging**: Every LLM call logged to `ai_pool_stats` table (accountLabel, stage, model, tokensUsed, latencyMs, success, errorCode).
+- **Admin dashboard**: `/admin/ai-pool` — account table with status badges, token usage bars, hourly volume chart, error rate, Pool Health indicator (green/yellow/red). Gated by `ADMIN_USER_IDS` env var.
+- **Add Account form**: Guided setup instructions + test LLM call validation via `/api/admin/ai-pool/test`.
+- **Key files**: `artifacts/codelens-web/src/lib/llm.ts` (pool engine), `artifacts/codelens-web/src/lib/admin-auth.ts` (admin gating)
+
+## Database Schema (16 tables)
 
 All tables defined in `lib/db/src/schema/`:
 
@@ -132,6 +144,7 @@ All tables defined in `lib/db/src/schema/`:
 13. **user_skills** — Skills acquired by users from completing courses (user_id, skill, acquired_from_course_id)
 14. **mentor_assignments** — Mentor-learner pairings within orgs (org_id, mentor_user_id, learner_user_id, course_id, path_id)
 15. **org_required_skills** — Skills required by org for gap analysis (org_id, skill, role_label)
+16. **ai_pool_stats** — AI account pool telemetry (account_label, stage, model, tokens_used, latency_ms, success, error_code, timestamp). Indexes on account_label, timestamp, stage.
 
 Schema push: `pnpm --filter @workspace/db run push` (or `push-force`)
 Functional indexes migration: `lib/db/src/migrations/005-functional-indexes-and-viewcount-backfill.sql`
@@ -212,6 +225,10 @@ Files in `artifacts/codelens-web/src/lib/`:
 
 All routes in `artifacts/codelens-web/src/app/api/`:
 
+**Admin:**
+- `GET /api/admin/ai-pool/stats` — Aggregated pool stats, account health, hourly volume, recent errors (admin-only via `ADMIN_USER_IDS`)
+- `POST /api/admin/ai-pool/test` — Test Cloudflare credentials with a real LLM call (admin-only)
+
 **Auth:**
 - `GET /api/auth/login` — Initiate GitHub OAuth login
 - `GET /api/auth/callback` — GitHub OAuth callback (token exchange + session creation)
@@ -280,6 +297,8 @@ Required secrets:
 - `SESSION_SECRET` — Session secret
 - `INNGEST_EVENT_KEY` — Inngest event key (for sending events)
 - `INNGEST_SIGNING_KEY` — Inngest signing key (for webhook verification)
+- `ADMIN_USER_IDS` — Comma-separated list of GitHub user IDs or usernames with admin access to `/admin/ai-pool`
+- `CLOUDFLARE_POOL_ACCOUNTS` — JSON array of `{ accountId, authToken, label, stages? }` objects for AI account pool (optional, falls back to numbered env vars)
 
 ## TypeScript & Composite Projects
 

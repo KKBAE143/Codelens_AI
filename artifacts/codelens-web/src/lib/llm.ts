@@ -1,26 +1,41 @@
-type LlmTask = "stage1" | "stage2" | "stage3" | "summary";
+import { Redis } from "@upstash/redis";
+import { db } from "@workspace/db";
+import { aiPoolStats } from "@workspace/db/schema";
+
+export type LlmTask = "stage1" | "stage2" | "stage3" | "summary";
 
 interface GenerateTextOptions {
   task: LlmTask;
   prompt: string;
   maxOutputTokens: number;
   responseMimeType?: "application/json";
+  accountLabel?: string;
 }
 
 interface GenerateTextResult {
   text: string;
   provider: "cloudflare";
   model: string;
+  accountLabel?: string;
 }
 
 interface ModelConfig {
   model: string;
 }
 
-interface CloudflareCredential {
+export interface CloudflarePoolAccount {
   accountId: string;
   authToken: string;
   label: string;
+  stages?: string[];
+}
+
+interface AccountHealth {
+  quarantinedUntil: number;
+  errorCount: number;
+  totalTokensToday: number;
+  lastSuccess: number;
+  weight: number;
 }
 
 interface CloudflareRunSuccess {
@@ -57,188 +72,386 @@ const ENV_MODEL_KEYS: Record<LlmTask, string> = {
   summary: "COURSE_SUMMARY_MODEL",
 };
 
-const TASK_POOL_INDEX: Record<LlmTask, number> = {
-  stage1: 0,
-  stage2: 1,
-  stage3: 2,
-  summary: 0,
-};
+const RATE_LIMIT_QUARANTINE_MS = 5 * 60 * 1000;
+const QUOTA_QUARANTINE_MS = 60 * 60 * 1000;
+const DEFAULT_WEIGHT = 100;
+const MIN_WEIGHT = 10;
 
-function getCredentialsForTask(task: LlmTask): CloudflareCredential[] {
-  const stageCredentials = getCredentialVariants(taskToEnvPrefix(task));
+let poolRedis: Redis | null = null;
+let poolRedisChecked = false;
 
-  if (stageCredentials.length > 0) {
-    return reorderCredentials(stageCredentials, task);
+function getPoolRedis(): Redis | null {
+  if (poolRedisChecked) return poolRedis;
+  poolRedisChecked = true;
+  const url = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (!url || !token) return null;
+  poolRedis = new Redis({ url, token });
+  return poolRedis;
+}
+
+const inMemoryHealth = new Map<string, AccountHealth>();
+
+function getDefaultHealth(): AccountHealth {
+  return {
+    quarantinedUntil: 0,
+    errorCount: 0,
+    totalTokensToday: 0,
+    lastSuccess: 0,
+    weight: DEFAULT_WEIGHT,
+  };
+}
+
+async function getAccountHealth(label: string): Promise<AccountHealth> {
+  const redis = getPoolRedis();
+  if (!redis) {
+    return inMemoryHealth.get(label) || getDefaultHealth();
   }
+  try {
+    const data = await redis.get<AccountHealth>(`pool:health:${label}`);
+    return data || getDefaultHealth();
+  } catch {
+    return inMemoryHealth.get(label) || getDefaultHealth();
+  }
+}
 
-  if (task === "summary") {
-    const stage1Credentials = getCredentialVariants("CLOUDFLARE_STAGE1");
+async function setAccountHealth(label: string, health: AccountHealth): Promise<void> {
+  inMemoryHealth.set(label, health);
+  const redis = getPoolRedis();
+  if (!redis) return;
+  try {
+    await redis.set(`pool:health:${label}`, health, { ex: 86400 });
+  } catch {
+    /* silent fallback to in-memory */
+  }
+}
 
-    if (stage1Credentials.length > 0) {
-      return reorderCredentials(
-        stage1Credentials.map((credential, index) => ({
-          ...credential,
-          label: `summary-fallback-${index + 1}`,
-        })),
-        task,
-      );
+async function quarantineAccount(label: string, isQuota: boolean): Promise<void> {
+  const health = await getAccountHealth(label);
+  health.quarantinedUntil = Date.now() + (isQuota ? QUOTA_QUARANTINE_MS : RATE_LIMIT_QUARANTINE_MS);
+  health.errorCount += 1;
+  health.weight = Math.max(MIN_WEIGHT, Math.floor(health.weight * 0.5));
+  await setAccountHealth(label, health);
+  console.log(`[Pool] Quarantined ${label} until ${new Date(health.quarantinedUntil).toISOString()} (${isQuota ? "quota" : "rate-limit"})`);
+}
+
+async function recordSuccess(label: string, tokensUsed: number): Promise<void> {
+  const health = await getAccountHealth(label);
+  health.lastSuccess = Date.now();
+  health.totalTokensToday += tokensUsed;
+  health.errorCount = Math.max(0, health.errorCount - 1);
+  health.weight = Math.min(DEFAULT_WEIGHT, health.weight + 10);
+  if (health.quarantinedUntil > 0 && Date.now() >= health.quarantinedUntil) {
+    health.quarantinedUntil = 0;
+  }
+  await setAccountHealth(label, health);
+}
+
+function isAccountHealthy(health: AccountHealth): boolean {
+  return health.quarantinedUntil === 0 || Date.now() >= health.quarantinedUntil;
+}
+
+let cachedAccounts: CloudflarePoolAccount[] | null = null;
+
+export function getPoolAccounts(): CloudflarePoolAccount[] {
+  if (cachedAccounts) return cachedAccounts;
+
+  const jsonEnv = process.env.CLOUDFLARE_POOL_ACCOUNTS;
+  if (jsonEnv) {
+    try {
+      const parsed = JSON.parse(jsonEnv);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        cachedAccounts = parsed.map((entry: Record<string, unknown>, i: number) => ({
+          accountId: String(entry.accountId || ""),
+          authToken: String(entry.authToken || ""),
+          label: String(entry.label || `account-${i + 1}`),
+          stages: Array.isArray(entry.stages) ? entry.stages.map(String) : undefined,
+        })).filter((a: CloudflarePoolAccount) => a.accountId && a.authToken);
+
+        if (cachedAccounts.length > 0) return cachedAccounts;
+      }
+    } catch {
+      console.warn("[Pool] Failed to parse CLOUDFLARE_POOL_ACCOUNTS JSON, falling back to numbered env vars");
     }
   }
 
-  const sharedCredentials = getCredentialVariants("CLOUDFLARE");
+  const accounts: CloudflarePoolAccount[] = [];
 
-  if (sharedCredentials.length === 0) {
+  const sharedAccountId = process.env.CLOUDFLARE_ACCOUNT_ID?.trim();
+  const sharedAuthToken = process.env.CLOUDFLARE_AUTH_TOKEN?.trim();
+  if (sharedAccountId && sharedAuthToken) {
+    accounts.push({ accountId: sharedAccountId, authToken: sharedAuthToken, label: "shared" });
+  }
+
+  for (let i = 1; ; i++) {
+    const accountId = process.env[`CLOUDFLARE_ACCOUNT_ID_${i}`]?.trim();
+    const authToken = process.env[`CLOUDFLARE_AUTH_TOKEN_${i}`]?.trim();
+    if (!accountId && !authToken) break;
+    if (!accountId || !authToken) {
+      console.warn(`[Pool] Incomplete credential pair for CLOUDFLARE_ACCOUNT_ID_${i}`);
+      continue;
+    }
+    accounts.push({ accountId, authToken, label: `account-${i}` });
+  }
+
+  for (const stage of ["STAGE1", "STAGE2", "STAGE3", "SUMMARY"] as const) {
+    const accountId = process.env[`CLOUDFLARE_${stage}_ACCOUNT_ID`]?.trim();
+    const authToken = process.env[`CLOUDFLARE_${stage}_AUTH_TOKEN`]?.trim();
+    if (!accountId || !authToken) continue;
+    const stageLabel = stage.toLowerCase().replace("stage", "stage-");
+    const existing = accounts.find(a => a.accountId === accountId);
+    if (existing) {
+      if (!existing.stages) existing.stages = [];
+      existing.stages.push(stage.toLowerCase());
+    } else {
+      accounts.push({
+        accountId,
+        authToken,
+        label: stageLabel,
+        stages: [stage.toLowerCase()],
+      });
+    }
+  }
+
+  if (accounts.length === 0) {
     throw new Error(
-      "Cloudflare Workers AI is not configured. Set CLOUDFLARE_ACCOUNT_ID/CLOUDFLARE_AUTH_TOKEN, numbered CLOUDFLARE_ACCOUNT_ID_1/CLOUDFLARE_AUTH_TOKEN_1 pool entries, or per-stage CLOUDFLARE_STAGE{N}_ACCOUNT_ID/CLOUDFLARE_STAGE{N}_AUTH_TOKEN values.",
+      "No Cloudflare Workers AI accounts configured. Set CLOUDFLARE_POOL_ACCOUNTS JSON, or CLOUDFLARE_ACCOUNT_ID/CLOUDFLARE_AUTH_TOKEN, or numbered CLOUDFLARE_ACCOUNT_ID_N/CLOUDFLARE_AUTH_TOKEN_N."
     );
   }
 
-  return reorderCredentials(sharedCredentials, task);
+  cachedAccounts = accounts;
+  return accounts;
 }
 
-function reorderCredentials(
-  credentials: CloudflareCredential[],
-  task: LlmTask,
-): CloudflareCredential[] {
-  if (credentials.length <= 1) {
-    return credentials;
-  }
-
-  const primaryIdx = TASK_POOL_INDEX[task] % credentials.length;
-  const ordered: CloudflareCredential[] = [];
-
-  for (let i = 0; i < credentials.length; i++) {
-    ordered.push(credentials[(primaryIdx + i) % credentials.length]);
-  }
-
-  return ordered;
+export function clearPoolCache(): void {
+  cachedAccounts = null;
 }
 
-function taskToEnvPrefix(task: LlmTask): string {
-  switch (task) {
-    case "stage1":
-      return "CLOUDFLARE_STAGE1";
-    case "stage2":
-      return "CLOUDFLARE_STAGE2";
-    case "stage3":
-      return "CLOUDFLARE_STAGE3";
-    case "summary":
-      return "CLOUDFLARE_SUMMARY";
-  }
+export function getAccountsForStage(stage: LlmTask): CloudflarePoolAccount[] {
+  const all = getPoolAccounts();
+  const stageKey = stage === "summary" ? "summary" : stage;
+  const tagged = all.filter(a => a.stages && a.stages.includes(stageKey));
+  return tagged.length > 0 ? tagged : all;
 }
 
-function getCredentialVariants(prefix: string): CloudflareCredential[] {
-  const credentials: CloudflareCredential[] = [];
+async function selectAccountWeightedRR(
+  accounts: CloudflarePoolAccount[],
+  excludeLabels?: Set<string>,
+): Promise<{ account: CloudflarePoolAccount; health: AccountHealth } | null> {
+  const candidates: Array<{ account: CloudflarePoolAccount; health: AccountHealth; weight: number }> = [];
+  let totalWeight = 0;
 
-  const sharedAccountId = process.env[`${prefix}_ACCOUNT_ID`]?.trim();
-  const sharedAuthToken = process.env[`${prefix}_AUTH_TOKEN`]?.trim();
+  for (const account of accounts) {
+    if (excludeLabels?.has(account.label)) continue;
+    const health = await getAccountHealth(account.label);
+    if (!isAccountHealthy(health)) continue;
+    const w = health.weight;
+    candidates.push({ account, health, weight: w });
+    totalWeight += w;
+  }
 
-  if (sharedAccountId || sharedAuthToken) {
-    if (!sharedAccountId || !sharedAuthToken) {
-      throw new Error(
-        `Incomplete Cloudflare credential set for ${prefix}. Both ACCOUNT_ID and AUTH_TOKEN are required.`,
-      );
+  if (candidates.length === 0) return null;
+
+  let random = Math.random() * totalWeight;
+  for (const candidate of candidates) {
+    random -= candidate.weight;
+    if (random <= 0) {
+      return { account: candidate.account, health: candidate.health };
     }
+  }
 
-    credentials.push({
-      accountId: sharedAccountId,
-      authToken: sharedAuthToken,
-      label: `${prefix.toLowerCase()}_shared`,
+  return candidates[candidates.length - 1];
+}
+
+export async function getHealthyAccountCount(stage?: LlmTask): Promise<number> {
+  const accounts = stage ? getAccountsForStage(stage) : getPoolAccounts();
+  let count = 0;
+  for (const account of accounts) {
+    const health = await getAccountHealth(account.label);
+    if (isAccountHealthy(health)) count++;
+  }
+  return count;
+}
+
+export async function getAllAccountHealths(): Promise<Array<{ account: CloudflarePoolAccount; health: AccountHealth }>> {
+  const accounts = getPoolAccounts();
+  const results: Array<{ account: CloudflarePoolAccount; health: AccountHealth }> = [];
+  for (const account of accounts) {
+    const health = await getAccountHealth(account.label);
+    results.push({ account, health });
+  }
+  return results;
+}
+
+async function logPoolStat(
+  accountLabel: string,
+  stage: string,
+  model: string,
+  tokensUsed: number,
+  latencyMs: number,
+  success: boolean,
+  errorCode?: string,
+): Promise<void> {
+  try {
+    await db.insert(aiPoolStats).values({
+      accountLabel,
+      stage,
+      model,
+      tokensUsed,
+      latencyMs,
+      success,
+      errorCode: errorCode || null,
     });
+  } catch (err) {
+    console.warn("[Pool] Failed to log stat:", err);
   }
-
-  for (let index = 1; index <= 10; index++) {
-    const accountId = process.env[`${prefix}_ACCOUNT_ID_${index}`]?.trim();
-    const authToken = process.env[`${prefix}_AUTH_TOKEN_${index}`]?.trim();
-
-    if (!accountId && !authToken) {
-      continue;
-    }
-
-    if (!accountId || !authToken) {
-      throw new Error(
-        `Incomplete Cloudflare credential set for ${prefix}_${index}. Both ACCOUNT_ID and AUTH_TOKEN are required.`,
-      );
-    }
-
-    credentials.push({
-      accountId,
-      authToken,
-      label: `${prefix.toLowerCase()}_${index}`,
-    });
-  }
-
-  return credentials;
 }
 
 function getTaskConfigs(task: LlmTask): ModelConfig[] {
   const overrideModel = process.env[ENV_MODEL_KEYS[task]]?.trim();
-
   if (overrideModel) {
     return [{ model: overrideModel }];
   }
-
   return DEFAULT_MODELS[task];
 }
 
 export async function generateText(
   options: GenerateTextOptions,
 ): Promise<GenerateTextResult> {
-  const credentials = getCredentialsForTask(options.task);
+  const stageAccounts = getAccountsForStage(options.task);
   const errors: string[] = [];
+  const triedLabels = new Set<string>();
 
-  for (const credential of credentials) {
-    for (const config of getTaskConfigs(options.task)) {
-      for (let attempt = 1; attempt <= 3; attempt++) {
-        try {
-          await waitForBackpressure();
-          const text = await generateWithCloudflare(
-            credential.accountId,
-            credential.authToken,
-            config.model,
-            options,
-          );
-
-          return { text, provider: "cloudflare", model: config.model };
-        } catch (error) {
-          const message = getErrorMessage(error);
-
-          if (isQuotaError(message)) {
-            errors.push(
-              `cloudflare:${credential.label}:${config.model}[quota] -> ${message}`,
-            );
-            break;
-          }
-
-          const retryDelayMs = getRetryDelayMs(error);
-          const shouldRetry =
-            attempt < 3 && retryDelayMs !== null && isRetryableError(error);
-
-          if (!shouldRetry) {
-            errors.push(
-              `cloudflare:${credential.label}:${config.model} -> ${message}`,
-            );
-            break;
-          }
-
-          applyBackpressure(retryDelayMs);
-          await sleep(retryDelayMs);
-        }
+  if (options.accountLabel) {
+    const specific = stageAccounts.find(a => a.label === options.accountLabel);
+    if (specific) {
+      const health = await getAccountHealth(specific.label);
+      if (isAccountHealthy(health)) {
+        const result = await tryAccountWithModels(specific, options, errors);
+        if (result) return result;
       }
+      triedLabels.add(specific.label);
     }
   }
 
-  const quotaHits = errors.filter((e) => e.includes("free allocation") || e.includes("neurons"));
+  for (let round = 0; round < stageAccounts.length; round++) {
+    const selected = await selectAccountWeightedRR(stageAccounts, triedLabels);
+    if (!selected) break;
+
+    triedLabels.add(selected.account.label);
+    const result = await tryAccountWithModels(selected.account, options, errors);
+    if (result) return result;
+  }
+
+  const quotaHits = errors.filter((e) => e.includes("[quota]"));
   if (quotaHits.length > 0 && quotaHits.length === errors.length) {
     throw new Error(
       `All Cloudflare accounts have exhausted their daily free quota. ` +
-        `Add more API keys (CLOUDFLARE_ACCOUNT_ID_2/3, CLOUDFLARE_AUTH_TOKEN_2/3) or upgrade to a paid plan.`,
+        `Add more accounts via CLOUDFLARE_POOL_ACCOUNTS or upgrade to a paid plan.`,
     );
   }
 
   throw new Error(
     `All AI providers failed for ${options.task}. ${errors.join(" | ")}`,
   );
+}
+
+async function tryAccountWithModels(
+  account: CloudflarePoolAccount,
+  options: GenerateTextOptions,
+  errors: string[],
+): Promise<GenerateTextResult | null> {
+  for (const config of getTaskConfigs(options.task)) {
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      const startMs = Date.now();
+      try {
+        await waitForBackpressure();
+        const text = await generateWithCloudflare(
+          account.accountId,
+          account.authToken,
+          config.model,
+          options,
+        );
+
+        const latency = Date.now() - startMs;
+        const estimatedTokens = Math.ceil(text.length / 4);
+        await recordSuccess(account.label, estimatedTokens);
+        logPoolStat(account.label, options.task, config.model, estimatedTokens, latency, true);
+
+        return { text, provider: "cloudflare", model: config.model, accountLabel: account.label };
+      } catch (error) {
+        const latency = Date.now() - startMs;
+        const message = getErrorMessage(error);
+
+        if (isQuotaError(message)) {
+          errors.push(`cloudflare:${account.label}:${config.model}[quota] -> ${message}`);
+          await quarantineAccount(account.label, true);
+          logPoolStat(account.label, options.task, config.model, 0, latency, false, "quota");
+          return null;
+        }
+
+        if (isRateLimitError(message)) {
+          errors.push(`cloudflare:${account.label}:${config.model}[rate-limit] -> ${message}`);
+          await quarantineAccount(account.label, false);
+          logPoolStat(account.label, options.task, config.model, 0, latency, false, "rate-limit");
+
+          const retryDelayMs = getRetryDelayMs(error);
+          if (retryDelayMs !== null && attempt < 3) {
+            applyBackpressure(retryDelayMs);
+            await sleep(retryDelayMs);
+            continue;
+          }
+          return null;
+        }
+
+        const retryDelayMs = getRetryDelayMs(error);
+        const shouldRetry = attempt < 3 && retryDelayMs !== null;
+
+        if (!shouldRetry) {
+          errors.push(`cloudflare:${account.label}:${config.model} -> ${message}`);
+          logPoolStat(account.label, options.task, config.model, 0, latency, false, "error");
+          break;
+        }
+
+        applyBackpressure(retryDelayMs);
+        await sleep(retryDelayMs);
+      }
+    }
+  }
+  return null;
+}
+
+export async function testCloudflareCredentials(
+  accountId: string,
+  authToken: string,
+): Promise<{ success: boolean; error?: string; model?: string; latencyMs?: number }> {
+  const startMs = Date.now();
+  try {
+    const response = await fetch(
+      `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/@cf/zai-org/glm-4.7-flash`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({
+          messages: [{ role: "user", content: "Say hello in one word." }],
+          max_completion_tokens: 10,
+          temperature: 0,
+          chat_template_kwargs: { enable_thinking: false },
+        }),
+        signal: AbortSignal.timeout(30000),
+      },
+    );
+    const data = (await response.json()) as CloudflareRunSuccess;
+    if (!response.ok || data.success === false) {
+      return { success: false, error: extractCloudflareError(data, response.status) };
+    }
+    return { success: true, model: "@cf/zai-org/glm-4.7-flash", latencyMs: Date.now() - startMs };
+  } catch (err) {
+    return { success: false, error: getErrorMessage(err) };
+  }
 }
 
 const AI_FETCH_TIMEOUT_MS = 120_000;
@@ -429,6 +642,10 @@ function isQuotaError(message: string): boolean {
   return /free allocation|neurons.*upgrade|daily.*limit.*exceeded/i.test(message);
 }
 
+function isRateLimitError(message: string): boolean {
+  return /rate limit|too many requests|429/i.test(message);
+}
+
 function getRetryDelayMs(error: unknown): number | null {
   const message = getErrorMessage(error);
   const match = message.match(/(?:retry|try again) in\s+([0-9.]+)s/i);
@@ -444,14 +661,6 @@ function getRetryDelayMs(error: unknown): number | null {
   }
 
   return null;
-}
-
-function isRetryableError(error: unknown): boolean {
-  const message = getErrorMessage(error);
-  if (isQuotaError(message)) return false;
-  return /rate limit|too many requests|temporar|capacity|overloaded/i.test(
-    message,
-  );
 }
 
 let lastBackoffUntil = 0;
@@ -475,3 +684,5 @@ function applyBackpressure(delayMs: number): void {
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+
+export { sleep };

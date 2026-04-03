@@ -19,3 +19,4 @@ export * from "./mentorAssignments";
 export * from "./orgRequiredSkills";
 export * from "./userBadges";
 export * from "./courseComments";
+export * from "./aiPoolStats";

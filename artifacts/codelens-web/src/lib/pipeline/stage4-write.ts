@@ -1,4 +1,4 @@
-import { generateText } from "../llm";
+import { generateText, getAccountsForStage, getHealthyAccountCount, sleep } from "../llm";
 import { countTokens, truncateAtFunctionBoundary, getDepthTokenBudget, getDepthContextBudget } from "../token-counter";
 import { v2ChapterSchema } from "../v2-schema";
 import { type RepoExtraction, fetchFileContent } from "../github";
@@ -290,6 +290,7 @@ async function writeOneChapter(
   config: PipelineConfig,
   emitter: PipelineEmitter,
   totalChapters: number,
+  accountLabel?: string,
 ): Promise<ChapterResult> {
   emitter.emitChapterStart(chapter.index, chapter.title, totalChapters);
 
@@ -404,6 +405,7 @@ async function writeOneChapter(
           : fullPrompt,
         responseMimeType: "application/json",
         maxOutputTokens: outputTokenBudget,
+        accountLabel,
       });
 
       const parsed = safeParseJson(response.text) as Record<string, unknown>;
@@ -488,14 +490,47 @@ export async function runStage4WriteChapters(
   }
 
   const chaptersToWrite = chapters.filter((c) => !completedMap.has(c.index));
-  const concurrency = 6;
+
+  let healthyCount = await getHealthyAccountCount("stage3");
+  if (healthyCount === 0) {
+    console.log("[Pipeline] No healthy accounts at Stage 4 start, waiting for recovery...");
+    let backoffMs = 5000;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      await sleep(backoffMs);
+      healthyCount = await getHealthyAccountCount("stage3");
+      if (healthyCount > 0) break;
+      backoffMs = Math.min(backoffMs * 2, 60000);
+      console.log(`[Pipeline] Still no healthy accounts, backoff ${backoffMs}ms (attempt ${attempt + 2}/5)`);
+    }
+  }
+  const concurrency = Math.max(1, Math.min(healthyCount, 8));
+  console.log(`[Pipeline] Stage 4 concurrency: ${concurrency} (${healthyCount} healthy accounts)`);
+
+  const stageAccounts = getAccountsForStage("stage3");
   const results: ChapterResult[] = [...completedMap.values()];
 
   for (let i = 0; i < chaptersToWrite.length; i += concurrency) {
     const batch = chaptersToWrite.slice(i, i + concurrency);
+
+    const currentHealthy = await getHealthyAccountCount("stage3");
+    if (currentHealthy === 0) {
+      console.log("[Pipeline] All accounts rate-limited, waiting with backoff...");
+      let backoffMs = 5000;
+      for (let attempt = 0; attempt < 5; attempt++) {
+        await sleep(backoffMs);
+        const recovered = await getHealthyAccountCount("stage3");
+        if (recovered > 0) break;
+        backoffMs = Math.min(backoffMs * 2, 60000);
+        console.log(`[Pipeline] Still no healthy accounts, backoff ${backoffMs}ms (attempt ${attempt + 2}/5)`);
+      }
+    }
+
     const batchResults = await Promise.allSettled(
-      batch.map((chapter) =>
-        writeOneChapter(
+      batch.map((chapter, batchIdx) => {
+        const assignedAccount = stageAccounts.length > 0
+          ? stageAccounts[batchIdx % stageAccounts.length]
+          : undefined;
+        return writeOneChapter(
           chapter,
           abstractions,
           relationships,
@@ -503,8 +538,9 @@ export async function runStage4WriteChapters(
           config,
           emitter,
           chapters.length,
-        ),
-      ),
+          assignedAccount?.label,
+        );
+      }),
     );
 
     for (let j = 0; j < batchResults.length; j++) {
