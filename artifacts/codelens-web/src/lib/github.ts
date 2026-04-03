@@ -65,6 +65,7 @@ export interface RepoExtraction {
   repoName: string;
   owner: string;
   defaultBranch: string;
+  commitSha: string;
   languageBreakdown: Record<string, number>;
   estimatedComplexity: "small" | "medium" | "large";
   repoMap: string;
@@ -471,16 +472,17 @@ export async function extractRepo(
     `https://api.github.com/repos/${owner}/${repo}/git/trees/${defaultBranch}?recursive=1`,
     userToken,
   );
-  let treeData: { tree: GitHubTreeEntry[] } | null = getCached<{ tree: GitHubTreeEntry[] }>(treeCacheKey);
+  let treeData: { tree: GitHubTreeEntry[]; sha?: string } | null = getCached<{ tree: GitHubTreeEntry[]; sha?: string }>(treeCacheKey);
   if (!treeData) {
     const treeRes = await githubFetch(
       `https://api.github.com/repos/${owner}/${repo}/git/trees/${defaultBranch}?recursive=1`,
       userToken,
     );
-    treeData = (await treeRes.json()) as { tree: GitHubTreeEntry[] };
+    treeData = (await treeRes.json()) as { tree: GitHubTreeEntry[]; sha?: string };
     setCached(treeCacheKey, treeData, TREE_CACHE_TTL);
   }
   const repoTree = Array.isArray(treeData.tree) ? treeData.tree : null;
+  const commitSha = treeData?.sha || "";
 
   const healthCheck = await checkRepoHealth(owner, repo, defaultBranch, userToken, repoTree ?? undefined);
   if (!healthCheck.accessible) {
@@ -620,6 +622,7 @@ export async function extractRepo(
     repoName: repo,
     owner,
     defaultBranch,
+    commitSha,
     languageBreakdown,
     estimatedComplexity,
     repoMap,

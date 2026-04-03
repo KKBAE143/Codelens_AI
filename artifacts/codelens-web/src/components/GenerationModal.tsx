@@ -40,13 +40,37 @@ function formatEta(seconds: number): string {
   return `~${mins} min remaining`;
 }
 
-function estimateSeconds(stageIndex: number, elapsed: number): number {
+function estimateSeconds(stageIndex: number, elapsed: number, progressDetail: string): number {
   const avgPerStage = [15, 35, 30, 90, 15, 0];
+
+  const moduleMatch = progressDetail.match(/module\s+(\d+)\s+of\s+(\d+)/i);
+  if (moduleMatch && stageIndex === 3) {
+    const current = parseInt(moduleMatch[1], 10);
+    const total = parseInt(moduleMatch[2], 10);
+    const remaining = total - current;
+    const perModuleSec = 25;
+    return remaining * perModuleSec + 15;
+  }
+
   const idx = Math.max(0, Math.min(stageIndex, avgPerStage.length - 1));
   const remainInCurrent = Math.max(0, avgPerStage[idx] - elapsed);
   let future = 0;
   for (let i = idx + 1; i < avgPerStage.length - 1; i++) future += avgPerStage[i];
   return remainInCurrent + future;
+}
+
+function requestNotificationPermission() {
+  if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "default") {
+    Notification.requestPermission().catch(() => {});
+  }
+}
+
+function sendBrowserNotification(title: string, body: string) {
+  if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
+    try {
+      new Notification(title, { body, icon: "/favicon.ico" });
+    } catch {}
+  }
 }
 
 export function GenerationModal({ courseId, onClose }: GenerationModalProps) {
@@ -68,6 +92,10 @@ export function GenerationModal({ courseId, onClose }: GenerationModalProps) {
   const tickRef = useRef<ReturnType<typeof setInterval>>(null);
   const esRef = useRef<EventSource | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout>>(null);
+
+  useEffect(() => {
+    requestNotificationPermission();
+  }, []);
 
   const applyPayload = useCallback((data: StatusPayload) => {
     if (terminalHandledRef.current) return;
@@ -109,6 +137,10 @@ export function GenerationModal({ courseId, onClose }: GenerationModalProps) {
       }
 
       if (termStatus === "completed") {
+        sendBrowserNotification(
+          "Course Ready!",
+          "Your course has been generated and is ready to view.",
+        );
         import("canvas-confetti")
           .then((mod) =>
             mod.default({
@@ -119,6 +151,11 @@ export function GenerationModal({ courseId, onClose }: GenerationModalProps) {
           )
           .catch(() => {});
         setTimeout(() => router.push(`/course/${courseId}`), 1800);
+      } else if (termStatus === "failed") {
+        sendBrowserNotification(
+          "Generation Failed",
+          "Course generation encountered an error. Please try again.",
+        );
       }
     },
     [courseId, router],
@@ -217,7 +254,7 @@ export function GenerationModal({ courseId, onClose }: GenerationModalProps) {
   const currentStageIndex = STAGES.findIndex((s) => s.key === progress.stage);
   const effectiveIndex = currentStageIndex >= 0 ? currentStageIndex : 0;
   const isTerminal = status === "completed" || status === "failed";
-  const eta = isTerminal ? 0 : estimateSeconds(effectiveIndex, elapsedInStage);
+  const eta = isTerminal ? 0 : estimateSeconds(effectiveIndex, elapsedInStage, progress.detail);
   const smoothPercent = isTerminal
     ? status === "completed"
       ? 100

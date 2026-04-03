@@ -95,15 +95,16 @@ function packAbstractionContext(
 }
 
 function getProgressiveBlockRequirements(attempt: number, depth: "quick" | "full" | "deep"): string {
-  if (attempt === 1) return "";
-
-  if (attempt === 2) {
-    return `\n\nSIMPLIFIED REQUIREMENTS (attempt ${attempt}):
+  if (attempt === 1) {
+    return `\n\nSIMPLIFIED REQUIREMENTS (first attempt — fast generation):
 - Reduce block count: aim for ${depth === "quick" ? "4-6" : depth === "full" ? "6-8" : "8-12"} blocks
 - Mermaid diagram is OPTIONAL — skip if complex
 - Quiz can have 2 options instead of 3-4
-- Code blocks: include 1-2 key excerpts instead of 2-4`;
+- Code blocks: include 1-2 key excerpts instead of 2-4
+- Prioritize text explanations and code examples over diagrams`;
   }
+
+  if (attempt === 2) return "";
 
   return `\n\nMINIMAL REQUIREMENTS (attempt ${attempt}):
 - Write 3-5 blocks only
@@ -300,7 +301,7 @@ export async function runStage4WriteChapters(
   }
 
   const chaptersToWrite = chapters.filter((c) => !completedMap.has(c.index));
-  const concurrency = 3;
+  const concurrency = 6;
   const results: ChapterResult[] = [...completedMap.values()];
 
   for (let i = 0; i < chaptersToWrite.length; i += concurrency) {

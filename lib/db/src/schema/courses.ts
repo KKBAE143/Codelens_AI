@@ -45,6 +45,7 @@ export const courses = pgTable("courses", {
   }>(),
   sourceFileHashes: jsonb("source_file_hashes").$type<Record<string, string>>(),
   configHash: text("config_hash"),
+  commitSha: text("commit_sha"),
   depthPreset: text("depth_preset", { enum: ["quick", "full", "deep"] }),
   focusAreas: jsonb("focus_areas").$type<string[]>(),
   customContext: text("custom_context"),

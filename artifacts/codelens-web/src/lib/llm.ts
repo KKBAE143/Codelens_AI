@@ -191,6 +191,7 @@ export async function generateText(
     for (const config of getTaskConfigs(options.task)) {
       for (let attempt = 1; attempt <= 3; attempt++) {
         try {
+          await waitForBackpressure();
           const text = await generateWithCloudflare(
             credential.accountId,
             credential.authToken,
@@ -220,6 +221,7 @@ export async function generateText(
             break;
           }
 
+          applyBackpressure(retryDelayMs);
           await sleep(retryDelayMs);
         }
       }
@@ -450,6 +452,24 @@ function isRetryableError(error: unknown): boolean {
   return /rate limit|too many requests|temporar|capacity|overloaded/i.test(
     message,
   );
+}
+
+let lastBackoffUntil = 0;
+
+async function waitForBackpressure(): Promise<void> {
+  const now = Date.now();
+  if (now < lastBackoffUntil) {
+    const waitMs = lastBackoffUntil - now;
+    console.log(`[LLM] Backpressure: waiting ${waitMs}ms before next request`);
+    await sleep(waitMs);
+  }
+}
+
+function applyBackpressure(delayMs: number): void {
+  const until = Date.now() + delayMs;
+  if (until > lastBackoffUntil) {
+    lastBackoffUntil = until;
+  }
 }
 
 function sleep(ms: number): Promise<void> {

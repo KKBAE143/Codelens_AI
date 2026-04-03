@@ -240,6 +240,11 @@ export async function generateCourseDirect(courseId: string): Promise<void> {
       throw error;
     }
 
+    await db.update(courses).set({
+      commitSha: extraction.commitSha || null,
+      updatedAt: new Date(),
+    }).where(eq(courses.id, courseId));
+
     const pipelineConfig: PipelineConfig = { audience, depth, focusAreas, customContext };
 
     const existingState = course.pipelineState as {
@@ -251,11 +256,30 @@ export async function generateCourseDirect(courseId: string): Promise<void> {
       completedChapterIndices?: number[];
     } | null;
 
+    let parentPipelineState: typeof existingState | null = null;
+    if (course.parentCourseId && extraction.commitSha) {
+      const [parentCourse] = await db
+        .select({ pipelineState: courses.pipelineState, commitSha: courses.commitSha })
+        .from(courses)
+        .where(eq(courses.id, course.parentCourseId))
+        .limit(1);
+      if (parentCourse?.commitSha === extraction.commitSha && parentCourse?.pipelineState) {
+        const ps = parentCourse.pipelineState as typeof existingState;
+        if (ps?.abstractions && ps?.relationships && ps?.curriculum) {
+          parentPipelineState = ps;
+          console.log(`[Pipeline] Same commit SHA (${extraction.commitSha.slice(0, 8)}) — reusing stages 1-3 from parent course`);
+        }
+      }
+    }
+
+    const resumeState = parentPipelineState || existingState;
+
     let abstractions;
     try {
-      if (existingState?.abstractions && Array.isArray(existingState.abstractions)) {
-        abstractions = existingState.abstractions as Awaited<ReturnType<typeof runStage1Abstractions>>;
+      if (resumeState?.abstractions && Array.isArray(resumeState.abstractions)) {
+        abstractions = resumeState.abstractions as Awaited<ReturnType<typeof runStage1Abstractions>>;
         console.log(`[Pipeline] Resuming from cached Stage 1 (${abstractions.length} abstractions)`);
+        emitter.emitStageComplete("identify_abstractions", `Reused ${abstractions.length} abstractions`, 1, 5);
       } else {
         await updateProgress(courseId, "analyzing", "Identifying core abstractions...", 20);
         abstractions = await runStage1Abstractions(extraction, pipelineConfig, emitter);
@@ -277,9 +301,10 @@ export async function generateCourseDirect(courseId: string): Promise<void> {
 
     let relationships;
     try {
-      if (existingState?.relationships && Array.isArray(existingState.relationships)) {
-        relationships = existingState.relationships as Awaited<ReturnType<typeof runStage2Relationships>>;
+      if (resumeState?.relationships && Array.isArray(resumeState.relationships)) {
+        relationships = resumeState.relationships as Awaited<ReturnType<typeof runStage2Relationships>>;
         console.log(`[Pipeline] Resuming from cached Stage 2 (${relationships.length} relationships)`);
+        emitter.emitStageComplete("analyze_relationships", `Reused ${relationships.length} relationships`, 2, 5);
       } else {
         await updateProgress(courseId, "analyzing", "Analyzing relationships between abstractions...", 38);
         relationships = await runStage2Relationships(abstractions, extraction, pipelineConfig, emitter);
@@ -299,8 +324,14 @@ export async function generateCourseDirect(courseId: string): Promise<void> {
 
     let orderedChapters;
     try {
-      await updateProgress(courseId, "designing", "Determining optimal learning order...", 48);
-      orderedChapters = await runStage3Order(abstractions, relationships, pipelineConfig, emitter);
+      if (resumeState?.curriculum && Array.isArray(resumeState.curriculum)) {
+        orderedChapters = resumeState.curriculum as Awaited<ReturnType<typeof runStage3Order>>;
+        console.log(`[Pipeline] Resuming from cached Stage 3 (${orderedChapters.length} chapters)`);
+        emitter.emitStageComplete("order_chapters", `Reused ${orderedChapters.length} chapters`, 3, 5);
+      } else {
+        await updateProgress(courseId, "designing", "Determining optimal learning order...", 48);
+        orderedChapters = await runStage3Order(abstractions, relationships, pipelineConfig, emitter);
+      }
       await db.update(courses).set({
         pipelineState: { stage: "curriculum", abstractions, relationships, curriculum: orderedChapters },
         curriculum: { chapters: orderedChapters },
@@ -318,11 +349,20 @@ export async function generateCourseDirect(courseId: string): Promise<void> {
 
     let chapters: ChapterResult[];
     try {
-      await updateProgress(courseId, "generating", `Writing ${orderedChapters.length} chapters...`, 60);
+      await updateProgress(courseId, "generating", `Writing ${orderedChapters.length} chapters (0/${orderedChapters.length} done)...`, 60);
 
-      const existingChapters = existingState?.chaptersProgress as ChapterResult[] | undefined;
+      const existingChapters = (resumeState?.chaptersProgress ?? existingState?.chaptersProgress) as ChapterResult[] | undefined;
 
       const chapterCheckpoint = async (completedChapters: ChapterResult[]) => {
+        const done = completedChapters.length;
+        const total = orderedChapters.length;
+        const chapterPercent = 60 + Math.round((done / total) * 28);
+        await updateProgress(
+          courseId,
+          "generating",
+          `Writing module ${Math.min(done + 1, total)} of ${total}...`,
+          chapterPercent,
+        );
         await db.update(courses).set({
           pipelineState: {
             stage: "writing_chapters",

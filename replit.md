@@ -15,6 +15,7 @@ CodeLens AI — a SaaS platform where users paste a GitHub URL and receive an AI
 - **Database**: PostgreSQL (Neon DB) + Drizzle ORM
 - **AI**: Cloudflare Workers AI — models: `glm-4.7-flash`, `gpt-oss-20b`, `gpt-oss-120b` (via `llm.ts`)
 - **Background jobs**: Inngest (optional) or direct async execution
+- **Generation speed**: 6-concurrent chapter writing, simplified-first retry, commit-SHA stage caching, token-bucket backpressure, browser notifications
 - **Auth**: GitHub OAuth (sole sign-in, token encrypted + stored)
 - **Validation**: Zod (`zod/v4`), `drizzle-zod`
 
