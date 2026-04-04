@@ -67,6 +67,14 @@ CodeLens AI — a SaaS platform where users paste a GitHub URL and receive an AI
 - **Email preferences**: GET/PATCH `/api/user/email-preferences` — toggle email notifications
 - **API endpoints**: GET `/api/courses/explore` (listing with `audience`, `depth`, `focusArea`, `stars` sort, `githubUrl` search), GET `/api/courses/explore/[owner]/[repo]` (detail), GET `/api/courses/featured` (top 6 by popularity), GET `/api/courses/check-existing`
 
+## CSRF Protection
+
+- **Global interceptor**: `ClientProviders.tsx` installs a global `fetch` wrapper that automatically attaches `x-csrf-token` headers to all same-origin mutating requests (POST/PUT/PATCH/DELETE)
+- **Cookie-based**: Token is stored in `csrf-token` cookie, set eagerly on app load via `/api/csrf-token`
+- **Server-side**: `middleware.ts` enforces CSRF via `ensureCsrf()` from `lib/csrf.ts`; verifies header token matches cookie using timing-safe comparison
+- **Skip paths**: `/api/webhooks/`, `/api/stripe/webhook`, `/api/inngest`, `/api/health`, `/api/csrf-token`
+- **No manual token handling needed**: Components just use regular `fetch()` calls — the interceptor handles everything automatically
+
 ## Replit Setup
 
 - **CodeLens Web workflow**: `pnpm --filter @workspace/codelens-web run dev` (default port 3000, webview)
