@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useState, useEffect } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Navbar } from "./Navbar";
 import { Footer } from "./Footer";
@@ -20,6 +20,13 @@ export function ClientProviders({ children }: { children: ReactNode }) {
         },
       })
   );
+
+  useEffect(() => {
+    const hasCsrf = document.cookie.includes("csrf-token=");
+    if (!hasCsrf) {
+      fetch("/api/csrf-token").catch(() => {});
+    }
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>

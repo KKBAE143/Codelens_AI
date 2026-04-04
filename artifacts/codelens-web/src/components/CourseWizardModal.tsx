@@ -224,9 +224,19 @@ export function CourseWizardModal({
         customContext,
       };
 
+      let csrfToken = document.cookie.match(/(?:^|;\s*)csrf-token=([^;]*)/)?.[1] ?? "";
+      if (!csrfToken) {
+        const csrfRes = await fetch("/api/csrf-token");
+        const csrfData = await csrfRes.json();
+        csrfToken = csrfData.csrfToken;
+      }
+
       const res = await fetch("/api/courses", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-csrf-token": csrfToken,
+        },
         body: JSON.stringify({
           githubUrl,
           organizationSlug,
