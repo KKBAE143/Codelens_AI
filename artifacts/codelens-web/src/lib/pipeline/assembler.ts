@@ -365,11 +365,7 @@ export async function assembleV2Course(
         ];
         for (const fb of titleFallbacks) {
           if (bullets.length >= 3) break;
-          if (!bullets.some((bul) => bul.toLowerCase().includes(cleanTitle.toLowerCase()))) {
-            bullets.push(fb);
-          } else {
-            bullets.push(fb);
-          }
+          bullets.push(fb);
         }
       }
 
