@@ -38,8 +38,8 @@ function checkRateLimitInline(
 function getRouteGroup(pathname: string): { key: string; limit: number } | null {
   if (pathname === "/api/health" || pathname === "/api/inngest") return null;
   if (pathname.startsWith("/api/stripe/webhook") || pathname.startsWith("/api/webhooks/")) return null;
-
-  if (pathname.startsWith("/api/auth/")) return { key: "auth", limit: 20 };
+  if (pathname.startsWith("/api/auth/")) return null;
+  if (pathname === "/api/csrf-token") return null;
   if (pathname === "/api/courses/generate" || pathname.match(/\/api\/courses\/[^/]+\/regenerate$/)) {
     return { key: "generate", limit: 10 };
   }
