@@ -224,7 +224,7 @@ export function CourseWizardModal({
         customContext,
       };
 
-      const res = await fetch("/api/courses", {
+      const res = await fetch("/api/courses/generate", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -232,7 +232,10 @@ export function CourseWizardModal({
         body: JSON.stringify({
           githubUrl,
           organizationSlug,
-          config,
+          targetAudience: config.persona,
+          depth: config.depth,
+          focusAreas: config.focusAreas,
+          customContext: config.customContext,
         }),
       });
 
@@ -242,7 +245,7 @@ export function CourseWizardModal({
       }
 
       const data = await res.json();
-      const courseId = data.id;
+      const courseId = data.courseId || data.id;
 
       // Poll for completion
       const poll = async () => {
