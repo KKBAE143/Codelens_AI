@@ -247,15 +247,18 @@ export function CourseWizardModal({
       const data = await res.json();
       const courseId = data.courseId || data.id;
 
-      // Poll for completion
       const poll = async () => {
-        for (let i = 0; i < 120; i++) {
+        for (let i = 0; i < 180; i++) {
           await new Promise((r) => setTimeout(r, 3000));
           const statusRes = await fetch(`/api/courses/${courseId}`);
           if (!statusRes.ok) continue;
           const statusData = await statusRes.json();
 
-          if (statusData.status === "completed") {
+          const course = statusData.course || statusData;
+          const courseStatus = course.status;
+          const courseProgress = course.progress as { stage?: string; detail?: string; percent?: number } | null;
+
+          if (courseStatus === "completed") {
             setGenerationProgress(100);
             setGenerationStage("Course ready!");
             setTimeout(() => {
@@ -264,12 +267,14 @@ export function CourseWizardModal({
             }, 800);
             return;
           }
-          if (statusData.status === "failed") {
-            throw new Error(statusData.error || "Generation failed");
+          if (courseStatus === "failed") {
+            throw new Error(course.errorMessage || "Generation failed");
           }
 
-          setGenerationStage(statusData.stage || "Processing...");
-          setGenerationProgress(Math.min(95, (i / 120) * 100));
+          const stageText = courseProgress?.detail || courseProgress?.stage || "Processing...";
+          const stagePercent = courseProgress?.percent;
+          setGenerationStage(stageText);
+          setGenerationProgress(stagePercent != null ? Math.min(95, stagePercent) : Math.min(95, (i / 180) * 100));
         }
         throw new Error("Generation timed out");
       };
