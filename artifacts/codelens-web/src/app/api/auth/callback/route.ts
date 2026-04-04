@@ -43,7 +43,11 @@ export async function GET(request: NextRequest) {
   const origin = getOrigin(request);
 
   if (!code || !state || state !== storedState) {
-    return NextResponse.redirect(new URL("/api/auth/login", origin));
+    console.error("[Auth Callback] State mismatch or missing code/state", { hasCode: !!code, hasState: !!state, stateMatch: state === storedState });
+    const errResponse = NextResponse.redirect(new URL("/?error=auth_state_mismatch", origin));
+    errResponse.cookies.delete("github_oauth_state");
+    errResponse.cookies.delete("return_to");
+    return errResponse;
   }
 
   if (!process.env.GITHUB_CLIENT_ID || !process.env.GITHUB_CLIENT_SECRET) {
@@ -75,12 +79,14 @@ export async function GET(request: NextRequest) {
     );
 
     if (!tokenResponse.ok) {
-      return NextResponse.redirect(new URL("/api/auth/login", origin));
+      console.error("[Auth Callback] Token exchange failed:", tokenResponse.status);
+      return NextResponse.redirect(new URL("/?error=auth_token_failed", origin));
     }
 
     const tokenData = await tokenResponse.json();
     if (tokenData.error || !tokenData.access_token) {
-      return NextResponse.redirect(new URL("/api/auth/login", origin));
+      console.error("[Auth Callback] Token response error:", tokenData.error);
+      return NextResponse.redirect(new URL("/?error=auth_token_denied", origin));
     }
 
     const userResponse = await fetch("https://api.github.com/user", {
@@ -91,12 +97,14 @@ export async function GET(request: NextRequest) {
     });
 
     if (!userResponse.ok) {
-      return NextResponse.redirect(new URL("/api/auth/login", origin));
+      console.error("[Auth Callback] GitHub user fetch failed:", userResponse.status);
+      return NextResponse.redirect(new URL("/?error=auth_user_failed", origin));
     }
 
     const githubUser = await userResponse.json();
     if (!githubUser.id || !githubUser.login) {
-      return NextResponse.redirect(new URL("/api/auth/login", origin));
+      console.error("[Auth Callback] Invalid GitHub user data");
+      return NextResponse.redirect(new URL("/?error=auth_invalid_user", origin));
     }
 
     const { user: dbUser, isNew: isNewUser } = await upsertUser({
