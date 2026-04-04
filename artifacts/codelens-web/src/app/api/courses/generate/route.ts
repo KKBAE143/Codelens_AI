@@ -176,6 +176,18 @@ export async function POST(request: Request) {
         await generateCourseDirect(course.id);
       } catch (err) {
         console.error("Direct course generation failed:", err);
+        try {
+          await db
+            .update(courses)
+            .set({
+              status: "failed",
+              errorMessage: err instanceof Error ? err.message : "Generation failed unexpectedly",
+              updatedAt: new Date(),
+            })
+            .where(eq(courses.id, course.id));
+        } catch (dbErr) {
+          console.error("Failed to update course status after error:", dbErr);
+        }
       }
     });
   }
