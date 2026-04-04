@@ -192,16 +192,16 @@ export function getPoolAccounts(): CloudflarePoolAccount[] {
 
   const accounts: CloudflarePoolAccount[] = [];
 
-  const sharedAccountId = process.env.CLOUDFLARE_ACCOUNT_ID?.trim();
-  const sharedAuthToken = process.env.CLOUDFLARE_AUTH_TOKEN?.trim();
+  const sharedAccountId = (process.env.CLOUDFLARE_ACCOUNT_ID || process.env.CF_ACCOUNT_ID)?.trim();
+  const sharedAuthToken = (process.env.CLOUDFLARE_AUTH_TOKEN || process.env.CF_API_TOKEN || process.env.CF_AUTH_TOKEN)?.trim();
   if (sharedAccountId && sharedAuthToken) {
     accounts.push({ accountId: sharedAccountId, authToken: sharedAuthToken, label: "shared" });
   }
 
   let consecutiveMisses = 0;
   for (let i = 1; consecutiveMisses < 5; i++) {
-    const accountId = process.env[`CLOUDFLARE_ACCOUNT_ID_${i}`]?.trim();
-    const authToken = process.env[`CLOUDFLARE_AUTH_TOKEN_${i}`]?.trim();
+    const accountId = (process.env[`CLOUDFLARE_ACCOUNT_ID_${i}`] || process.env[`CF_ACCOUNT_ID_${i}`])?.trim();
+    const authToken = (process.env[`CLOUDFLARE_AUTH_TOKEN_${i}`] || process.env[`CF_API_TOKEN_${i}`] || process.env[`CF_AUTH_TOKEN_${i}`])?.trim();
     if (!accountId && !authToken) {
       consecutiveMisses++;
       continue;
@@ -215,8 +215,8 @@ export function getPoolAccounts(): CloudflarePoolAccount[] {
   }
 
   for (const stage of ["STAGE1", "STAGE2", "STAGE3", "STAGE4", "SUMMARY"] as const) {
-    const accountId = process.env[`CLOUDFLARE_${stage}_ACCOUNT_ID`]?.trim();
-    const authToken = process.env[`CLOUDFLARE_${stage}_AUTH_TOKEN`]?.trim();
+    const accountId = (process.env[`CLOUDFLARE_${stage}_ACCOUNT_ID`] || process.env[`CF_${stage}_ACCOUNT_ID`])?.trim();
+    const authToken = (process.env[`CLOUDFLARE_${stage}_AUTH_TOKEN`] || process.env[`CF_${stage}_API_TOKEN`] || process.env[`CF_${stage}_AUTH_TOKEN`])?.trim();
     if (!accountId || !authToken) continue;
     const stageLabel = stage.toLowerCase().replace("stage", "stage-");
     const existing = accounts.find(a => a.accountId === accountId);
@@ -235,10 +235,11 @@ export function getPoolAccounts(): CloudflarePoolAccount[] {
 
   if (accounts.length === 0) {
     throw new Error(
-      "No Cloudflare Workers AI accounts configured. Set CLOUDFLARE_POOL_ACCOUNTS JSON, or CLOUDFLARE_ACCOUNT_ID/CLOUDFLARE_AUTH_TOKEN, or numbered CLOUDFLARE_ACCOUNT_ID_N/CLOUDFLARE_AUTH_TOKEN_N."
+      "No Cloudflare Workers AI accounts configured. Set CLOUDFLARE_POOL_ACCOUNTS JSON, or CLOUDFLARE_ACCOUNT_ID/CLOUDFLARE_AUTH_TOKEN (or CF_ACCOUNT_ID/CF_API_TOKEN), or numbered variants with _1, _2, etc."
     );
   }
 
+  console.log(`[Pool] Loaded ${accounts.length} Cloudflare account(s): ${accounts.map(a => a.label).join(", ")}`);
   cachedAccounts = accounts;
   return accounts;
 }
