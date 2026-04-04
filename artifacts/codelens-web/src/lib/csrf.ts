@@ -1,4 +1,3 @@
-import crypto from "crypto";
 import { NextResponse, type NextRequest } from "next/server";
 
 export const CSRF_COOKIE_NAME = "csrf-token";
@@ -15,7 +14,11 @@ const SKIP_PATHS = [
 ];
 
 export function generateCsrfToken(): string {
-  return crypto.randomBytes(32).toString("hex");
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
 }
 
 export function verifyCsrfToken(
@@ -24,10 +27,15 @@ export function verifyCsrfToken(
 ): boolean {
   if (!token || !cookieToken) return false;
   if (token.length !== cookieToken.length) return false;
-  return crypto.timingSafeEqual(
-    Buffer.from(token),
-    Buffer.from(cookieToken)
-  );
+  const encoder = new TextEncoder();
+  const a = encoder.encode(token);
+  const b = encoder.encode(cookieToken);
+  if (a.byteLength !== b.byteLength) return false;
+  let mismatch = 0;
+  for (let i = 0; i < a.byteLength; i++) {
+    mismatch |= a[i] ^ b[i];
+  }
+  return mismatch === 0;
 }
 
 function shouldSkipCsrf(pathname: string): boolean {
