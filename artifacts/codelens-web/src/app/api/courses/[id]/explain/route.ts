@@ -77,7 +77,7 @@ Keep the total response under 300 words. Be warm and encouraging — they're lea
 
   try {
     const response = await generateText({
-      task: "stage3",
+      task: "chat",
       prompt,
       maxOutputTokens: 768,
     });

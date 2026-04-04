@@ -13,7 +13,7 @@ CodeLens AI — a SaaS platform where users paste a GitHub URL and receive an AI
 - **Frontend**: Next.js 15 App Router (React 19, Tailwind CSS 4)
 - **API framework**: Express 5 (legacy api-server, not primary)
 - **Database**: PostgreSQL (Neon DB) + Drizzle ORM
-- **AI**: Cloudflare Workers AI — models: `glm-4.7-flash`, `gpt-oss-20b`, `gpt-oss-120b` (via `llm.ts`), weighted round-robin account pool with Redis-backed health tracking
+- **AI**: Cloudflare Workers AI (via `llm.ts`), weighted round-robin account pool with Redis-backed health tracking. Models by task: Stage 1 (repo analysis): `glm-4.7-flash` → `qwq-32b` → `gpt-oss-20b`; Stage 2 (abstractions): `qwq-32b` → `glm-4.7-flash` → `gpt-oss-20b`; Stage 3 (chapter ordering): `qwq-32b` → `gpt-oss-120b` → `glm-4.7-flash`; Stage 4 (content writing): `qwen2.5-coder-32b-instruct` → `gpt-oss-120b` → `glm-4.7-flash`; Summary: `glm-4.7-flash` → `gpt-oss-20b`; Chat (Ask AI / I'm Confused): `llama-3.3-70b-instruct-fp8-fast` → `qwq-32b` → `glm-4.7-flash`
 - **Background jobs**: Inngest (optional) or direct async execution
 - **Generation speed**: Pool-aware concurrent chapter writing (min(healthyAccounts, 8)), simplified-first retry, commit-SHA stage caching, token-bucket backpressure, browser notifications
 - **Auth**: GitHub OAuth (sole sign-in, token encrypted + stored)

@@ -2,7 +2,7 @@ import { Redis } from "@upstash/redis";
 import { db } from "@workspace/db";
 import { aiPoolStats } from "@workspace/db/schema";
 
-export type LlmTask = "stage1" | "stage2" | "stage3" | "stage4" | "summary";
+export type LlmTask = "stage1" | "stage2" | "stage3" | "stage4" | "summary" | "chat";
 
 interface GenerateTextOptions {
   task: LlmTask;
@@ -48,25 +48,32 @@ interface CloudflareRunSuccess {
 const DEFAULT_MODELS: Record<LlmTask, ModelConfig[]> = {
   stage1: [
     { model: "@cf/zai-org/glm-4.7-flash" },
+    { model: "@cf/qwen/qwq-32b" },
     { model: "@cf/openai/gpt-oss-20b" },
   ],
   stage2: [
+    { model: "@cf/qwen/qwq-32b" },
     { model: "@cf/zai-org/glm-4.7-flash" },
     { model: "@cf/openai/gpt-oss-20b" },
   ],
   stage3: [
+    { model: "@cf/qwen/qwq-32b" },
     { model: "@cf/openai/gpt-oss-120b" },
     { model: "@cf/zai-org/glm-4.7-flash" },
-    { model: "@cf/openai/gpt-oss-20b" },
   ],
   stage4: [
+    { model: "@cf/qwen/qwen2.5-coder-32b-instruct" },
     { model: "@cf/openai/gpt-oss-120b" },
     { model: "@cf/zai-org/glm-4.7-flash" },
-    { model: "@cf/openai/gpt-oss-20b" },
   ],
   summary: [
     { model: "@cf/zai-org/glm-4.7-flash" },
     { model: "@cf/openai/gpt-oss-20b" },
+  ],
+  chat: [
+    { model: "@cf/meta/llama-3.3-70b-instruct-fp8-fast" },
+    { model: "@cf/qwen/qwq-32b" },
+    { model: "@cf/zai-org/glm-4.7-flash" },
   ],
 };
 
@@ -76,6 +83,7 @@ const ENV_MODEL_KEYS: Record<LlmTask, string> = {
   stage3: "COURSE_STAGE3_MODEL",
   stage4: "COURSE_STAGE4_MODEL",
   summary: "COURSE_SUMMARY_MODEL",
+  chat: "COURSE_CHAT_MODEL",
 };
 
 const RATE_LIMIT_QUARANTINE_MS = 5 * 60 * 1000;
@@ -531,6 +539,39 @@ function buildCloudflareBody(model: string, options: GenerateTextOptions) {
     };
   }
 
+  if (model === "@cf/meta/llama-3.3-70b-instruct-fp8-fast") {
+    return {
+      messages,
+      max_tokens: options.maxOutputTokens,
+      temperature: 0,
+      ...(options.responseMimeType === "application/json"
+        ? { response_format: { type: "json_object" } }
+        : {}),
+    };
+  }
+
+  if (model === "@cf/qwen/qwq-32b") {
+    return {
+      messages,
+      max_tokens: options.maxOutputTokens,
+      temperature: 0,
+      ...(options.responseMimeType === "application/json"
+        ? { response_format: { type: "json_object" } }
+        : {}),
+    };
+  }
+
+  if (model === "@cf/qwen/qwen2.5-coder-32b-instruct") {
+    return {
+      messages,
+      max_tokens: options.maxOutputTokens,
+      temperature: 0,
+      ...(options.responseMimeType === "application/json"
+        ? { response_format: { type: "json_object" } }
+        : {}),
+    };
+  }
+
   return {
     messages,
     max_completion_tokens: options.maxOutputTokens,
@@ -555,6 +596,17 @@ function buildMessages(options: GenerateTextOptions) {
 CRITICAL: Every response must contain SUBSTANTIAL, DETAILED content. Never produce placeholder text. Never write generic summaries like "This chapter covers..." or "In this section we will..." or "Let's explore...". Instead, write real technical explanations with specific details from the actual code provided.
 
 Each text block must contain multiple paragraphs of real technical explanation. Each code block must quote EXACT code from the files provided. Each mermaid diagram must show REAL relationships between components in the codebase.`,
+      },
+      { role: "user", content: options.prompt },
+    ];
+  }
+
+  if (options.task === "chat") {
+    return [
+      {
+        role: "system",
+        content:
+          "You are a friendly and knowledgeable coding tutor. Explain concepts clearly using plain language and real examples from the codebase. Be concise and helpful.",
       },
       { role: "user", content: options.prompt },
     ];

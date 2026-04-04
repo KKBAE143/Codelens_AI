@@ -118,7 +118,7 @@ Answer:`;
 
   try {
     const response = await generateText({
-      task: "stage3",
+      task: "chat",
       prompt,
       maxOutputTokens: 1024,
     });
