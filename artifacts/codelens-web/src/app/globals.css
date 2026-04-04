@@ -1696,24 +1696,44 @@ a.v2-code-filepath:hover {
 }
 
 .v2-mermaid-error {
-  border: 1px solid var(--border-color);
+  border: 1px dashed var(--border-color);
   border-radius: var(--radius-md);
-  padding: 1rem;
+  padding: 1.25rem;
   background: var(--bg-secondary);
 }
 
-.v2-mermaid-error-icon {
-  font-size: 0.75rem;
+.v2-mermaid-error-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
   font-weight: 600;
-  color: var(--text-tertiary);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+  margin-bottom: 0.5rem;
 }
 
-.v2-mermaid-error p {
+.v2-mermaid-error-header svg {
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+.v2-mermaid-error-desc {
   font-size: 0.8rem;
+  color: var(--text-tertiary);
+  margin: 0 0 0.75rem 0;
+  line-height: 1.4;
+}
+
+.v2-mermaid-error-details summary {
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  user-select: none;
+  padding: 0.25rem 0;
+}
+
+.v2-mermaid-error-details summary:hover {
   color: var(--text-secondary);
-  margin: 0.5rem 0;
 }
 
 .v2-mermaid-error pre {
@@ -1722,8 +1742,10 @@ a.v2-code-filepath:hover {
   padding: 0.75rem;
   border-radius: var(--radius-sm);
   overflow-x: auto;
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   margin-top: 0.5rem;
+  max-height: 200px;
+  overflow-y: auto;
 }
 
 .v2-text-img-wrapper {

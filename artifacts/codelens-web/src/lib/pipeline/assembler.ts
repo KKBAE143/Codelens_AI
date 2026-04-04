@@ -301,8 +301,54 @@ export async function assembleV2Course(
         }
       }
 
+      if (bullets.length < 5) {
+        for (const block of blocks) {
+          if (!block || typeof block !== "object") continue;
+          const b = block as Record<string, unknown>;
+          if (b.type === "code" && typeof b.content === "string") {
+            const filename = typeof b.filePath === "string" ? b.filePath : (typeof b.file === "string" ? b.file : (typeof b.caption === "string" ? b.caption : ""));
+            const lang = typeof b.language === "string" ? (b.language as string) : "";
+            const baseName = filename ? filename.split("/").pop()! : "";
+            if (baseName && !bullets.some((bul) => bul.toLowerCase().includes(baseName.toLowerCase()))) {
+              bullets.push(`How **${baseName}** works${lang ? ` (${lang})` : ""}`);
+              if (bullets.length >= 5) break;
+            }
+          }
+          if (b.type === "exercise" && typeof b.title === "string") {
+            const exTitle = b.title as string;
+            if (!bullets.some((bul) => bul.toLowerCase().includes(exTitle.toLowerCase()))) {
+              bullets.push(`Hands-on practice: **${exTitle}**`);
+              if (bullets.length >= 5) break;
+            }
+          }
+          if (b.type === "callout" && typeof b.content === "string") {
+            const boldMatch = (b.content as string).match(/\*\*([^*]{3,40})\*\*/);
+            if (boldMatch && !bullets.some((bul) => bul.toLowerCase().includes(boldMatch[1].toLowerCase()))) {
+              bullets.push(`Key insight: **${boldMatch[1]}**`);
+              if (bullets.length >= 5) break;
+            }
+          }
+        }
+      }
+
       if (bullets.length < 3) {
-        bullets.push(`Core concepts covered in ${ch.title}`);
+        for (const block of blocks) {
+          if (!block || typeof block !== "object") continue;
+          const b = block as Record<string, unknown>;
+          if (b.type === "text" && typeof b.content === "string") {
+            const boldTerms = (b.content as string).match(/<strong>([^<]{3,40})<\/strong>/g);
+            if (boldTerms) {
+              for (const bt of boldTerms) {
+                const term = bt.replace(/<\/?strong>/g, "");
+                if (!bullets.some((bul) => bul.toLowerCase().includes(term.toLowerCase()))) {
+                  bullets.push(`The role of **${term}** in this system`);
+                  if (bullets.length >= 5) break;
+                }
+              }
+            }
+          }
+          if (bullets.length >= 5) break;
+        }
       }
 
       const bulletList = bullets.slice(0, 5).map((b) => `- ${b}`).join("\n");

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import type { V2Block, V2ModuleSummaryBlock } from "@/lib/course-types";
 import { ErrorBoundary, BlockErrorFallback } from "@/components/ErrorBoundary";
 import { TextBlock } from "./TextBlock";
@@ -44,18 +44,37 @@ function getBlockTextContent(block: V2Block): string {
   }
 }
 
+function getCsrfToken(): string {
+  if (typeof document === "undefined") return "";
+  const match = document.cookie.match(/(?:^|;\s*)csrf-token=([^;]*)/);
+  return match ? decodeURIComponent(match[1]) : "";
+}
+
 function ConfusedButton({ block, courseId, moduleTitle }: { block: V2Block; courseId?: string; moduleTitle?: string }) {
   const [state, setState] = useState<"idle" | "loading" | "done">("idle");
   const [explanation, setExplanation] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/csrf-token", { credentials: "include" }).catch(() => {});
+  }, []);
 
   const handleClick = useCallback(async () => {
     if (!courseId || state === "loading") return;
     setState("loading");
 
     try {
+      let token = getCsrfToken();
+      if (!token) {
+        await fetch("/api/csrf-token", { credentials: "include" });
+        token = getCsrfToken();
+      }
+
       const res = await fetch(`/api/courses/${courseId}/explain`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-csrf-token": token,
+        },
         credentials: "include",
         body: JSON.stringify({
           blockContent: getBlockTextContent(block),

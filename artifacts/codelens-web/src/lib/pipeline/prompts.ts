@@ -266,11 +266,13 @@ REQUIRED STRUCTURE (minimum 10 blocks):
 
 7. A callout[command] with the complete install + start sequence from clone to running app
 
-8. A callout[tip] about common setup gotchas specific to THIS project's stack
+8. A callout[tip] about common setup gotchas specific to THIS project's stack. IMPORTANT: Tips must NEVER be just a raw terminal command. Every tip must include instructional context explaining WHAT the command does and WHY. Example of BAD tip: "npm install". Example of GOOD tip: "If you encounter peer dependency warnings during installation, try running npm install --legacy-peer-deps to resolve version conflicts between packages."
 
 9. A mermaid flowchart showing the setup process flow (clone → install deps → configure env → start services → verify)
 
 10. A "Golden Path Quick Start" section at the END — a single callout[command] block with the absolute minimum copy-paste commands to go from zero to running app. The default should be Mac/Linux commands. Use a command-card with osVariants for the Windows equivalent.
+
+CRITICAL TIP/CALLOUT RULE: Any callout with variant "tip" MUST contain a full sentence of instructional context. Never output a raw command as a tip. If a tip mentions a command, wrap it in an explanation like "To install dependencies, run: ..." or "If you see X error, fix it by running: ...". Tips that are just bare commands provide no value to the reader.
 
 ${ANTI_PLACEHOLDER_RULES}
 

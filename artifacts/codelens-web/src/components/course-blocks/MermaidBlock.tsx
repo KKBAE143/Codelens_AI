@@ -11,6 +11,44 @@ function removeMermaidOrphan(id: string) {
   document.getElementById(`d${id}`)?.remove();
 }
 
+function sanitizeMermaidSource(source: string): string {
+  let s = source.trim();
+
+  s = s.replace(/\r\n/g, "\n");
+
+  s = s.replace(/&nbsp;/g, " ");
+  s = s.replace(/&amp;/g, "&");
+
+  s = s.replace(/\u200B/g, "");
+
+  s = s.replace(/[""\u201C\u201D]/g, '"');
+  s = s.replace(/[''`\u2018\u2019]/g, "'");
+
+  s = s.replace(/\u2192/g, "-->");
+  s = s.replace(/\u2190/g, "<--");
+
+  s = s.replace(/- ->/g, "-->");
+  s = s.replace(/-- >/g, "-->");
+  s = s.replace(/< --/g, "<--");
+
+  const lines = s.split("\n");
+  const cleaned: string[] = [];
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith("```")) continue;
+    if (/^style\s+\S+\s/.test(trimmed) && !trimmed.includes("fill") && !trimmed.includes("stroke") && !trimmed.includes("color")) continue;
+    if (/^linkStyle\s/.test(trimmed) && !trimmed.includes("stroke")) continue;
+    cleaned.push(line);
+  }
+  s = cleaned.join("\n");
+
+  if (!/^(graph|flowchart|sequenceDiagram|classDiagram|stateDiagram|erDiagram|gantt|pie|gitGraph|journey|mindmap|timeline|quadrantChart|sankey|xychart)/m.test(s)) {
+    s = `flowchart TD\n${s}`;
+  }
+
+  return s;
+}
+
 function ZoomIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -55,7 +93,8 @@ export function MermaidBlock({ block }: { block: V2MermaidBlock }) {
           mermaidInitialized = true;
         }
 
-        const { svg: renderedSvg } = await mermaid.render(idRef.current, block.source);
+        const cleanedSource = sanitizeMermaidSource(block.source);
+        const { svg: renderedSvg } = await mermaid.render(idRef.current, cleanedSource);
         if (!cancelled) {
           setError(false);
           setSvg(renderedSvg);
@@ -88,9 +127,21 @@ export function MermaidBlock({ block }: { block: V2MermaidBlock }) {
   if (error) {
     return (
       <div className="v2-mermaid-error">
-        <span className="v2-mermaid-error-icon">Diagram</span>
-        <p>This diagram could not be rendered. Here is the source:</p>
-        <pre><code>{block.source}</code></pre>
+        <div className="v2-mermaid-error-header">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2" />
+            <path d="M3 9h18" />
+            <path d="M9 21V9" />
+          </svg>
+          <span>Diagram Preview Unavailable</span>
+        </div>
+        <p className="v2-mermaid-error-desc">
+          {block.caption || (block.diagramType ? `This ${block.diagramType} diagram` : "This diagram")} couldn&apos;t be rendered. The source is shown below for reference.
+        </p>
+        <details className="v2-mermaid-error-details">
+          <summary>View diagram source</summary>
+          <pre><code>{block.source}</code></pre>
+        </details>
       </div>
     );
   }
