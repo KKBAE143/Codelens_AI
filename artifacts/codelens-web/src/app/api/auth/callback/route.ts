@@ -89,15 +89,25 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(new URL("/?error=auth_token_denied", origin));
     }
 
-    const userResponse = await fetch("https://api.github.com/user", {
+    let userResponse = await fetch("https://api.github.com/user", {
       headers: {
         Authorization: `Bearer ${tokenData.access_token}`,
         Accept: "application/vnd.github.v3+json",
       },
     });
 
+    if (userResponse.status === 403 || userResponse.status === 429) {
+      await new Promise((r) => setTimeout(r, 2000));
+      userResponse = await fetch("https://api.github.com/user", {
+        headers: {
+          Authorization: `Bearer ${tokenData.access_token}`,
+          Accept: "application/vnd.github.v3+json",
+        },
+      });
+    }
+
     if (!userResponse.ok) {
-      console.error("[Auth Callback] GitHub user fetch failed:", userResponse.status);
+      console.error("[Auth Callback] GitHub user fetch failed:", userResponse.status, await userResponse.text().catch(() => ""));
       return NextResponse.redirect(new URL("/?error=auth_user_failed", origin));
     }
 
