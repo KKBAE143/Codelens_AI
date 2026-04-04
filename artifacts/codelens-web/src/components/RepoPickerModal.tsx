@@ -200,7 +200,7 @@ export function RepoPickerModal({ onSelect, onClose }: RepoPickerModalProps) {
         aria-modal="true"
         aria-label="Import Git Repository"
         style={{
-          background: "white",
+          background: "var(--bg-card)",
           borderRadius: "12px",
           width: "100%",
           maxWidth: 680,
@@ -268,7 +268,8 @@ export function RepoPickerModal({ onSelect, onClose }: RepoPickerModalProps) {
                 borderRadius: "var(--radius-sm)",
                 fontSize: "0.85rem",
                 fontFamily: "var(--font-body)",
-                background: "white",
+                background: "var(--bg-card)",
+                color: "var(--text-primary)",
                 cursor: "pointer",
                 appearance: "none",
                 backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`,
@@ -338,7 +339,7 @@ export function RepoPickerModal({ onSelect, onClose }: RepoPickerModalProps) {
             <div
               style={{
                 padding: "0.75rem 1.5rem",
-                background: "#FFF0EE",
+                background: "var(--error-bg)",
                 color: "var(--error, #dc2626)",
                 fontSize: "0.8rem",
                 borderBottom: "1px solid var(--border-color)",
@@ -533,7 +534,8 @@ export function RepoPickerModal({ onSelect, onClose }: RepoPickerModalProps) {
                   padding: "0.3rem 0.75rem",
                   border: "1px solid var(--border-color)",
                   borderRadius: "var(--radius-sm)",
-                  background: "white",
+                  background: "var(--bg-card)",
+                  color: "var(--text-primary)",
                   cursor: page <= 1 ? "not-allowed" : "pointer",
                   opacity: page <= 1 ? 0.5 : 1,
                   fontSize: "0.8rem",
@@ -548,7 +550,8 @@ export function RepoPickerModal({ onSelect, onClose }: RepoPickerModalProps) {
                   padding: "0.3rem 0.75rem",
                   border: "1px solid var(--border-color)",
                   borderRadius: "var(--radius-sm)",
-                  background: "white",
+                  background: "var(--bg-card)",
+                  color: "var(--text-primary)",
                   cursor: !hasNext ? "not-allowed" : "pointer",
                   opacity: !hasNext ? 0.5 : 1,
                   fontSize: "0.8rem",

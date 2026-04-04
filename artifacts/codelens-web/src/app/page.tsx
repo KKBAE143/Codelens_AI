@@ -332,7 +332,8 @@ function HomeInner() {
                   borderRadius: "var(--radius-md)",
                   fontSize: "0.95rem",
                   fontFamily: "var(--font-mono)",
-                  background: "white",
+                  background: "var(--bg-card)",
+                  color: "var(--text-primary)",
                   outline: "none",
                   transition: "border-color 0.2s",
                 }}
@@ -373,7 +374,7 @@ function HomeInner() {
                     padding: "0.75rem 1rem",
                     border: "2px solid var(--teal)",
                     borderRadius: "var(--radius-md)",
-                    background: "white",
+                    background: "var(--bg-card)",
                   }}
                 >
                   <svg
@@ -425,7 +426,7 @@ function HomeInner() {
                     padding: "0.875rem 1.25rem",
                     border: "2px dashed var(--border-color)",
                     borderRadius: "var(--radius-md)",
-                    background: "white",
+                    background: "var(--bg-card)",
                     cursor: "pointer",
                     fontSize: "0.9rem",
                     color: "var(--text-secondary)",
@@ -441,7 +442,7 @@ function HomeInner() {
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.borderColor = "var(--border-color)";
-                    e.currentTarget.style.background = "white";
+                    e.currentTarget.style.background = "var(--bg-card)";
                   }}
                 >
                   <svg
@@ -468,7 +469,7 @@ function HomeInner() {
                   alignItems: "center",
                   gap: "0.75rem",
                   padding: "0.875rem 1rem",
-                  background: "white",
+                  background: "var(--bg-card)",
                   border: "1px solid var(--border-color)",
                   borderRadius: "var(--radius-md)",
                   textAlign: "left",
@@ -644,7 +645,7 @@ function HomeInner() {
                   borderRadius: "var(--radius-md)",
                   fontSize: "0.85rem",
                   fontFamily: "var(--font-body)",
-                  background: "white",
+                  background: "var(--bg-card)",
                   outline: "none",
                   color: selectedOrg
                     ? "var(--text-primary)"
@@ -742,7 +743,7 @@ function HomeInner() {
                         <span key={lang} className="badge" style={{ background: "var(--teal-light)", color: "var(--teal)" }}>{lang}</span>
                       ))}
                       {fc.difficulty && (
-                        <span className="badge" style={{ background: fc.difficulty === "Advanced" ? "#FFF0EE" : "#FFF8E1", color: fc.difficulty === "Advanced" ? "var(--accent)" : "var(--warning)" }}>
+                        <span className="badge" style={{ background: fc.difficulty === "Advanced" ? "var(--error-bg)" : "var(--warning-bg)", color: fc.difficulty === "Advanced" ? "var(--accent)" : "var(--warning)" }}>
                           {fc.difficulty}
                         </span>
                       )}
@@ -781,7 +782,7 @@ function HomeInner() {
                       {demo.techs.map((t) => (
                         <span key={t} className="badge" style={{ background: "var(--teal-light)", color: "var(--teal)" }}>{t}</span>
                       ))}
-                      <span className="badge" style={{ background: demo.difficulty === "Advanced" ? "#FFF0EE" : "#FFF8E1", color: demo.difficulty === "Advanced" ? "var(--accent)" : "var(--warning)" }}>
+                      <span className="badge" style={{ background: demo.difficulty === "Advanced" ? "var(--error-bg)" : "var(--warning-bg)", color: demo.difficulty === "Advanced" ? "var(--accent)" : "var(--warning)" }}>
                         {demo.difficulty}
                       </span>
                     </div>

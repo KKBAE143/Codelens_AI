@@ -119,7 +119,7 @@ type TabKey = "members" | "courses" | "completion" | "paths" | "skills" | "mento
 
 const ROLE_COLORS: Record<string, { bg: string; color: string }> = {
   owner: { bg: "var(--accent-light)", color: "var(--accent)" },
-  admin: { bg: "#F0F4FF", color: "#4A5BC7" },
+  admin: { bg: "var(--info-bg)", color: "var(--info-color)" },
   member: { bg: "var(--bg-secondary)", color: "var(--text-secondary)" },
 };
 
@@ -1049,7 +1049,7 @@ function CompletionTab({ courses, assignments, activeMembers }: {
                     ) : a.status === "completed" ? (
                       <span className="badge" style={{ background: "var(--teal-light)", color: "var(--teal)" }}>Completed</span>
                     ) : a.status === "in_progress" ? (
-                      <span className="badge" style={{ background: "#FFF8E1", color: "var(--warning)" }}>In Progress ({a.percentComplete}%)</span>
+                      <span className="badge" style={{ background: "var(--warning-bg)", color: "var(--warning)" }}>In Progress ({a.percentComplete}%)</span>
                     ) : (
                       <span className="badge" style={{ background: "var(--bg-secondary)", color: "var(--text-secondary)" }}>Not Started</span>
                     )}

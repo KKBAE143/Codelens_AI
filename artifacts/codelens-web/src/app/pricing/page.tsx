@@ -147,7 +147,7 @@ function PricingContent() {
   return (
     <main style={{ maxWidth: 1100, margin: "0 auto", padding: "3rem 1.5rem" }}>
       {cancelled && (
-        <div style={{ padding: "0.75rem 1rem", background: "#FFF8E1", border: "1px solid #FFE082", borderRadius: "var(--radius-md)", marginBottom: "1.5rem", fontSize: "0.9rem", color: "var(--warning)", textAlign: "center" }}>
+        <div style={{ padding: "0.75rem 1rem", background: "var(--warning-bg)", border: "1px solid var(--warning-border)", borderRadius: "var(--radius-md)", marginBottom: "1.5rem", fontSize: "0.9rem", color: "var(--warning)", textAlign: "center" }}>
           Checkout was cancelled. You can try again anytime.
         </div>
       )}
@@ -162,7 +162,7 @@ function PricingContent() {
       </div>
 
       {error && (
-        <div style={{ padding: "0.75rem 1rem", background: "#FFF0EE", border: "1px solid #FFCDD2", borderRadius: "var(--radius-md)", marginBottom: "1.5rem", fontSize: "0.9rem", color: "var(--error)", textAlign: "center" }}>
+        <div style={{ padding: "0.75rem 1rem", background: "var(--error-bg)", border: "1px solid var(--error-border)", borderRadius: "var(--radius-md)", marginBottom: "1.5rem", fontSize: "0.9rem", color: "var(--error)", textAlign: "center" }}>
           {error}
         </div>
       )}

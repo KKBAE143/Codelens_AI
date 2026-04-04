@@ -128,7 +128,8 @@ export default function CreateOrganization() {
               border: "2px solid var(--border-color)",
               borderRadius: "var(--radius-md)",
               fontSize: "0.95rem",
-              background: "white",
+              background: "var(--bg-card)",
+              color: "var(--text-primary)",
               outline: "none",
               fontFamily: "var(--font-body)",
             }}
@@ -160,7 +161,8 @@ export default function CreateOrganization() {
                 borderRadius: "var(--radius-md)",
                 fontSize: "0.95rem",
                 fontFamily: "var(--font-mono)",
-                background: "white",
+                background: "var(--bg-card)",
+                color: "var(--text-primary)",
                 outline: "none",
               }}
             />

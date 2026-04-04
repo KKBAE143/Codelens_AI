@@ -111,7 +111,7 @@ function CourseCard({ course }: { course: ExploreCourse }) {
           <span key={lang} className="explore-lang-badge">{lang}</span>
         ))}
         {course.difficulty && (
-          <span className="badge" style={{ background: course.difficulty === "Advanced" ? "#FFF0EE" : "#FFF8E1", color: course.difficulty === "Advanced" ? "var(--accent)" : "var(--warning)", fontSize: "0.7rem" }}>
+          <span className="badge" style={{ background: course.difficulty === "Advanced" ? "var(--error-bg)" : "var(--warning-bg)", color: course.difficulty === "Advanced" ? "var(--accent)" : "var(--warning)", fontSize: "0.7rem" }}>
             {course.difficulty}
           </span>
         )}

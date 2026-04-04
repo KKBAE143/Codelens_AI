@@ -1667,7 +1667,7 @@ export default function CourseViewer() {
             ref={iframeRef}
             src={iframeSrc!}
             sandbox="allow-scripts allow-same-origin"
-            style={{ flex: 1, border: "none", background: "white" }}
+            style={{ flex: 1, border: "none", background: "var(--bg-card)" }}
             title={`${course.ownerName}/${course.repoName} Course`}
           />
 

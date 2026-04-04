@@ -226,7 +226,7 @@ export default function OrgSettings() {
       <div className="card" style={{
         marginTop: "2rem",
         border: "2px solid var(--error)",
-        background: "#FFF8F7",
+        background: "var(--danger-zone-bg)",
       }}>
         <h3 style={{
           fontFamily: "var(--font-heading)",

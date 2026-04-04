@@ -529,7 +529,7 @@ export default function PublicCourseViewer() {
         <div className="v2-main-scroll" ref={mainScrollRef}>
         {showSignInCta && !isAuthenticated && (
           <div style={{
-            background: "linear-gradient(90deg, var(--accent-light), #FFF3E0)",
+            background: "var(--accent-light)",
             padding: "0.75rem 1rem",
             display: "flex",
             alignItems: "center",

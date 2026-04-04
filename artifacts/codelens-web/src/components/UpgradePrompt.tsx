@@ -21,8 +21,8 @@ export function UpgradePrompt({ remaining, resetAt, context = "rate-limit" }: Up
         alignItems: "center",
         gap: "0.75rem",
         padding: "0.625rem 1rem",
-        background: "#FFF8E1",
-        border: "1px solid #FFE082",
+        background: "var(--warning-bg)",
+        border: "1px solid var(--warning-border)",
         borderRadius: "var(--radius-md)",
         fontSize: "0.85rem",
       }}>
@@ -50,7 +50,7 @@ export function UpgradePrompt({ remaining, resetAt, context = "rate-limit" }: Up
     <div style={{
       textAlign: "center",
       padding: "2rem",
-      background: "white",
+      background: "var(--bg-card)",
       border: "1px solid var(--border-color)",
       borderRadius: "var(--radius-lg)",
       maxWidth: 480,

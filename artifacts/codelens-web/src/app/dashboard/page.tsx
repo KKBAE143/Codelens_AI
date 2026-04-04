@@ -154,7 +154,7 @@ function DashboardLearningPaths() {
                 {path.courses.map((c, i) => (
                   <Link key={c.courseId} href={`/course/${c.courseId}`} style={{ textDecoration: "none" }}>
                     <span className="badge" style={{
-                      background: c.percentComplete >= 100 ? "var(--teal-light)" : c.percentComplete > 0 ? "#FFF8E1" : "var(--bg-secondary)",
+                      background: c.percentComplete >= 100 ? "var(--teal-light)" : c.percentComplete > 0 ? "var(--warning-bg)" : "var(--bg-secondary)",
                       color: c.percentComplete >= 100 ? "var(--teal)" : c.percentComplete > 0 ? "var(--warning)" : "var(--text-secondary)",
                       fontSize: "0.7rem",
                       cursor: "pointer",
@@ -230,9 +230,9 @@ function timeAgo(dateStr: string): string {
 
 const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
   completed: { bg: "var(--teal-light)", color: "var(--teal)" },
-  generating: { bg: "#FFF8E1", color: "var(--warning)" },
+  generating: { bg: "var(--warning-bg)", color: "var(--warning)" },
   pending: { bg: "var(--bg-secondary)", color: "var(--text-secondary)" },
-  failed: { bg: "#FFF0EE", color: "var(--error)" },
+  failed: { bg: "var(--error-bg)", color: "var(--error)" },
 };
 
 async function fetchCourses(): Promise<{ courses: CourseItem[] }> {
@@ -588,7 +588,7 @@ function Dashboard() {
                 key={inv.id}
                 style={{
                   display: "flex", alignItems: "center", justifyContent: "space-between",
-                  padding: "0.75rem 1rem", background: "#F0F4FF", border: "1px solid #D6DEFF",
+                  padding: "0.75rem 1rem", background: "var(--info-bg)", border: "1px solid var(--info-border)",
                   borderRadius: "var(--radius-md)", flexWrap: "wrap", gap: "0.5rem",
                 }}
               >
@@ -771,7 +771,7 @@ function Dashboard() {
           style={{
             textAlign: "center",
             padding: "3rem 2rem",
-            background: "white",
+            background: "var(--bg-card)",
             border: "1px solid var(--border-color)",
             borderRadius: "var(--radius-lg)",
           }}
@@ -788,7 +788,7 @@ function Dashboard() {
           style={{
             textAlign: "center",
             padding: "4rem 2rem",
-            background: "white",
+            background: "var(--bg-card)",
             border: "2px dashed var(--border-color)",
             borderRadius: "var(--radius-lg)",
           }}
@@ -1052,7 +1052,7 @@ function Dashboard() {
                     <span
                       key={f}
                       className="badge"
-                      style={{ background: "#F0F4FF", color: "#4A5BC7" }}
+                      style={{ background: "var(--info-bg)", color: "var(--info-color)" }}
                     >
                       {f}
                     </span>
@@ -1065,8 +1065,8 @@ function Dashboard() {
                           course.difficulty.toLowerCase() === "beginner"
                             ? "var(--teal-light)"
                             : course.difficulty.toLowerCase() === "advanced"
-                              ? "#FFF0EE"
-                              : "#FFF8E1",
+                              ? "var(--error-bg)"
+                              : "var(--warning-bg)",
                         color:
                           course.difficulty.toLowerCase() === "beginner"
                             ? "var(--teal)"

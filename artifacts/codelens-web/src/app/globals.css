@@ -19,6 +19,14 @@
   --success: #2D8B4E;
   --warning: #D4A017;
   --error: #D93025;
+  --warning-bg: #FFF8E1;
+  --warning-border: #FFE082;
+  --error-bg: #FFF0EE;
+  --error-border: #FFCDD2;
+  --info-bg: #F0F4FF;
+  --info-border: #D6DEFF;
+  --info-color: #4A5BC7;
+  --danger-zone-bg: #FFF8F7;
   --shadow-sm: 0 1px 3px rgba(44, 44, 42, 0.06);
   --shadow-md: 0 4px 12px rgba(44, 44, 42, 0.08);
   --shadow-lg: 0 8px 24px rgba(44, 44, 42, 0.12);
@@ -62,6 +70,14 @@
   --success: #34C472;
   --warning: #F0B429;
   --error: #FF4D3B;
+  --warning-bg: rgba(240, 180, 41, 0.12);
+  --warning-border: rgba(240, 180, 41, 0.25);
+  --error-bg: rgba(255, 77, 59, 0.1);
+  --error-border: rgba(255, 77, 59, 0.2);
+  --info-bg: rgba(99, 102, 241, 0.1);
+  --info-border: rgba(99, 102, 241, 0.2);
+  --info-color: #8B8FE8;
+  --danger-zone-bg: rgba(255, 77, 59, 0.08);
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
@@ -88,6 +104,14 @@
     --success: #34C472;
     --warning: #F0B429;
     --error: #FF4D3B;
+    --warning-bg: rgba(240, 180, 41, 0.12);
+    --warning-border: rgba(240, 180, 41, 0.25);
+    --error-bg: rgba(255, 77, 59, 0.1);
+    --error-border: rgba(255, 77, 59, 0.2);
+    --info-bg: rgba(99, 102, 241, 0.1);
+    --info-border: rgba(99, 102, 241, 0.2);
+    --info-color: #8B8FE8;
+    --danger-zone-bg: rgba(255, 77, 59, 0.08);
     --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
     --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
     --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
@@ -1950,7 +1974,7 @@ a.v2-code-filepath:hover {
 
 .v2-quiz-option-wrong {
   border-color: var(--error);
-  background: #FFF0EE;
+  background: var(--error-bg);
 }
 
 .v2-quiz-option-letter {
@@ -2031,7 +2055,7 @@ a.v2-code-filepath:hover {
 }
 
 .v2-quiz-explanation-wrong {
-  background: #FFF0EE;
+  background: var(--error-bg);
   color: var(--error);
 }
 
@@ -2362,10 +2386,10 @@ a.v2-code-filepath:hover {
   align-items: flex-start;
   gap: 0.375rem;
   padding: 0.5rem 0.625rem;
-  background: #FFF8E1;
+  background: var(--warning-bg);
   border-radius: var(--radius-sm);
   font-size: 0.8rem;
-  color: #7A6200;
+  color: var(--warning);
   line-height: 1.4;
   margin-top: 0.5rem;
 }
@@ -2396,7 +2420,7 @@ a.v2-code-filepath:hover {
 }
 
 .v2-env-required {
-  background: #FFF0EE;
+  background: var(--error-bg);
   color: var(--error);
 }
 

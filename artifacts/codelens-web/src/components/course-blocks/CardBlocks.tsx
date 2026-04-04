@@ -127,7 +127,7 @@ export function EnvVarCardBlock({ block }: { block: V2EnvVarCardBlock }) {
     <div className="v2-card-base v2-env-card">
       <div className="v2-card-header-row">
         <KeyIcon />
-        <div className="v2-card-badge" style={{ background: "#FFF8E1", color: "#7A6200" }}>Environment Variable</div>
+        <div className="v2-card-badge" style={{ background: "var(--warning-bg)", color: "var(--warning)" }}>Environment Variable</div>
       </div>
       <div className="v2-env-header">
         <code className="v2-env-name">{block.varName}</code>
