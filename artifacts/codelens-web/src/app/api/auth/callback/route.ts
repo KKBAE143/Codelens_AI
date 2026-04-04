@@ -60,6 +60,11 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  const ghHeaders = {
+    "User-Agent": "CodeLens-Web/1.0",
+    Accept: "application/vnd.github.v3+json",
+  };
+
   try {
     const tokenResponse = await fetch(
       "https://github.com/login/oauth/access_token",
@@ -68,6 +73,7 @@ export async function GET(request: NextRequest) {
         headers: {
           "Content-Type": "application/json",
           Accept: "application/json",
+          "User-Agent": "CodeLens-Web/1.0",
         },
         body: JSON.stringify({
           client_id: process.env.GITHUB_CLIENT_ID,
@@ -78,36 +84,36 @@ export async function GET(request: NextRequest) {
       },
     );
 
-    if (!tokenResponse.ok) {
-      console.error("[Auth Callback] Token exchange failed:", tokenResponse.status);
-      return NextResponse.redirect(new URL("/?error=auth_token_failed", origin));
-    }
-
     const tokenData = await tokenResponse.json();
-    if (tokenData.error || !tokenData.access_token) {
-      console.error("[Auth Callback] Token response error:", tokenData.error);
-      return NextResponse.redirect(new URL("/?error=auth_token_denied", origin));
+    console.log("[Auth Callback] Token exchange status:", tokenResponse.status, "hasToken:", !!tokenData.access_token, "error:", tokenData.error || "none");
+
+    if (!tokenResponse.ok || tokenData.error || !tokenData.access_token) {
+      console.error("[Auth Callback] Token exchange failed:", tokenResponse.status, tokenData.error || "no access_token");
+      return NextResponse.redirect(new URL("/?error=auth_token_failed", origin));
     }
 
     let userResponse = await fetch("https://api.github.com/user", {
       headers: {
-        Authorization: `Bearer ${tokenData.access_token}`,
-        Accept: "application/vnd.github.v3+json",
+        ...ghHeaders,
+        Authorization: `token ${tokenData.access_token}`,
       },
     });
 
     if (userResponse.status === 403 || userResponse.status === 429) {
+      const retryBody = await userResponse.text().catch(() => "");
+      console.warn("[Auth Callback] GitHub /user returned", userResponse.status, "- retrying in 2s. Body:", retryBody);
       await new Promise((r) => setTimeout(r, 2000));
       userResponse = await fetch("https://api.github.com/user", {
         headers: {
-          Authorization: `Bearer ${tokenData.access_token}`,
-          Accept: "application/vnd.github.v3+json",
+          ...ghHeaders,
+          Authorization: `token ${tokenData.access_token}`,
         },
       });
     }
 
     if (!userResponse.ok) {
-      console.error("[Auth Callback] GitHub user fetch failed:", userResponse.status, await userResponse.text().catch(() => ""));
+      const errorBody = await userResponse.text().catch(() => "");
+      console.error("[Auth Callback] GitHub user fetch failed:", userResponse.status, errorBody);
       return NextResponse.redirect(new URL("/?error=auth_user_failed", origin));
     }
 
