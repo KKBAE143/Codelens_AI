@@ -828,6 +828,9 @@ export async function extractRepo(
   const fullSizeFiles = allFiles.filter(f => f.size <= MAX_FILE_SIZE && f.size > 0);
   const signatureSizeFiles = allFiles.filter(f => f.size > MAX_FILE_SIZE && f.size <= SIGNATURE_FILE_SIZE);
 
+  const MAX_FILE_FETCHES = 60;
+  const MAX_SIGNATURE_FETCHES = 10;
+
   const preFetchScored = fullSizeFiles.map(f => {
     const extBonus = getExtensionBonus(f.path);
     const dirBonus = getDirectoryBonus(f.path);
@@ -836,20 +839,25 @@ export async function extractRepo(
     return { ...f, preFetchScore: extBonus * dirBonus * alwaysBonus * codeBonus };
   }).sort((a, b) => b.preFetchScore - a.preFetchScore);
 
+  const filesToFetch = preFetchScored.slice(0, MAX_FILE_FETCHES);
+  console.log(`[Extraction] Fetching top ${filesToFetch.length} of ${preFetchScored.length} files (capped at ${MAX_FILE_FETCHES})`);
+
   const batchSize = 10;
   let fetchedTokenEstimate = 0;
-  const fetchTokenCeiling = TOKEN_BUDGET * 3;
+  const fetchTokenCeiling = TOKEN_BUDGET * 1.5;
+  let totalApiCalls = 0;
 
   const fetchedFiles: GitHubFile[] = [];
-  for (let i = 0; i < preFetchScored.length; i += batchSize) {
+  for (let i = 0; i < filesToFetch.length; i += batchSize) {
     if (fetchedTokenEstimate > fetchTokenCeiling) break;
-    const batch = preFetchScored.slice(i, i + batchSize);
+    const batch = filesToFetch.slice(i, i + batchSize);
     const results = await Promise.allSettled(
       batch.map(async (file) => {
         const contentRes = await githubFetch(
           `https://api.github.com/repos/${owner}/${repo}/contents/${file.path}?ref=${defaultBranch}`,
           userToken,
         );
+        totalApiCalls++;
         const contentData = await contentRes.json();
         if (contentData.content && contentData.encoding === "base64") {
           const content = Buffer.from(contentData.content, "base64").toString("utf-8");
@@ -868,8 +876,9 @@ export async function extractRepo(
 
   const signatureFiles: GitHubFile[] = [];
   const sigBatchSize = 5;
-  for (let i = 0; i < signatureSizeFiles.length; i += sigBatchSize) {
-    const batch = signatureSizeFiles.slice(i, i + sigBatchSize);
+  const sigFilesToFetch = signatureSizeFiles.slice(0, MAX_SIGNATURE_FETCHES);
+  for (let i = 0; i < sigFilesToFetch.length; i += sigBatchSize) {
+    const batch = sigFilesToFetch.slice(i, i + sigBatchSize);
     const results = await Promise.allSettled(
       batch.map(async (file) => {
         try {
@@ -877,6 +886,7 @@ export async function extractRepo(
             `https://api.github.com/repos/${owner}/${repo}/git/blobs/${file.sha}`,
             userToken,
           );
+          totalApiCalls++;
           const blobData = await blobRes.json();
           if (blobData.content && blobData.encoding === "base64") {
             const rawContent = Buffer.from(blobData.content, "base64").toString("utf-8");
@@ -895,6 +905,8 @@ export async function extractRepo(
       }
     }
   }
+
+  console.log(`[Extraction] Total API calls: ~${totalApiCalls + 2}, fetched ${fetchedFiles.length} files + ${signatureFiles.length} signatures`);
 
   const pageRank = computePageRank(fetchedFiles);
 
@@ -950,43 +962,6 @@ export async function extractRepo(
     includedPaths.add(f.path);
     const sizeKB = Math.round(f.size / 1024);
     sigEntries.push(`${f.path} (${sizeKB}KB, first 200 lines + signatures):\n${f.content}`);
-  }
-  const unfetchedNonBinary = allFiles.filter(
-    f => f.size <= MAX_FILE_SIZE && f.size > 0 && !fetchedPaths.has(f.path) && !isBinaryExtension(f.path) && !includedPaths.has(f.path)
-  );
-  if (unfetchedNonBinary.length > 0) {
-    const sigFetchBatch = 10;
-    for (let i = 0; i < unfetchedNonBinary.length; i += sigFetchBatch) {
-      const batch = unfetchedNonBinary.slice(i, i + sigFetchBatch);
-      const results = await Promise.allSettled(
-        batch.map(async (file) => {
-          const contentRes = await githubFetch(
-            `https://api.github.com/repos/${owner}/${repo}/contents/${file.path}?ref=${defaultBranch}`,
-            userToken,
-          );
-          const contentData = await contentRes.json();
-          if (contentData.content && contentData.encoding === "base64") {
-            const content = Buffer.from(contentData.content, "base64").toString("utf-8");
-            return { path: file.path, content, size: file.size };
-          }
-          return null;
-        }),
-      );
-      for (const r of results) {
-        if (r.status === "fulfilled" && r.value) {
-          const f = r.value;
-          if (includedPaths.has(f.path)) continue;
-          includedPaths.add(f.path);
-          const sigs = extractFileSignatures(f.content, f.path);
-          const sigLines = sigs.split("\n").filter(l => l.startsWith("export ") || l.startsWith("function ") || l.startsWith("class ") || l.startsWith("def ") || l.startsWith("func ") || l.startsWith("pub ") || l.startsWith("type ") || l.startsWith("interface ") || l.match(/^(public|private|protected)/));
-          if (sigLines.length > 0) {
-            sigEntries.push(`${f.path}:\n  ${sigLines.slice(0, 20).join("\n  ")}`);
-          } else {
-            sigEntries.push(`${f.path}:\n  [${inferFileDescription(f.path)}]`);
-          }
-        }
-      }
-    }
   }
   for (const f of allFiles) {
     if (includedPaths.has(f.path) || isBinaryExtension(f.path)) continue;
