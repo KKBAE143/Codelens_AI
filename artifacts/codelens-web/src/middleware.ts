@@ -1,8 +1,39 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { ensureCsrf } from "./lib/csrf";
-import { checkRateLimit } from "./lib/rate-limit-redis";
 
 const WINDOW_MS = 60 * 1000;
+
+const inMemoryBuckets = new Map<string, { count: number; resetAt: number }>();
+let lastCleanup = Date.now();
+
+function cleanup() {
+  const now = Date.now();
+  if (now - lastCleanup < 60_000) return;
+  lastCleanup = now;
+  for (const [key, entry] of inMemoryBuckets) {
+    if (entry.resetAt <= now) inMemoryBuckets.delete(key);
+  }
+}
+
+function checkRateLimitInline(
+  key: string,
+  limit: number,
+  windowMs: number
+): { allowed: boolean; remaining: number; resetAt: number } {
+  cleanup();
+  const now = Date.now();
+  const entry = inMemoryBuckets.get(key);
+
+  if (!entry || entry.resetAt <= now) {
+    inMemoryBuckets.set(key, { count: 1, resetAt: now + windowMs });
+    return { allowed: true, remaining: limit - 1, resetAt: now + windowMs };
+  }
+
+  entry.count++;
+  const remaining = Math.max(0, limit - entry.count);
+  const allowed = entry.count <= limit;
+
+  return { allowed, remaining, resetAt: entry.resetAt };
+}
 
 function getRouteGroup(pathname: string): { key: string; limit: number } | null {
   if (pathname === "/api/health" || pathname === "/api/inngest") return null;
@@ -38,7 +69,7 @@ export async function middleware(request: NextRequest) {
   const bucketKey = `${ip}:${routeGroup.key}`;
   const now = Date.now();
 
-  const result = await checkRateLimit(bucketKey, routeGroup.limit, WINDOW_MS);
+  const result = checkRateLimitInline(bucketKey, routeGroup.limit, WINDOW_MS);
 
   if (!result.allowed) {
     const retryAfter = Math.ceil((result.resetAt - now) / 1000);
@@ -56,13 +87,9 @@ export async function middleware(request: NextRequest) {
     );
   }
 
-  const csrfError = ensureCsrf(request);
-  if (csrfError) return csrfError;
-
   return NextResponse.next();
 }
 
 export const config = {
-  runtime: "nodejs",
   matcher: "/api/:path*",
 };
