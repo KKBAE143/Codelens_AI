@@ -99,21 +99,18 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    if (userResponse.status === 403 || userResponse.status === 429) {
-      const retryBody = await userResponse.text().catch(() => "");
-      console.warn("[Auth Callback] GitHub /user returned", userResponse.status, "- retrying in 2s. Body:", retryBody);
-      await new Promise((r) => setTimeout(r, 2000));
-      userResponse = await fetch("https://api.github.com/user", {
-        headers: {
-          ...ghHeaders,
-          Authorization: `token ${tokenData.access_token}`,
-        },
-      });
-    }
-
     if (!userResponse.ok) {
       const errorBody = await userResponse.text().catch(() => "");
       console.error("[Auth Callback] GitHub user fetch failed:", userResponse.status, errorBody);
+
+      const resetHeader = userResponse.headers.get("x-ratelimit-reset");
+      if (userResponse.status === 403 && errorBody.includes("rate limit")) {
+        const resetTime = resetHeader ? Math.max(0, Math.ceil((Number(resetHeader) * 1000 - Date.now()) / 60000)) : null;
+        const waitMsg = resetTime ? `${resetTime} minute(s)` : "a few minutes";
+        const errUrl = new URL("/?error=github_rate_limit&wait=" + encodeURIComponent(waitMsg), origin);
+        return NextResponse.redirect(errUrl);
+      }
+
       return NextResponse.redirect(new URL("/?error=auth_user_failed", origin));
     }
 

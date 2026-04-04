@@ -91,6 +91,7 @@ function HomeInner() {
   const { isAuthenticated, login } = useAuth();
   const searchParams = useSearchParams();
   const [url, setUrl] = useState(searchParams.get("repo") || "");
+  const [authError, setAuthError] = useState<string | null>(null);
   const [selectedOrg, setSelectedOrg] = useState<string>("");
   const [userOrgs, setUserOrgs] = useState<
     Array<{ slug: string; name: string }>
@@ -109,7 +110,25 @@ function HomeInner() {
     useState<ExistingCourseInfo | null>(null);
 
   useEffect(() => {
+    const err = searchParams.get("error");
+    if (err === "github_rate_limit") {
+      const wait = searchParams.get("wait") || "a few minutes";
+      setAuthError(`GitHub API rate limit reached. Please wait ${wait} and try signing in again.`);
+    } else if (err === "auth_user_failed" || err === "auth_failed") {
+      setAuthError("Sign-in failed. Please try again in a few minutes.");
+    } else if (err === "auth_state_mismatch") {
+      setAuthError("Sign-in session expired. Please try again.");
+    } else if (err === "auth_token_failed" || err === "auth_token_denied") {
+      setAuthError("GitHub authorization was not completed. Please try again.");
+    }
+    if (err) {
+      window.history.replaceState({}, "", "/");
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
     if (isAuthenticated) {
+      setAuthError(null);
       fetch("/api/org/my", { credentials: "include" })
         .then((r) => (r.ok ? r.json() : { organizations: [] }))
         .then((data) => setUserOrgs(data.organizations || []))
@@ -621,6 +640,22 @@ function HomeInner() {
                     `~${existingCourse.estimatedMinutes} min`}
                 </span>
               </div>
+            </div>
+          )}
+
+          {authError && (
+            <div style={{
+              maxWidth: 540,
+              margin: "0 auto 1rem",
+              padding: "12px 16px",
+              background: "rgba(239, 68, 68, 0.1)",
+              border: "1px solid rgba(239, 68, 68, 0.3)",
+              borderRadius: 8,
+              color: "#fca5a5",
+              fontSize: 14,
+              textAlign: "center",
+            }}>
+              {authError}
             </div>
           )}
 
