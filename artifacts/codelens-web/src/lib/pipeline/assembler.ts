@@ -322,6 +322,11 @@ export async function assembleV2Course(
             }
           }
           if (b.type === "callout" && typeof b.content === "string") {
+            const calloutTitle = typeof b.title === "string" ? (b.title as string) : "";
+            if (calloutTitle && !bullets.some((bul) => bul.toLowerCase().includes(calloutTitle.toLowerCase()))) {
+              bullets.push(`Key insight: **${calloutTitle}**`);
+              if (bullets.length >= 5) break;
+            }
             const boldMatch = (b.content as string).match(/\*\*([^*]{3,40})\*\*/);
             if (boldMatch && !bullets.some((bul) => bul.toLowerCase().includes(boldMatch[1].toLowerCase()))) {
               bullets.push(`Key insight: **${boldMatch[1]}**`);
@@ -348,6 +353,23 @@ export async function assembleV2Course(
             }
           }
           if (bullets.length >= 5) break;
+        }
+      }
+
+      const cleanTitle = ch.title.replace(/module \d+:\s*/i, "").trim();
+      if (bullets.length < 3 && cleanTitle) {
+        const titleFallbacks = [
+          `Core patterns and structures in **${cleanTitle}**`,
+          `How **${cleanTitle}** connects to other parts of the codebase`,
+          `Practical usage of **${cleanTitle}** in real scenarios`,
+        ];
+        for (const fb of titleFallbacks) {
+          if (bullets.length >= 3) break;
+          if (!bullets.some((bul) => bul.toLowerCase().includes(cleanTitle.toLowerCase()))) {
+            bullets.push(fb);
+          } else {
+            bullets.push(fb);
+          }
         }
       }
 
